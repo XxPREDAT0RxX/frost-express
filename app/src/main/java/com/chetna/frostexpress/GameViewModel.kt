@@ -148,6 +148,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    var liveryIndex by mutableIntStateOf(prefs.getInt("livery", 0)); private set
+    fun liveryUnlocked(i: Int): Boolean = i <= evolutions
+    fun chooseLivery(i: Int) {
+        if (!liveryUnlocked(i)) return
+        liveryIndex = i
+        prefs.edit().putInt("livery", i).apply()
+    }
+
     private fun today(): Long = java.time.LocalDate.now().toEpochDay()
     val dailyNextStreak: Int get() = if (lastDailyDay >= 0 && lastDailyDay == today() - 1) dailyStreak + 1 else 1
     fun dailyCoins(streak: Int): Double =
@@ -213,6 +221,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Wipes all progress (settings stay). */
     fun resetAll() {
+        liveryIndex = 0
         prefs.edit().clear().putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
         coins = 0.0; runDistance = 0.0; cores = 0; evolutions = 0; coresSpent = 0
         for (i in levels.indices) levels[i] = 0

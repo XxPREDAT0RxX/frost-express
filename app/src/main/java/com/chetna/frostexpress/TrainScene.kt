@@ -245,7 +245,9 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
         }
     }
 
-    val tier = TIERS[vm.tierIndex]
+    val base = TIERS[vm.tierIndex]
+    val lv = LIVERIES[vm.liveryIndex.coerceIn(0, LIVERIES.lastIndex)]
+    val tier = if (vm.liveryIndex > 0 && vm.liveryUnlocked(vm.liveryIndex)) TrainTier(base.name, lv.body, lv.accent) else base
     Canvas(modifier) {
         val look = Look(
             heat = vm.level(UpgradeType.HEAT),

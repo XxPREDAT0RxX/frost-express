@@ -491,6 +491,24 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                     Text("Sound on", modifier = Modifier.weight(1f))
                     Switch(vm.soundOn, { vm.toggleSound() })
                 }
+                Text("Train paint (unlocks with evolves)", fontSize = 12.sp, color = Muted)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LIVERIES.forEachIndexed { i, l ->
+                        val open = vm.liveryUnlocked(i)
+                        val c = if (i == 0) Ice else Color(l.body)
+                        Box(
+                            Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(if (open) c else Track)
+                                .border(if (vm.liveryIndex == i) 3.dp else 0.dp, Ink, CircleShape)
+                                .clickable(enabled = open) { vm.chooseLivery(i) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (!open) Text("🔒", fontSize = 11.sp)
+                        }
+                    }
+                }
                 TextButton(onClick = {
                     context.startActivity(
                         android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))

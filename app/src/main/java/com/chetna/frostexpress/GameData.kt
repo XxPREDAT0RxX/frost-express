@@ -80,6 +80,17 @@ val ACHIEVEMENTS = listOf(
     Achievement("evo3", "Frost Veteran", "Evolve 3 times", cores = 2),
 )
 
+/** Train liveries (paint jobs). Livery i unlocks after i evolutions. Index 0 uses the tier's own colors. */
+data class Livery(val name: String, val body: Long, val accent: Long)
+
+val LIVERIES = listOf(
+    Livery("Classic", 0, 0),
+    Livery("Sunset", 0xFFE8590C, 0xFFFFD43B),
+    Livery("Midnight", 0xFF1C2541, 0xFF5BC0BE),
+    Livery("Aurora", 0xFF1B998B, 0xFFC3F0CA),
+    Livery("Rose", 0xFFD6336C, 0xFFFFE3EC),
+)
+
 /** Random events that happen while the train runs. */
 enum class GameEvent { NONE, BLIZZARD, AURORA, CRATE }
 
@@ -126,6 +137,8 @@ object Balance {
     const val BOOST_MAX_SEC = 10.0
     const val BOOST_RECHARGE_PER_SEC = 0.04 // empty to full in about 25 sec
     const val COAL_BONUS = 0.08
+
+    const val IAP_ENABLED = false
 
     // Rewarded ad boost (hidden while ADS_ENABLED is false)
     const val ADS_ENABLED = false

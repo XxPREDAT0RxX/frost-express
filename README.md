@@ -13,10 +13,15 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Two kinds of upgrades**: *Run upgrades* (coins) reset when you evolve. *Permanent upgrades* (Frost Cores) stay forever: Eternal Furnace, Permafrost Rails, Head Start, Deep Freeze Core, Hibernation.
 - **Daily reward** with a login streak (every 7th day gives a Frost Core), a short **tutorial** on first launch, 13 **achievements**, and a **settings** dialog (volumes, reset progress, privacy policy).
 - **World**: day and night with headlights, random events (blizzard, aurora, tap-able supply crate), stations that pass every 400 m and pay a bonus, and a **Second Worker** permanent upgrade that adds another worker to the train.
+- **Train paint**: unlock new liveries with each evolve and pick one in Settings.
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 
 ## Ads (planned for after launch)
 Rewarded ad boosts (watch an ad for x2 income for 2 minutes) are prepared but OFF. See `Ads.kt` and `Balance.ADS_ENABLED`. Add AdMob, implement `AdProvider`, then switch the flag on.
+
+## Planned for later (needs accounts or servers)
+- **In-app purchases** (remove ads, starter pack): hook in `Billing.kt`, flag `Balance.IAP_ENABLED`. Needs Google Play Billing and products created in Play Console.
+- **Leaderboards, weekly events, cloud save**: need a backend (for example Google Play Games Services). Not included yet. Android Auto Backup already restores local progress when a user reinstalls or changes phone.
 
 ## Run it
 1. Open the project folder in the latest Android Studio. Gradle syncs automatically.
