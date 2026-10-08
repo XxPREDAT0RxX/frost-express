@@ -49,6 +49,7 @@ object Balance {
     const val FOOD_BONUS = 0.06
     const val TIER_SPEED_BONUS = 0.2      // +20% speed per tier
     const val TIER_INCOME = 3.0           // coins x3 per tier
+    val MILESTONES = listOf(25, 50, 100, 200, 300) // each doubles that upgrade's effect
     const val CORE_BONUS = 0.25           // each core = +25% coins (permanent)
 
     const val EVOLVE_BASE_DISTANCE = 3000.0 // metres, x4 after each evolve

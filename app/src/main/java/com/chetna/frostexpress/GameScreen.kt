@@ -285,14 +285,20 @@ private fun UpgradesPage(vm: GameViewModel, onBack: () -> Unit) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                item { BuyAmountRow(vm) }
                 items(UPGRADES) { spec ->
                     val lvl = vm.level(spec.type)
                     val maxed = lvl >= spec.maxLevel
-                    val cost = vm.upgradeCost(spec)
+                    val n = vm.buyCount(spec)
+                    val cost = vm.bulkCost(spec, n)
+                    val next = vm.nextMilestone(spec.type)
+                    val mult = vm.milestoneMult(spec.type)
                     UpgradeRow(
                         title = spec.title,
-                        subtitle = "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""} · ${spec.effect}",
-                        buttonText = if (maxed) "MAX" else fmt(cost),
+                        subtitle = "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""} · ${spec.effect}" +
+                            (if (mult > 1.0) "\nMilestone bonus x${fmt(mult)}" else "") +
+                            (if (next != null) "\nNext x2 bonus at Lv $next" else ""),
+                        buttonText = if (maxed) "MAX" else "+$n\n${fmt(cost)}",
                         enabled = !maxed && vm.coins >= cost,
                         onBuy = { vm.buy(spec) },
                     )
@@ -316,6 +322,25 @@ private fun UpgradesPage(vm: GameViewModel, onBack: () -> Unit) {
                 TextButton(onClick = { confirmEvolve = false }) { Text("Cancel") }
             },
         )
+    }
+}
+
+@Composable
+private fun BuyAmountRow(vm: GameViewModel) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(1 to "x1", 10 to "x10", 100 to "x100", 0 to "MAX").forEach { (amount, label) ->
+            val on = vm.buyAmount == amount
+            Box(
+                Modifier
+                    .weight(1f)
+                    .background(if (on) Ice else Panel, RoundedCornerShape(10.dp))
+                    .clickable { vm.buyAmount = amount }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, fontWeight = FontWeight.Bold, color = if (on) Ink else Color.White)
+            }
+        }
     }
 }
 

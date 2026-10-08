@@ -33,6 +33,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var offlineMeters by mutableDoubleStateOf(0.0); private set
     val levels = mutableStateListOf<Int>()
 
+    /** Buy amount selector: 1, 10, 100, or 0 = MAX. */
+    var buyAmount by mutableIntStateOf(1)
+
+    /** Milestones: each one doubles that upgrade's effect (only for speed/income upgrades). */
+    private val milestoneTypes = setOf(UpgradeType.ENGINE, UpgradeType.WAGON, UpgradeType.HEAT, UpgradeType.FOOD)
+    fun milestoneMult(t: UpgradeType): Double {
+        if (t !in milestoneTypes) return 1.0
+        return 2.0.pow(Balance.MILESTONES.count { level(t) >= it })
+    }
+    fun nextMilestone(t: UpgradeType): Int? =
+        if (t in milestoneTypes) Balance.MILESTONES.firstOrNull { level(t) < it } else null
+
     // ---- derived values ----
     fun level(t: UpgradeType): Int = levels[t.ordinal]
 
@@ -40,13 +52,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val speed: Double
         get() = (Balance.BASE_SPEED + Balance.SPEED_PER_ENGINE * level(UpgradeType.ENGINE)) *
+            milestoneMult(UpgradeType.ENGINE) *
             (1.0 + Balance.PLOW_BONUS * level(UpgradeType.PLOW)) *
             (1.0 + Balance.TIER_SPEED_BONUS * tierIndex)
 
     val coinsPerMeter: Double
-        get() = (1.0 + Balance.WAGON_BONUS * level(UpgradeType.WAGON)) *
-            (1.0 + Balance.HEAT_BONUS * level(UpgradeType.HEAT)) *
-            (1.0 + Balance.FOOD_BONUS * level(UpgradeType.FOOD)) *
+        get() = (1.0 + Balance.WAGON_BONUS * level(UpgradeType.WAGON)) * milestoneMult(UpgradeType.WAGON) *
+            (1.0 + Balance.HEAT_BONUS * level(UpgradeType.HEAT)) * milestoneMult(UpgradeType.HEAT) *
+            (1.0 + Balance.FOOD_BONUS * level(UpgradeType.FOOD)) * milestoneMult(UpgradeType.FOOD) *
             Balance.TIER_INCOME.pow(tierIndex) *
             (1.0 + Balance.CORE_BONUS * cores)
 
@@ -68,6 +81,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun upgradeCost(spec: UpgradeSpec): Double =
         floor(spec.baseCost * spec.growth.pow(level(spec.type)))
 
+    /** Cost of buying n levels at once (geometric sum). */
+    fun bulkCost(spec: UpgradeSpec, n: Int): Double =
+        floor(spec.baseCost * spec.growth.pow(level(spec.type)) * (spec.growth.pow(n) - 1.0) / (spec.growth - 1.0))
+
+    /** How many levels a buy press would purchase right now (at least 1 so the price is always shown). */
+    fun buyCount(spec: UpgradeSpec): Int {
+        val room = spec.maxLevel - level(spec.type)
+        if (room <= 0) return 0
+        val want = if (buyAmount == 0) Int.MAX_VALUE else buyAmount
+        var n = min(want, room)
+        if (buyAmount == 0) {
+            n = 0
+            while (n < room && n < 1000 && bulkCost(spec, n + 1) <= coins) n++
+            return max(1, n)
+        }
+        return n
+    }
+
     init {
         load()
         startLoop()
@@ -77,10 +108,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun buy(spec: UpgradeSpec) {
         val lvl = level(spec.type)
         if (lvl >= spec.maxLevel) return
-        val cost = upgradeCost(spec)
-        if (coins >= cost) {
+        val n = buyCount(spec)
+        val cost = bulkCost(spec, n)
+        if (n > 0 && coins >= cost) {
             coins -= cost
-            levels[spec.type.ordinal] = lvl + 1
+            levels[spec.type.ordinal] = lvl + n
         }
     }
 
