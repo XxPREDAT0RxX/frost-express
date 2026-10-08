@@ -44,8 +44,14 @@ class MainActivity : ComponentActivity() {
         controller.hide(WindowInsetsCompat.Type.systemBars())
     }
 
+    override fun onStart() {
+        super.onStart()
+        vm.audio.startMusic()
+    }
+
     override fun onStop() {
         super.onStop()
+        vm.audio.pauseMusic()
         vm.save()
     }
 }

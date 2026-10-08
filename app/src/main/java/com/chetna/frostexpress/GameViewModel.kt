@@ -35,6 +35,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var offlineMeters by mutableDoubleStateOf(0.0); private set
     val levels = mutableStateListOf<Int>()
 
+    val audio = GameAudio(app)
+    var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
+
+    fun toggleSound() {
+        soundOn = !soundOn
+        audio.enabled = soundOn
+        prefs.edit().putBoolean("sound", soundOn).apply()
+        if (soundOn) { audio.startMusic(); audio.play(R.raw.sfx_click) } else audio.pauseMusic()
+    }
+
+    override fun onCleared() {
+        audio.release()
+        super.onCleared()
+    }
+
     /** Buy amount selector: 1, 10, 100, or 0 = MAX. */
     var buyAmount by mutableIntStateOf(1)
 
@@ -103,6 +118,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        audio.enabled = soundOn
         load()
         startLoop()
     }
@@ -116,12 +132,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (n > 0 && coins >= cost) {
             coins -= cost
             levels[spec.type.ordinal] = lvl + n
+            audio.play(R.raw.sfx_buy)
         }
     }
 
     /** Each Boost tap costs 10% of the meter and grants 3 seconds of income multiplier. */
     fun boost() {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
+        audio.play(R.raw.sfx_boost, 0.7f)
         boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         boostTimeLeft = min(Balance.BOOST_MAX_SEC, boostTimeLeft + Balance.BOOST_SEC_PER_TAP)
         if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
@@ -129,6 +147,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun evolve() {
         if (!canEvolve) return
+        audio.play(R.raw.sfx_evolve)
         cores += coreGain
         evolutions++
         coins = 0.0

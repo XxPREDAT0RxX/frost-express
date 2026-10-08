@@ -275,6 +275,8 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
             CoinIcon(Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
             Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.weight(1f))
+            SpeakerButton(vm.soundOn, vm::toggleSound)
+            Spacer(Modifier.width(8.dp))
             StatChip("${fmt(vm.speed, 1)} m/s", Ice)
             Spacer(Modifier.width(6.dp))
             StatChip("${fmt(vm.coinsPerSec, 1)}/s", Mint)
@@ -298,6 +300,35 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
             }
             Spacer(Modifier.width(8.dp))
             Text(fmtDistance(vm.runDistance), fontSize = 10.sp, color = Muted)
+        }
+    }
+}
+
+@Composable
+private fun SpeakerButton(on: Boolean, onClick: () -> Unit) {
+    val c = if (on) Ice else Muted
+    Box(
+        Modifier
+            .size(26.dp)
+            .clip(CircleShape)
+            .background(PanelHi)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(15.dp)) {
+            val s = size.minDimension
+            val p = Path().apply {
+                moveTo(.05f * s, .38f * s); lineTo(.28f * s, .38f * s); lineTo(.55f * s, .15f * s)
+                lineTo(.55f * s, .85f * s); lineTo(.28f * s, .62f * s); lineTo(.05f * s, .62f * s); close()
+            }
+            drawPath(p, c)
+            if (on) {
+                drawArc(c, -40f, 80f, false, Offset(.35f * s, .25f * s), Size(.5f * s, .5f * s), style = Stroke(width = .09f * s, cap = StrokeCap.Round))
+                drawArc(c, -50f, 100f, false, Offset(.25f * s, .1f * s), Size(.7f * s, .8f * s), style = Stroke(width = .09f * s, cap = StrokeCap.Round))
+            } else {
+                drawLine(c, Offset(.68f * s, .35f * s), Offset(.95f * s, .65f * s), strokeWidth = .1f * s, cap = StrokeCap.Round)
+                drawLine(c, Offset(.95f * s, .35f * s), Offset(.68f * s, .65f * s), strokeWidth = .1f * s, cap = StrokeCap.Round)
+            }
         }
     }
 }
@@ -344,7 +375,7 @@ private fun BottomBar(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(if (sheetOpen) Ice else PanelHi)
-                .clickable(onClick = onToggleUpgrades),
+                .clickable(onClick = { vm.audio.play(R.raw.sfx_click); onToggleUpgrades() }),
             contentAlignment = Alignment.Center,
         ) {
             GearIcon(if (sheetOpen) Ink else Ice, Modifier.size(22.dp))
@@ -514,7 +545,7 @@ private fun BuyAmountRow(vm: GameViewModel, modifier: Modifier = Modifier) {
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) Ice else Panel)
-                    .clickable { vm.buyAmount = amount }
+                    .clickable { vm.audio.play(R.raw.sfx_click); vm.buyAmount = amount }
                     .padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
