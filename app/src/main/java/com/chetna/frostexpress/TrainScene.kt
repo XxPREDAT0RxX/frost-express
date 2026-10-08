@@ -1,8 +1,6 @@
 package com.chetna.frostexpress
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,9 +18,9 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -35,7 +33,6 @@ import kotlin.math.sqrt
 // Top-down cutaway of the train. All sizes below are in dp, measured in "train space":
 // x runs across the car (0..CAR_W), y runs from the nose (0) back along the cars.
 // ---------------------------------------------------------------------------------------------
-private const val SCENE_H = 280f
 private const val CAR_W = 190f
 private const val CAR_H = 116f
 private const val GAP = 10f
@@ -100,6 +97,7 @@ private class Npc {
     var phase = 0f
     var actT = 0f
     var camY = 0f
+    var viewH = 600f // visible height in train-space dp, set from the canvas every frame
     var trainLen = NOSE + 2 * PITCH
     var working = false
     var cycle: List<Step> = emptyList()
@@ -183,7 +181,7 @@ private class Npc {
                 plan()
             }
         }
-        val target = (y - SCENE_H / 2f).coerceIn(0f, max(0f, trainLen - SCENE_H))
+        val target = (y - viewH / 2f).coerceIn(0f, max(0f, trainLen - viewH))
         camY += (target - camY) * min(1f, dt * 3f)
     }
 }
@@ -217,7 +215,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
     }
 
     val tier = TIERS[vm.tierIndex]
-    Canvas(modifier.fillMaxWidth().height(SCENE_H.dp)) {
+    Canvas(modifier) {
         val look = Look(
             heat = vm.level(UpgradeType.HEAT),
             food = vm.level(UpgradeType.FOOD),
@@ -268,24 +266,30 @@ private fun DrawScope.drawScene(npc: Npc, time: Float, scroll: Float, tier: Trai
     val u = density
     val w = size.width
     val h = size.height
+    val z = (w / u * 0.60f / CAR_W).coerceIn(1f, 1.7f)
+    npc.viewH = h / u / z
+    val trainPx = CAR_W * u * z
+    val originX = (w - trainPx) / 2f
+    val centerOff = max(0f, (npc.viewH - npc.trainLen) / 2f)
     drawRect(Color(0xFFE6EFF6), size = size)
-    val originX = (w - CAR_W * u) / 2f
-    drawDecor(scroll, originX, h, u)
-    translate(left = originX, top = -npc.camY * u) {
-        drawTrack(scroll, npc.trainLen)
-        drawTrain(tier, look, npc, time, boosting)
-        drawNpc(npc)
+    drawDecor(scroll, originX, trainPx, h, u)
+    translate(left = originX, top = (centerOff - npc.camY) * u * z) {
+        scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
+            drawTrack(scroll, npc.trainLen)
+            drawTrain(tier, look, npc, time, boosting)
+            drawNpc(npc)
+        }
     }
     drawSnowfall(time, w, h, u)
-    if (boosting) drawSpeedLines(time, originX, w, h, u)
+    if (boosting) drawSpeedLines(time, originX, trainPx, w, h, u)
 }
 
-private fun DrawScope.drawDecor(scroll: Float, originX: Float, h: Float, u: Float) {
+private fun DrawScope.drawDecor(scroll: Float, originX: Float, trainPx: Float, h: Float, u: Float) {
     if (originX < 24f * u) return
     for (d in DECOR) {
         val r = d.r * u
         val span = max(0f, originX - 2f * r)
-        val x = if (d.side == 0) r + d.fx * span else originX + CAR_W * u + r + d.fx * span
+        val x = if (d.side == 0) r + d.fx * span else originX + trainPx + r + d.fx * span
         val base = (d.y + scroll) % DECOR_PERIOD
         var k = -1
         while (true) {
@@ -310,15 +314,15 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float) {
 
 private fun DrawScope.drawTrack(scroll: Float, len: Float) {
     val cx = CAR_W / 2f
-    box(Color(0xFF9AA7B3), cx - 26f, -40f, 52f, len + 80f)
+    box(Color(0xFF9AA7B3), cx - 26f, -900f, 52f, len + 1800f)
     val off = scroll % 14f
-    var y = -42f + off
-    while (y < len + 40f) {
+    var y = -902f + off
+    while (y < len + 900f) {
         box(Color(0xFF6B5B4B), cx - 24f, y, 48f, 4f)
         y += 14f
     }
-    box(Color(0xFF3D4A57), cx - 15f, -40f, 3f, len + 80f)
-    box(Color(0xFF3D4A57), cx + 12f, -40f, 3f, len + 80f)
+    box(Color(0xFF3D4A57), cx - 15f, -900f, 3f, len + 1800f)
+    box(Color(0xFF3D4A57), cx + 12f, -900f, 3f, len + 1800f)
 }
 
 private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Float, boosting: Boolean) {
@@ -530,12 +534,12 @@ private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float) {
     }
 }
 
-private fun DrawScope.drawSpeedLines(time: Float, originX: Float, w: Float, h: Float, u: Float) {
+private fun DrawScope.drawSpeedLines(time: Float, originX: Float, trainPx: Float, w: Float, h: Float, u: Float) {
     for (i in 0 until 8) {
         val x = if (i % 2 == 0) {
             originX * (0.2f + 0.12f * i)
         } else {
-            originX + CAR_W * u + (w - originX - CAR_W * u) * (0.2f + 0.1f * i)
+            originX + trainPx + (w - originX - trainPx) * (0.2f + 0.1f * i)
         }
         val y = ((time * 900f * u + i * 97f * u) % (h + 60f * u)) - 30f * u
         drawLine(Color.White.copy(alpha = 0.7f), Offset(x, y), Offset(x, y + 34f * u), 2.5f * u)
