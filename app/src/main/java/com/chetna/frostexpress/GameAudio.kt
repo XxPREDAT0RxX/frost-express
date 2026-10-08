@@ -22,6 +22,12 @@ class GameAudio(private val ctx: Context) {
     private var music: MediaPlayer? = null
 
     var enabled = true
+    var sfxVolume = 1f
+    var musicVolume = 0.35f
+        set(v) {
+            field = v
+            music?.setVolume(v, v)
+        }
 
     init {
         listOf(
@@ -32,7 +38,7 @@ class GameAudio(private val ctx: Context) {
 
     fun play(res: Int, volume: Float = 1f) {
         if (!enabled) return
-        ids[res]?.let { pool.play(it, volume, volume, 1, 0, 1f) }
+        ids[res]?.let { pool.play(it, volume * sfxVolume, volume * sfxVolume, 1, 0, 1f) }
     }
 
     fun startMusic() {
@@ -40,7 +46,7 @@ class GameAudio(private val ctx: Context) {
         if (music == null) {
             music = MediaPlayer.create(ctx, R.raw.music_cozy)?.apply {
                 isLooping = true
-                setVolume(MUSIC_VOLUME, MUSIC_VOLUME)
+                setVolume(musicVolume, musicVolume)
             }
         }
         music?.start()
@@ -54,9 +60,5 @@ class GameAudio(private val ctx: Context) {
         music?.release()
         music = null
         pool.release()
-    }
-
-    private companion object {
-        const val MUSIC_VOLUME = 0.35f
     }
 }

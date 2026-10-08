@@ -11,6 +11,7 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Idle-game basics**: buy x1 / x10 / x100 / MAX selector, and milestone bonuses (x2 effect at levels 25, 50, 100, 200, 300 for Engine, Wagon, Heat and Food).
 - **Sound**: cozy synthesized background music and sound effects (buy, boost, evolve, taps). The speaker icon in the top bar mutes everything. Regenerate with `python store_assets/make_audio.py` (needs numpy and ffmpeg).
 - **Two kinds of upgrades**: *Run upgrades* (coins) reset when you evolve. *Permanent upgrades* (Frost Cores) stay forever: Eternal Furnace, Permafrost Rails, Head Start, Deep Freeze Core, Hibernation.
+- **Daily reward** with a login streak (every 7th day gives a Frost Core), a short **tutorial** on first launch, 13 **achievements**, and a **settings** dialog (volumes, reset progress, privacy policy).
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 
 ## Ads (planned for after launch)

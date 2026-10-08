@@ -35,6 +35,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
@@ -60,6 +62,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -109,6 +112,7 @@ fun FrostTheme(content: @Composable () -> Unit) {
 @Composable
 fun GameScreen(vm: GameViewModel) {
     var showUpgrades by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     BackHandler(enabled = showUpgrades) { showUpgrades = false }
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
 
@@ -126,6 +130,14 @@ fun GameScreen(vm: GameViewModel) {
                     .align(Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
+                onOpenSettings = { showSettings = true },
+            )
+            AchievementBanner(
+                vm.achievementPopup,
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = 84.dp),
             )
         }
         BottomBar(
@@ -147,7 +159,42 @@ fun GameScreen(vm: GameViewModel) {
         }
     }
 
-    if (vm.offlineCoins > 0.0) {
+    var tutorialStep by remember { mutableStateOf(0) }
+
+    // Pop-ups in order: tutorial, daily reward, welcome back.
+    if (!vm.tutorialDone) {
+        val steps = listOf(
+            "Welcome aboard! Your train earns coins from the distance it travels. It keeps running even when the app is closed.",
+            "Tap the gear to buy upgrades. Run upgrades cost coins and reset when you evolve. Permanent upgrades cost Frost Cores and stay forever.",
+            "Tap BOOST again and again for a temporary income multiplier. The meter drains, then recharges before you can boost again.",
+            "Travel far enough and you can evolve into a new train. You earn Frost Cores, which unlock permanent upgrades.",
+        )
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Frost Express  ${tutorialStep + 1}/${steps.size}") },
+            text = { Text(steps[tutorialStep]) },
+            confirmButton = {
+                TextButton(onClick = { if (tutorialStep < steps.lastIndex) tutorialStep++ else vm.finishTutorial() }) {
+                    Text(if (tutorialStep < steps.lastIndex) "Next" else "Let's go")
+                }
+            },
+            dismissButton = { TextButton(onClick = vm::finishTutorial) { Text("Skip") } },
+        )
+    } else if (vm.dailyReady) {
+        val streak = vm.dailyNextStreak
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Daily reward · Day $streak") },
+            text = {
+                Text(
+                    "${fmt(vm.dailyCoins(streak))} coins" +
+                        (if (vm.dailyGivesCore(streak)) " and 1 Frost Core" else "") +
+                        "\nCome back every day to grow your streak. Every 7th day gives a Frost Core."
+                )
+            },
+            confirmButton = { TextButton(onClick = vm::claimDaily) { Text("Claim") } },
+        )
+    } else if (vm.offlineCoins > 0.0) {
         AlertDialog(
             onDismissRequest = vm::dismissOffline,
             title = { Text("Welcome back!") },
@@ -157,9 +204,9 @@ fun GameScreen(vm: GameViewModel) {
             confirmButton = { TextButton(onClick = vm::dismissOffline) { Text("Collect") } },
         )
     }
-}
 
-// ---------- icons ----------
+    if (showSettings) SettingsDialog(vm, onClose = { showSettings = false })
+}
 
 @Composable
 private fun CoinIcon(modifier: Modifier = Modifier) {
@@ -267,7 +314,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 // ---------- HUD ----------
 
 @Composable
-private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
+private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}) {
     val progress = (vm.runDistance / vm.evolveDistance).toFloat().coerceIn(0f, 1f)
     Column(
         modifier
@@ -283,6 +330,8 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.width(6.dp))
             Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = GoldText, modifier = Modifier.weight(1f))
             SpeakerButton(vm.soundOn, vm::toggleSound)
+            Spacer(Modifier.width(6.dp))
+            MenuButton(onOpenSettings)
             Spacer(Modifier.width(8.dp))
             StatChip("${fmt(vm.speed, 1)} m/s", Ice)
             Spacer(Modifier.width(6.dp))
@@ -310,6 +359,105 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
         }
     }
 }
+
+@Composable
+private fun MenuButton(onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(26.dp)
+            .clip(CircleShape)
+            .background(PanelHi)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(14.dp)) {
+            val s = size.minDimension
+            for (i in 0 until 3) {
+                val y = (.2f + i * .3f) * s
+                drawLine(Muted, Offset(.1f * s, y), Offset(.9f * s, y), strokeWidth = .11f * s, cap = StrokeCap.Round)
+                drawCircle(Ice, .13f * s, Offset((.3f + i * .2f) * s, y))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AchievementBanner(title: String?, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = title != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Wood)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StarIcon(Color.White, Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Achievement: ${title ?: ""}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun StarIcon(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        val p = Path()
+        for (i in 0 until 10) {
+            val ang = -PI / 2 + i * PI / 5
+            val rr = if (i % 2 == 0) .5f else .22f
+            val x = (.5f + kotlin.math.cos(ang).toFloat() * rr) * s
+            val y = (.52f + kotlin.math.sin(ang).toFloat() * rr) * s
+            if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+        }
+        p.close()
+        drawPath(p, color)
+    }
+}
+
+@Composable
+private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
+    var confirmReset by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Settings") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Music volume", fontSize = 12.sp, color = Muted)
+                Slider(vm.musicVolume, vm::setMusicVolume, valueRange = 0f..1f)
+                Text("Sound effects volume", fontSize = 12.sp, color = Muted)
+                Slider(vm.sfxVolume, vm::setSfxVolume, valueRange = 0f..1f)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Sound on", modifier = Modifier.weight(1f))
+                    Switch(vm.soundOn, { vm.toggleSound() })
+                }
+                TextButton(onClick = {
+                    context.startActivity(
+                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))
+                    )
+                }) { Text("Privacy policy") }
+                TextButton(onClick = { confirmReset = true }) { Text("Reset all progress", color = Color(0xFFC0392B)) }
+                Text("Frost Express v${BuildConfigVersion}", fontSize = 11.sp, color = Muted)
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+    )
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Reset everything?") },
+            text = { Text("All coins, upgrades, cores and achievements will be deleted. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = { vm.resetAll(); confirmReset = false; onClose() }) { Text("Reset", color = Color(0xFFC0392B)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
+        )
+    }
+}
+
+private const val PRIVACY_URL = "https://github.com/XxPREDAT0RxX/frost-express/blob/main/PRIVACY.md"
+private const val BuildConfigVersion = "1.0"
 
 @Composable
 private fun SpeakerButton(on: Boolean, onClick: () -> Unit) {
@@ -501,7 +649,15 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (tab == 1) {
+            if (tab == 2) {
+                item {
+                    Text(
+                        "${vm.unlocked.size}/${ACHIEVEMENTS.size} unlocked. Rewards: coins, or Frost Cores for the big ones.",
+                        fontSize = 11.sp, color = Muted,
+                    )
+                }
+                items(ACHIEVEMENTS) { a -> AchievementRow(a, a.id in vm.unlocked) }
+            } else if (tab == 1) {
                 item {
                     Text(
                         "Kept forever. Bought with Frost Cores, which you earn by evolving.",
@@ -598,7 +754,7 @@ private fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Run upgrades", "Permanent").forEachIndexed { i, label ->
+        listOf("Run upgrades", "Permanent", "Awards").forEachIndexed { i, label ->
             val on = selected == i
             Box(
                 Modifier
@@ -612,6 +768,39 @@ private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
                 Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
             }
         }
+    }
+}
+
+@Composable
+private fun AchievementRow(a: Achievement, done: Boolean) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (done) Panel else PanelHi.copy(alpha = 0.6f))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(if (done) Gold else Track),
+            contentAlignment = Alignment.Center,
+        ) {
+            StarIcon(if (done) Color.White else Muted.copy(alpha = 0.6f), Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(a.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (done) Ink else Muted)
+            Text(a.desc, fontSize = 11.sp, color = Muted)
+        }
+        Text(
+            if (a.cores > 0) "+${a.cores} core" else "coins",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (done) Mint else Muted,
+        )
     }
 }
 

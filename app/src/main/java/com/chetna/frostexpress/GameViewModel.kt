@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,98 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         else Balance.START_COINS_BASE * Balance.START_COINS_GROWTH.pow(permLevel(PermType.START) - 1)
 
     val audio = GameAudio(app)
+
+    // ---- progress stats, daily reward, tutorial, achievements ----
+    var totalDistance by mutableDoubleStateOf(0.0); private set
+    var boostTaps by mutableIntStateOf(0); private set
+    var purchases by mutableIntStateOf(0); private set
+    var tutorialDone by mutableStateOf(prefs.getBoolean("tut", false)); private set
+    var dailyStreak by mutableIntStateOf(prefs.getInt("streak", 0)); private set
+    private var lastDailyDay = prefs.getLong("dailyDay", -1L)
+    var dailyReady by mutableStateOf(false); private set
+    val unlocked = mutableStateListOf<String>()
+    var achievementPopup by mutableStateOf<String?>(null); private set
+    private var popupLeft = 0.0
+    var musicVolume by mutableFloatStateOf(prefs.getFloat("mvol", 0.35f)); private set
+    var sfxVolume by mutableFloatStateOf(prefs.getFloat("svol", 1f)); private set
+
+    private fun today(): Long = java.time.LocalDate.now().toEpochDay()
+    val dailyNextStreak: Int get() = if (lastDailyDay >= 0 && lastDailyDay == today() - 1) dailyStreak + 1 else 1
+    fun dailyCoins(streak: Int): Double =
+        max(200.0, coinsPerSec * 900.0) * (1.0 + 0.25 * (min(streak, 7) - 1))
+    fun dailyGivesCore(streak: Int): Boolean = streak % 7 == 0
+
+    fun claimDaily() {
+        if (!dailyReady) return
+        val streak = dailyNextStreak
+        coins += dailyCoins(streak)
+        if (dailyGivesCore(streak)) cores += 1
+        dailyStreak = streak
+        lastDailyDay = today()
+        dailyReady = false
+        audio.play(R.raw.sfx_buy)
+        save()
+    }
+
+    fun finishTutorial() {
+        tutorialDone = true
+        prefs.edit().putBoolean("tut", true).apply()
+    }
+
+    fun setMusicVolume(v: Float) {
+        musicVolume = v
+        audio.musicVolume = v
+        prefs.edit().putFloat("mvol", v).apply()
+    }
+
+    fun setSfxVolume(v: Float) {
+        sfxVolume = v
+        audio.sfxVolume = v
+        prefs.edit().putFloat("svol", v).apply()
+    }
+
+    private fun achievementMet(id: String): Boolean = when (id) {
+        "steps" -> totalDistance >= 100.0
+        "km1" -> totalDistance >= 1000.0
+        "km100" -> totalDistance >= 100_000.0
+        "upg1" -> purchases >= 1
+        "upg50" -> purchases >= 50
+        "boost10" -> boostTaps >= 10
+        "boost200" -> boostTaps >= 200
+        "wagon5" -> level(UpgradeType.WAGON) >= 5
+        "heat10" -> level(UpgradeType.HEAT) >= 10
+        "rich" -> coins >= 1_000_000.0
+        "streak3" -> dailyStreak >= 3
+        "evo1" -> evolutions >= 1
+        "evo3" -> evolutions >= 3
+        else -> false
+    }
+
+    private fun checkAchievements() {
+        for (a in ACHIEVEMENTS) {
+            if (a.id in unlocked || !achievementMet(a.id)) continue
+            unlocked.add(a.id)
+            if (a.cores > 0) cores += a.cores else coins += max(100.0, coinsPerSec * 600.0)
+            achievementPopup = a.title
+            popupLeft = 3.5
+            audio.play(R.raw.sfx_buy)
+        }
+    }
+
+    /** Wipes all progress (settings stay). */
+    fun resetAll() {
+        prefs.edit().clear().putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
+        coins = 0.0; runDistance = 0.0; cores = 0; evolutions = 0; coresSpent = 0
+        for (i in levels.indices) levels[i] = 0
+        for (i in permLevels.indices) permLevels[i] = 0
+        totalDistance = 0.0; boostTaps = 0; purchases = 0
+        dailyStreak = 0; lastDailyDay = -1L; dailyReady = true
+        unlocked.clear(); achievementPopup = null
+        boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
+        offlineCoins = 0.0; offlineMeters = 0.0
+        tutorialDone = false
+        save()
+    }
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
 
     fun toggleSound() {
@@ -143,7 +236,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         audio.enabled = soundOn
+        audio.musicVolume = musicVolume
+        audio.sfxVolume = sfxVolume
         load()
+        dailyReady = lastDailyDay != today()
         startLoop()
     }
 
@@ -156,6 +252,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (n > 0 && coins >= cost) {
             coins -= cost
             levels[spec.type.ordinal] = lvl + n
+            purchases += n
             audio.play(R.raw.sfx_buy)
         }
     }
@@ -164,6 +261,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun boost() {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
         audio.play(R.raw.sfx_boost, 0.7f)
+        boostTaps++
         boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         boostTimeLeft = min(Balance.BOOST_MAX_SEC, boostTimeLeft + Balance.BOOST_SEC_PER_TAP)
         if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
@@ -203,6 +301,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("levels", levels.joinToString(","))
             .putString("perm", permLevels.joinToString(","))
             .putInt("spent", coresSpent)
+            .putString("totalDist", totalDistance.toString())
+            .putInt("taps", boostTaps)
+            .putInt("purch", purchases)
+            .putInt("streak", dailyStreak)
+            .putLong("dailyDay", lastDailyDay)
+            .putString("ach", unlocked.joinToString(","))
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -219,6 +323,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val savedPerm = prefs.getString("perm", "")?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
         PermType.values().indices.forEach { permLevels.add(savedPerm.getOrElse(it) { 0 }) }
         coresSpent = prefs.getInt("spent", 0)
+        totalDistance = prefs.getString("totalDist", "0")?.toDoubleOrNull() ?: 0.0
+        boostTaps = prefs.getInt("taps", 0)
+        purchases = prefs.getInt("purch", 0)
+        unlocked.clear()
+        prefs.getString("ach", "")?.split(",")?.filter { it.isNotEmpty() }?.let { unlocked.addAll(it) }
 
         val last = prefs.getLong("last", 0L)
         if (last > 0L) {
@@ -227,6 +336,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val gain = meters * coinsPerMeter
             if (gain >= 1.0) {
                 runDistance += meters
+                totalDistance += meters
                 coins += gain
                 offlineCoins = gain
                 offlineMeters = meters
@@ -237,7 +347,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun tick(dt: Double) {
         val meters = speed * dt
         runDistance += meters
+        totalDistance += meters
         coins += meters * coinsPerMeter * incomeMultiplier
+        if (popupLeft > 0.0) {
+            popupLeft -= dt
+            if (popupLeft <= 0.0) achievementPopup = null
+        }
+        checkAchievements()
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)

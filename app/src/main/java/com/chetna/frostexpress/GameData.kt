@@ -60,6 +60,25 @@ val PERMANENT = listOf(
     PermSpec(PermType.OFFLINE, "Hibernation", "+5% offline earnings", 3, 1.8, 10),
 )
 
+/** Achievements. Reward: Frost Cores if [cores] > 0, otherwise a bundle of coins. */
+data class Achievement(val id: String, val title: String, val desc: String, val cores: Int = 0)
+
+val ACHIEVEMENTS = listOf(
+    Achievement("steps", "First Steps", "Travel 100 m"),
+    Achievement("km1", "One Kilometre", "Travel 1 km in total"),
+    Achievement("km100", "Long Haul", "Travel 100 km in total", cores = 1),
+    Achievement("upg1", "Tinkerer", "Buy your first upgrade"),
+    Achievement("upg50", "Mechanic", "Buy 50 upgrades"),
+    Achievement("boost10", "Boost Fan", "Tap BOOST 10 times"),
+    Achievement("boost200", "Turbo Finger", "Tap BOOST 200 times"),
+    Achievement("wagon5", "Heavy Load", "Own 5 cargo wagons"),
+    Achievement("heat10", "Warm and Cosy", "Heat Generator level 10"),
+    Achievement("rich", "Millionaire", "Hold 1M coins"),
+    Achievement("streak3", "Regular", "Reach a 3 day login streak"),
+    Achievement("evo1", "Evolution", "Evolve for the first time", cores = 1),
+    Achievement("evo3", "Frost Veteran", "Evolve 3 times", cores = 2),
+)
+
 object Balance {
     const val BASE_SPEED = 2.0            // metres per second
     const val SPEED_PER_ENGINE = 0.5
