@@ -28,7 +28,8 @@ jobs:
           gradle-version: 8.11.1
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+        shell: bash
+        run: gradle assembleDebug --no-daemon 2>&1 | tee build.log
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -44,3 +45,13 @@ jobs:
           name: Frost Express debug build ${{ github.run_number }}
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
+
+      # If the build breaks, publish the full build log so the error can be read without logging in.
+      - name: Publish build log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}-failed
+          name: Failed build ${{ github.run_number }} (log)
+          prerelease: true
+          files: build.log

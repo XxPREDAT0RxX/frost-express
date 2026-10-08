@@ -73,7 +73,7 @@ fun GameScreen(vm: GameViewModel) {
                 .navigationBarsPadding()
         ) {
             Header(vm)
-            TrainScene(vm, Modifier.fillMaxWidth().height(220.dp))
+            TrainScene(vm, Modifier)
             BoostBar(vm)
             Upgrades(vm, Modifier.weight(1f))
         }

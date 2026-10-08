@@ -6,6 +6,7 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Income**: speed x coins per metre. The train runs on its own, even while the app is closed (up to 8 hours of offline earnings).
 - **Upgrades**: Engine Power, Cargo Wagon, Heat Generator, Food Car, Ice Plow, Coal Stoker, Boost Core, Night Conductor.
 - **Boost**: tap BOOST repeatedly. Each tap uses 10% of the boost meter and gives a 3 second income multiplier. When the meter is empty, boost is locked until it fully recharges.
+- **Train interior**: a top-down cutaway shows the inside of the train. A worker (NPC) stokes the boiler, drives, runs the heat generator, cooks and eats, hauls cargo and rests, depending on which upgrades you own. Empty dashed slots show what you can still install.
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 
 ## Run it
