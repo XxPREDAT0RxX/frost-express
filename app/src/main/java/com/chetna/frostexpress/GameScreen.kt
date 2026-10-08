@@ -139,6 +139,21 @@ fun GameScreen(vm: GameViewModel) {
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(top = 84.dp),
             )
+            ToastBanner(
+                vm.toast,
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = 120.dp),
+            )
+            if (vm.event == GameEvent.CRATE) {
+                SupplyCrate(
+                    vm::collectCrate,
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 20.dp),
+                )
+            }
         }
         BottomBar(
             vm,
@@ -394,6 +409,49 @@ private fun AchievementBanner(title: String?, modifier: Modifier = Modifier) {
             StarIcon(Color.White, Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text("Achievement: ${title ?: ""}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun ToastBanner(text: String?, modifier: Modifier = Modifier) {
+    AnimatedVisibility(visible = text != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
+        Text(
+            text ?: "",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Ice)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun SupplyCrate(onTap: () -> Unit, modifier: Modifier = Modifier) {
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "crate")
+    val scale by pulse.animateFloat(
+        1f, 1.12f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "crateScale",
+    )
+    Box(
+        modifier
+            .size((54 * scale).dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Wood)
+            .border(2.dp, Color(0xFF8A5F3A), RoundedCornerShape(12.dp))
+            .clickable(onClick = onTap),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(34.dp)) {
+            val s = size.minDimension
+            drawRoundRect(Color(0xFFD9B27C), Offset(.05f * s, .15f * s), Size(.9f * s, .7f * s), CornerRadius(.08f * s))
+            drawLine(Color(0xFF8A5F3A), Offset(.05f * s, .5f * s), Offset(.95f * s, .5f * s), strokeWidth = .09f * s)
+            drawLine(Color(0xFF8A5F3A), Offset(.5f * s, .15f * s), Offset(.5f * s, .85f * s), strokeWidth = .09f * s)
+            drawCircle(Gold, .09f * s, Offset(.5f * s, .5f * s))
         }
     }
 }
@@ -737,6 +795,7 @@ private fun permIcon(t: PermType): UpgradeType = when (t) {
     PermType.START -> UpgradeType.COAL
     PermType.BOOST -> UpgradeType.BOOSTER
     PermType.OFFLINE -> UpgradeType.CONDUCTOR
+    PermType.CREW -> UpgradeType.FOOD
 }
 
 @Composable

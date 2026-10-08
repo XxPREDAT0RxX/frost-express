@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -60,6 +61,9 @@ private class Look(
     val cargo: Int,
 )
 
+/** A station scrolling past the train. [y] is in screen dp; [paid] once the bonus was given. */
+private class Station(var y: Float, var paid: Boolean = false)
+
 private class Decor(val side: Int, val fx: Float, val y: Float, val r: Float, val kind: Int)
 
 // Roadside scenery that scrolls past. Kinds: 0 pine, 1 large pine, 2 rock, 3 shrub, 4 snow drift.
@@ -108,6 +112,7 @@ private class Npc {
     var cycle: List<Step> = emptyList()
     var idx = 0
     var sig = Int.MIN_VALUE
+    var startOffset = 0 // lets a second worker begin halfway through the routine
     private val path = ArrayList<Offset>()
 
     val step: Step? get() = if (cycle.isEmpty()) null else cycle[idx % cycle.size]
@@ -133,7 +138,8 @@ private class Npc {
         cycle = buildCycle(heat, food, bed, cargo)
         trainLen = NOSE + (2 + cargo) * PITCH - GAP + 10f
         if (y > trainLen - 20f) y = trainLen - 20f
-        idx = 0
+        idx = if (cycle.isEmpty()) 0 else startOffset % cycle.size
+        if (startOffset > 0) cycle.getOrNull(idx)?.let { x = it.x; y = it.y }
         plan()
     }
 
@@ -194,6 +200,10 @@ private class Npc {
 @Composable
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
     val npc = remember { Npc() }
+    val npc2 = remember { Npc().also { it.startOffset = 7 } }
+    val stations = remember { ArrayList<Station>() }
+    val halfH = remember { floatArrayOf(300f) }
+    var seenStations by remember { mutableIntStateOf(vm.stationSerial) }
     var time by remember { mutableFloatStateOf(0f) }
     var scroll by remember { mutableFloatStateOf(0f) }
 
@@ -205,7 +215,14 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
                     val dt = ((now - last) / 1e9f).coerceAtMost(0.05f)
                     val boosting = vm.isBoosting
                     time += dt
-                    scroll += (40f + 26f * sqrt(vm.speed.toFloat())) * (if (boosting) 1.6f else 1f) * dt
+                    val ds = (40f + 26f * sqrt(vm.speed.toFloat())) * (if (boosting) 1.6f else 1f) * dt
+                    scroll += ds
+                    while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(-110f)) }
+                    for (st in stations) {
+                        st.y += ds
+                        if (!st.paid && st.y >= halfH[0]) { st.paid = true; vm.collectStation() }
+                    }
+                    stations.removeAll { it.y > halfH[0] * 2f + 200f }
                     npc.sync(
                         heat = vm.level(UpgradeType.HEAT) > 0,
                         food = vm.level(UpgradeType.FOOD) > 0,
@@ -213,6 +230,15 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
                         cargo = min(vm.level(UpgradeType.WAGON), MAX_CARGO),
                     )
                     npc.update(dt, if (boosting) 1.8f else 1f)
+                    if (vm.permLevel(PermType.CREW) > 0) {
+                        npc2.sync(
+                            heat = vm.level(UpgradeType.HEAT) > 0,
+                            food = vm.level(UpgradeType.FOOD) > 0,
+                            bed = vm.level(UpgradeType.CONDUCTOR) > 0,
+                            cargo = min(vm.level(UpgradeType.WAGON), MAX_CARGO),
+                        )
+                        npc2.update(dt, if (boosting) 1.8f else 1f)
+                    }
                 }
                 last = now
             }
@@ -230,7 +256,8 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
             plow = vm.level(UpgradeType.PLOW),
             cargo = min(vm.level(UpgradeType.WAGON), MAX_CARGO),
         )
-        drawScene(npc, time, scroll, tier, look, vm.isBoosting)
+        halfH[0] = size.height / density / 2f
+        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event.ordinal, stations)
     }
 }
 
@@ -267,7 +294,21 @@ private fun DrawScope.slot(x: Float, y: Float, w: Float, h: Float) {
     )
 }
 
-private fun DrawScope.drawScene(npc: Npc, time: Float, scroll: Float, tier: TrainTier, look: Look, boosting: Boolean) {
+private fun darknessAt(time: Float): Float {
+    val ph = time % 150f
+    val d = when {
+        ph < 70f -> 0f
+        ph < 90f -> (ph - 70f) / 20f
+        ph < 130f -> 1f
+        else -> 1f - (ph - 130f) / 20f
+    }
+    return d * 0.42f
+}
+
+private fun DrawScope.drawScene(
+    npc: Npc, npc2: Npc?, time: Float, scroll: Float, tier: TrainTier, look: Look,
+    boosting: Boolean, eventId: Int, stations: List<Station>,
+) {
     val u = density
     val w = size.width
     val h = size.height
@@ -278,15 +319,70 @@ private fun DrawScope.drawScene(npc: Npc, time: Float, scroll: Float, tier: Trai
     val centerOff = max(0f, (npc.viewH - npc.trainLen) / 2f)
     drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
     drawDecor(scroll, originX, trainPx, h, u)
+    for (st in stations) drawStation(st, originX, u)
     translate(left = originX, top = (centerOff - npc.camY) * u * z) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
             drawTrack(scroll, npc.trainLen)
             drawTrain(tier, look, npc, time, boosting)
+            if (npc2 != null) drawNpc(npc2, Color(0xFF5BBE7A), Color(0xFFF2C94C))
             drawNpc(npc)
         }
     }
-    drawSnowfall(time, w, h, u)
+    // day and night: a blue tint, with headlight beams once it is dark
+    val dark = darknessAt(time)
+    if (dark > 0.01f) {
+        drawRect(Color(0xFF0B1B3A).copy(alpha = dark), size = size)
+        val ny = (centerOff - npc.camY) * u * z
+        val cx = originX + trainPx / 2f
+        val beam = Path().apply {
+            moveTo(cx - 40f * u * z, ny + 4f * u * z); lineTo(cx + 40f * u * z, ny + 4f * u * z)
+            lineTo(cx + 110f * u * z, ny - 190f * u * z); lineTo(cx - 110f * u * z, ny - 190f * u * z); close()
+        }
+        drawPath(beam, Brush.verticalGradient(listOf(Color(0x66FFF3B0).copy(alpha = dark * 1.4f), Color.Transparent), startY = ny, endY = ny - 190f * u * z))
+    }
+    if (eventId == GameEvent.AURORA.ordinal) drawAurora(time, w, h)
+    drawSnowfall(time, w, h, u, eventId == GameEvent.BLIZZARD.ordinal)
     if (boosting) drawSpeedLines(time, originX, trainPx, w, h, u)
+}
+
+private fun DrawScope.drawAurora(time: Float, w: Float, h: Float) {
+    for (i in 0 until 3) {
+        val p = Path()
+        p.moveTo(0f, 0f)
+        var x = 0f
+        while (x <= w + 20f) {
+            p.lineTo(x, h * (0.06f + 0.05f * i) + sin(x * 0.012f + time * 0.7f + i * 1.7f) * h * 0.025f)
+            x += 20f
+        }
+        p.lineTo(w, 0f)
+        p.close()
+        val c = if (i == 1) Color(0xFFB197FC) else Color(0xFF38F2A2)
+        drawPath(p, Brush.verticalGradient(listOf(c.copy(alpha = 0.38f), Color.Transparent), startY = 0f, endY = h * 0.3f))
+    }
+}
+
+/** A platform with a small shelter and waiting passengers, drawn next to the train. */
+private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
+    val pw = 34f * u
+    if (originX < pw + 10f * u) return
+    val x = originX - pw - 6f * u
+    val y = st.y * u
+    val len = 190f * u
+    drawRect(Color(0x33203040), Offset(x + 3f * u, y - len / 2f + 3f * u), Size(pw, len))
+    drawRect(Color(0xFFB9C3CC), Offset(x, y - len / 2f), Size(pw, len))
+    drawRect(Color(0xFFD7DFE6), Offset(x + 3f * u, y - len / 2f + 3f * u), Size(pw - 6f * u, len - 6f * u))
+    drawRect(Color(0xFFF2C94C), Offset(x + pw - 5f * u, y - len / 2f), Size(3f * u, len)) // safety line
+    // shelter roof with snow
+    drawRoundRect(Color(0xFF8A5F3A), Offset(x + 4f * u, y - 40f * u), Size(18f * u, 80f * u), CornerRadius(3f * u, 3f * u))
+    drawRoundRect(Color(0xFFF4F9FC), Offset(x + 5f * u, y - 38f * u), Size(16f * u, 30f * u), CornerRadius(3f * u, 3f * u))
+    // passengers seen from above
+    val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C))
+    for (i in 0 until 4) {
+        val py = y - 70f * u + i * 22f * u
+        drawCircle(Color(0x33000000), 5.5f * u, Offset(x + 25f * u, py + 1.5f * u))
+        drawCircle(cols[i], 5f * u, Offset(x + 25f * u, py))
+        drawCircle(Color(0xFFF2C9A0), 2.6f * u, Offset(x + 25f * u, py - 0.5f * u))
+    }
 }
 
 private fun DrawScope.drawDecor(scroll: Float, originX: Float, trainPx: Float, h: Float, u: Float) {
@@ -606,14 +702,17 @@ private fun DrawScope.drawCargoCar(top: Float, idx: Int, npc: Npc) {
     if (placing) crate(132f, top + 86f)
 }
 
-private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float) {
-    for (i in 0 until 26) {
+private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float, heavy: Boolean) {
+    val n = if (heavy) 130 else 26
+    val wind = if (heavy) 60f else 10f
+    for (i in 0 until n) {
         val fx = ((i * 0.6180339f) % 1f) * w
         val fy = ((i * 0.4142136f) % 1f) * h
-        val sx = (((fx + sin(time * 0.8f + i) * 10f * u) % w) + w) % w
-        val sy = (fy + time * 26f * u + i * 11f) % h
+        val sx = (((fx + sin(time * 0.8f + i) * wind * u + time * (if (heavy) 90f else 0f) * u) % w) + w) % w
+        val sy = (fy + time * (if (heavy) 90f else 26f) * u + i * 11f) % h
         drawCircle(Color.White.copy(alpha = 0.85f), (1.4f + (i % 3) * 0.6f) * u, Offset(sx, sy))
     }
+    if (heavy) drawRect(Color.White.copy(alpha = 0.18f), size = size)
 }
 
 private fun DrawScope.drawSpeedLines(time: Float, originX: Float, trainPx: Float, w: Float, h: Float, u: Float) {
@@ -631,7 +730,7 @@ private fun DrawScope.drawSpeedLines(time: Float, originX: Float, trainPx: Float
 // ---------------------------------------------------------------------------------------------
 // The worker, drawn from above. Local coordinates: forward is -y, right is +x.
 // ---------------------------------------------------------------------------------------------
-private fun DrawScope.drawNpc(npc: Npc) {
+private fun DrawScope.drawNpc(npc: Npc, jacket: Color = Color(0xFFFF9F43), hat: Color = Color(0xFF7FD8FF)) {
     val u = density
     val cx = npc.x * u
     val cy = npc.y * u
@@ -694,7 +793,6 @@ private fun DrawScope.drawNpc(npc: Npc) {
         lx = -6f; ly = -9f; rx = 6f; ry = -9f
     }
 
-    val jacket = Color(0xFFFF9F43)
     val skin = Color(0xFFF2C9A0)
     val boots = Color(0xFF2B2F36)
 
@@ -717,7 +815,7 @@ private fun DrawScope.drawNpc(npc: Npc) {
         drawCircle(skin, 3f * u, Offset(cx + lx * u, cy + ly * u))
         drawCircle(skin, 3f * u, Offset(cx + rx * u, cy + ry * u))
         // head: hat with a pompom, face peeking out at the front
-        drawCircle(Color(0xFF7FD8FF), 6.5f * u, Offset(cx, cy - 0.5f * u))
+        drawCircle(hat, 6.5f * u, Offset(cx, cy - 0.5f * u))
         drawCircle(skin, 3.2f * u, Offset(cx, cy - 6f * u))
         drawCircle(Color(0xFF4FB4E6), 6.5f * u, Offset(cx, cy - 0.5f * u), style = Stroke(width = 1.1f * u))
         drawCircle(Color.White.copy(alpha = 0.45f), 2.2f * u, Offset(cx - 2.2f * u, cy - 2.6f * u))

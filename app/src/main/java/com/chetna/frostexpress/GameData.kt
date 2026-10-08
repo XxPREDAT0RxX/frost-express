@@ -41,7 +41,7 @@ val UPGRADES = listOf(
 )
 
 /** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
-enum class PermType { INCOME, SPEED, START, OFFLINE, BOOST }
+enum class PermType { INCOME, SPEED, START, OFFLINE, BOOST, CREW }
 
 data class PermSpec(
     val type: PermType,
@@ -58,6 +58,7 @@ val PERMANENT = listOf(
     PermSpec(PermType.START, "Head Start", "Start each run with more coins", 2, 1.8, 10),
     PermSpec(PermType.BOOST, "Deep Freeze Core", "+0.25 boost multiplier", 3, 1.8, 8),
     PermSpec(PermType.OFFLINE, "Hibernation", "+5% offline earnings", 3, 1.8, 10),
+    PermSpec(PermType.CREW, "Second Worker", "A second worker joins: +25% coins", 4, 1.0, 1),
 )
 
 /** Achievements. Reward: Frost Cores if [cores] > 0, otherwise a bundle of coins. */
@@ -79,6 +80,9 @@ val ACHIEVEMENTS = listOf(
     Achievement("evo3", "Frost Veteran", "Evolve 3 times", cores = 2),
 )
 
+/** Random events that happen while the train runs. */
+enum class GameEvent { NONE, BLIZZARD, AURORA, CRATE }
+
 object Balance {
     const val BASE_SPEED = 2.0            // metres per second
     const val SPEED_PER_ENGINE = 0.5
@@ -99,8 +103,20 @@ object Balance {
     const val PERM_SPEED = 0.10
     const val PERM_BOOST = 0.25
     const val PERM_OFFLINE = 0.05
+    const val PERM_CREW = 0.25
     const val START_COINS_BASE = 50.0     // Head Start: 50 x 3^level coins
     const val START_COINS_GROWTH = 3.0
+
+    // Random events and stations
+    const val EVENT_MIN_GAP = 80.0        // seconds between events: 80..160
+    const val EVENT_MAX_GAP = 160.0
+    const val BLIZZARD_SEC = 20.0
+    const val BLIZZARD_SPEED = 0.75
+    const val AURORA_SEC = 30.0
+    const val AURORA_INCOME = 1.5
+    const val CRATE_SEC = 12.0
+    const val STATION_EVERY_M = 400.0     // a station passes every 400 m
+    const val STATION_BONUS_SEC = 45.0    // bonus = 45 seconds of income
 
     // Boost
     const val BOOST_BASE_MULT = 2.0

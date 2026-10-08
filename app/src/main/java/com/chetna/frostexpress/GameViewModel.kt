@@ -72,6 +72,82 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var musicVolume by mutableFloatStateOf(prefs.getFloat("mvol", 0.35f)); private set
     var sfxVolume by mutableFloatStateOf(prefs.getFloat("svol", 1f)); private set
 
+    // ---- random events, stations, toast messages ----
+    var event by mutableStateOf(GameEvent.NONE); private set
+    var eventLeft by mutableDoubleStateOf(0.0); private set
+    private var nextEventIn = 60.0
+    var toast by mutableStateOf<String?>(null); private set
+    private var toastLeft = 0.0
+    var stationSerial by mutableIntStateOf(0); private set
+    private var nextStationAt = Balance.STATION_EVERY_M
+
+    private fun showToast(text: String) {
+        toast = text
+        toastLeft = 3.5
+    }
+
+    private val eventSpeedMult: Double get() = if (event == GameEvent.BLIZZARD) Balance.BLIZZARD_SPEED else 1.0
+    private val eventIncomeMult: Double get() = if (event == GameEvent.AURORA) Balance.AURORA_INCOME else 1.0
+
+    private fun startRandomEvent() {
+        event = when ((0..2).random()) {
+            0 -> GameEvent.BLIZZARD
+            1 -> GameEvent.AURORA
+            else -> GameEvent.CRATE
+        }
+        eventLeft = when (event) {
+            GameEvent.BLIZZARD -> Balance.BLIZZARD_SEC
+            GameEvent.AURORA -> Balance.AURORA_SEC
+            else -> Balance.CRATE_SEC
+        }
+        showToast(
+            when (event) {
+                GameEvent.BLIZZARD -> "Blizzard! Speed -25% for ${Balance.BLIZZARD_SEC.toInt()}s"
+                GameEvent.AURORA -> "Aurora! Income x${fmt(Balance.AURORA_INCOME, 1)} for ${Balance.AURORA_SEC.toInt()}s"
+                else -> "Supply crate spotted! Tap it"
+            }
+        )
+    }
+
+    fun collectCrate() {
+        if (event != GameEvent.CRATE) return
+        val gain = max(50.0, coinsPerSec * 60.0)
+        coins += gain
+        event = GameEvent.NONE
+        eventLeft = 0.0
+        audio.play(R.raw.sfx_buy)
+        showToast("Supply crate: +${fmt(gain)} coins")
+    }
+
+    /** Called by the scene when a station reaches the train. */
+    fun collectStation() {
+        val gain = max(30.0, coinsPerSec * Balance.STATION_BONUS_SEC)
+        coins += gain
+        audio.play(R.raw.sfx_buy)
+        showToast("Station: passengers paid +${fmt(gain)} coins")
+    }
+
+    private fun tickEvents(dt: Double) {
+        if (toastLeft > 0.0) {
+            toastLeft -= dt
+            if (toastLeft <= 0.0) toast = null
+        }
+        if (event != GameEvent.NONE) {
+            eventLeft -= dt
+            if (eventLeft <= 0.0) event = GameEvent.NONE
+        } else {
+            nextEventIn -= dt
+            if (nextEventIn <= 0.0) {
+                nextEventIn = Balance.EVENT_MIN_GAP + Math.random() * (Balance.EVENT_MAX_GAP - Balance.EVENT_MIN_GAP)
+                startRandomEvent()
+            }
+        }
+        if (totalDistance >= nextStationAt) {
+            nextStationAt = (floor(totalDistance / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
+            stationSerial++
+        }
+    }
+
     private fun today(): Long = java.time.LocalDate.now().toEpochDay()
     val dailyNextStreak: Int get() = if (lastDailyDay >= 0 && lastDailyDay == today() - 1) dailyStreak + 1 else 1
     fun dailyCoins(streak: Int): Double =
@@ -144,6 +220,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         totalDistance = 0.0; boostTaps = 0; purchases = 0
         dailyStreak = 0; lastDailyDay = -1L; dailyReady = true
         unlocked.clear(); achievementPopup = null
+        event = GameEvent.NONE; eventLeft = 0.0; nextStationAt = Balance.STATION_EVERY_M
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
         tutorialDone = false
@@ -185,7 +262,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             milestoneMult(UpgradeType.ENGINE) *
             (1.0 + Balance.PLOW_BONUS * level(UpgradeType.PLOW)) *
             (1.0 + Balance.TIER_SPEED_BONUS * tierIndex) *
-            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED))
+            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED)) * eventSpeedMult
 
     val coinsPerMeter: Double
         get() = (1.0 + Balance.WAGON_BONUS * level(UpgradeType.WAGON)) * milestoneMult(UpgradeType.WAGON) *
@@ -193,7 +270,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             (1.0 + Balance.FOOD_BONUS * level(UpgradeType.FOOD)) * milestoneMult(UpgradeType.FOOD) *
             Balance.TIER_INCOME.pow(tierIndex) *
             (1.0 + Balance.CORE_BONUS * cores) *
-            (1.0 + Balance.PERM_INCOME * permLevel(PermType.INCOME))
+            (1.0 + Balance.PERM_INCOME * permLevel(PermType.INCOME)) *
+            (1.0 + Balance.PERM_CREW * permLevel(PermType.CREW))
 
     val boostMultiplier: Double
         get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER) +
@@ -201,7 +279,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult
     val coinsPerSec: Double get() = speed * coinsPerMeter * incomeMultiplier
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL))
@@ -240,6 +318,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.sfxVolume = sfxVolume
         load()
         dailyReady = lastDailyDay != today()
+        nextStationAt = (floor(totalDistance / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         startLoop()
     }
 
@@ -354,6 +433,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (popupLeft <= 0.0) achievementPopup = null
         }
         checkAchievements()
+        tickEvents(dt)
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)
