@@ -95,13 +95,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putBoolean("tut", true).apply()
     }
 
-    fun setMusicVolume(v: Float) {
+    fun changeMusicVolume(v: Float) {
         musicVolume = v
         audio.musicVolume = v
         prefs.edit().putFloat("mvol", v).apply()
     }
 
-    fun setSfxVolume(v: Float) {
+    fun changeSfxVolume(v: Float) {
         sfxVolume = v
         audio.sfxVolume = v
         prefs.edit().putFloat("svol", v).apply()

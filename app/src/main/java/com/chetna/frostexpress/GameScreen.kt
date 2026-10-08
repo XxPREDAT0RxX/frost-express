@@ -425,9 +425,9 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Music volume", fontSize = 12.sp, color = Muted)
-                Slider(vm.musicVolume, vm::setMusicVolume, valueRange = 0f..1f)
+                Slider(vm.musicVolume, vm::changeMusicVolume, valueRange = 0f..1f)
                 Text("Sound effects volume", fontSize = 12.sp, color = Muted)
-                Slider(vm.sfxVolume, vm::setSfxVolume, valueRange = 0f..1f)
+                Slider(vm.sfxVolume, vm::changeSfxVolume, valueRange = 0f..1f)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Sound on", modifier = Modifier.weight(1f))
                     Switch(vm.soundOn, { vm.toggleSound() })
