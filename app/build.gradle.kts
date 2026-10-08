@@ -6,7 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Release signing: keystore.properties (root folder) me storeFile, storePassword, keyAlias, keyPassword daalo.
+// Release signing: put storeFile, storePassword, keyAlias and keyPassword in keystore.properties (project root).
 val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -17,7 +17,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.chetna.frostexpress" // Play Store ke liye apna unique ID rakho
+        applicationId = "com.chetna.frostexpress" // Use your own unique ID for the Play Store
         minSdk = 26
         targetSdk = 36
         versionCode = 1

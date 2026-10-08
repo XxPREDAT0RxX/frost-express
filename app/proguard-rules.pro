@@ -1,1 +1,1 @@
-# Is app ko custom ProGuard rules ki zarurat nahi hai.
+# No custom ProGuard rules are needed for this app.

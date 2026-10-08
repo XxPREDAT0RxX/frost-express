@@ -1,6 +1,6 @@
-"""Play Store graphics banata hai: icon-512.png aur feature-graphic-1024x500.png.
-Chalane ke liye: pip install pillow && python make_store_assets.py
-Colors/text neeche edit karke dobara chala sakte ho."""
+"""Generates the Play Store graphics: icon-512.png and feature-graphic-1024x500.png.
+Usage: pip install pillow && python make_store_assets.py
+Edit the colors and text below and run it again to regenerate."""
 import os
 from PIL import Image, ImageDraw, ImageFont
 

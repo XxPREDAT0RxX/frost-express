@@ -5,7 +5,7 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 
-/** Train ka evolve level. Har evolve pe agla tier unlock hota hai. */
+/** Train tiers. Each evolve unlocks the next tier. */
 data class TrainTier(val name: String, val body: Long, val accent: Long)
 
 val TIERS = listOf(
@@ -28,7 +28,7 @@ data class UpgradeSpec(
     val maxLevel: Int = Int.MAX_VALUE,
 )
 
-/** Naya upgrade jodna ho to UpgradeType + yahan ek entry + GameViewModel ka formula. */
+/** To add an upgrade: add an UpgradeType, an entry here, and its formula in GameViewModel. */
 val UPGRADES = listOf(
     UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.18),
     UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+60% coins per metre", 50.0, 1.45, 40),
@@ -47,20 +47,20 @@ object Balance {
     const val WAGON_BONUS = 0.6
     const val HEAT_BONUS = 0.08
     const val FOOD_BONUS = 0.06
-    const val TIER_SPEED_BONUS = 0.2      // har tier pe +20% speed
-    const val TIER_INCOME = 3.0           // har tier pe coins x3
-    const val CORE_BONUS = 0.25           // har core = +25% coins (permanent)
+    const val TIER_SPEED_BONUS = 0.2      // +20% speed per tier
+    const val TIER_INCOME = 3.0           // coins x3 per tier
+    const val CORE_BONUS = 0.25           // each core = +25% coins (permanent)
 
-    const val EVOLVE_BASE_DISTANCE = 3000.0 // metres, har evolve pe x4
+    const val EVOLVE_BASE_DISTANCE = 3000.0 // metres, x4 after each evolve
     const val EVOLVE_GROWTH = 4.0
 
     // Boost
     const val BOOST_BASE_MULT = 2.0
     const val BOOST_MULT_PER_LEVEL = 0.2
-    const val BOOST_COST_PER_TAP = 0.1      // meter ka 10% har tap pe
+    const val BOOST_COST_PER_TAP = 0.1      // 10% of the meter per tap
     const val BOOST_SEC_PER_TAP = 3.0
     const val BOOST_MAX_SEC = 10.0
-    const val BOOST_RECHARGE_PER_SEC = 0.04 // 0 se full ~25 sec
+    const val BOOST_RECHARGE_PER_SEC = 0.04 // empty to full in about 25 sec
     const val COAL_BONUS = 0.08
 
     // Offline

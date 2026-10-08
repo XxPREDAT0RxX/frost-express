@@ -84,12 +84,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Boost button ka har tap: meter ka 10% lagta hai, 3 sec ka income multiplier milta hai. */
+    /** Each Boost tap costs 10% of the meter and grants 3 seconds of income multiplier. */
     fun boost() {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
         boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         boostTimeLeft = min(Balance.BOOST_MAX_SEC, boostTimeLeft + Balance.BOOST_SEC_PER_TAP)
-        if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // full recharge tak wait
+        if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
     }
 
     fun evolve() {

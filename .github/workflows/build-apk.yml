@@ -1,7 +1,7 @@
-# Cloud pe installable APK banata hai (PC ya Android Studio ki zarurat nahi).
-# Use: is poore project ko GitHub repo me push karo > Actions tab > "Build APK" > Run workflow.
-# Khatam hone ke baad usi run ke page pe neeche "Artifacts" me FrostExpress-debug-apk download karo,
-# zip kholo aur app-debug.apk phone me install karo (Unknown sources allow karna padega).
+# Builds an installable debug APK in the cloud (no PC or Android Studio needed).
+# Runs on every push to main/master, or manually: Actions tab > "Build APK" > Run workflow.
+# The APK is attached to a GitHub Release and also saved as a run artifact.
+# Install app-debug.apk on your phone (allow installs from unknown sources).
 name: Build APK
 
 on:
@@ -12,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -20,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # gradlew/wrapper jar repo me nahi hai, isliye Gradle yahin install hota hai.
+      # The Gradle wrapper jar is not in the repo, so Gradle is installed here instead.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.11.1
@@ -28,9 +30,17 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: FrostExpress-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Publish APK to a GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Frost Express debug build ${{ github.run_number }}
+          prerelease: true
+          files: app/build/outputs/apk/debug/app-debug.apk

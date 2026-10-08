@@ -26,7 +26,7 @@ private val PINES = floatArrayOf(0.8f, 1.0f, 0.65f, 0.9f, 0.75f, 1.0f, 0.6f)
 private val Dark = Color(0xFF2B2F36)
 private val Window = Color(0xFFCFE9FF)
 
-/** Frozen duniya + chalti train. worldX "dp" me chalta hai, speed ke hisaab se. */
+/** Frozen world with a moving train. worldX scrolls in dp, driven by train speed. */
 @Composable
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
     var worldX by remember { mutableFloatStateOf(0f) }
@@ -60,18 +60,18 @@ private fun DrawScope.drawScene(worldX: Float, time: Float, tier: TrainTier, wag
     val groundY = h * 0.66f
     val trackY = h * 0.80f
 
-    // Aasmaan aur suraj
+    // Sky and sun
     drawRect(Color(0xFFD7E8F4), size = Size(w, groundY))
     drawCircle(Color(0xFFFFF6DA), 26f * u, Offset(w * 0.82f, h * 0.18f))
 
-    // Pahad (parallax)
+    // Mountains (parallax)
     drawRidge(worldX * u * 0.08f, groundY, 480f * u, h * 0.40f, FAR_PEAKS, Color(0xFFB9D0E1), Color(0xFFEAF3F9))
     drawRidge(worldX * u * 0.18f, groundY, 360f * u, h * 0.28f, MID_PEAKS, Color(0xFF9DB9CE), Color(0xFFE2EEF6))
 
-    // Barf ki zameen
+    // Snowy ground
     drawRect(Color(0xFFEEF5FA), Offset(0f, groundY), Size(w, h - groundY))
 
-    // Jame hue ped
+    // Frozen pines
     val spacing = 64f * u
     val pineOff = (worldX * u * 0.5f) % (spacing * PINES.size)
     var px = -pineOff
@@ -104,7 +104,7 @@ private fun DrawScope.drawScene(worldX: Float, time: Float, tier: TrainTier, wag
         }
     }
 
-    // Barfbari
+    // Snowfall
     for (i in 0 until 40) {
         val fx = ((i * 0.6180339f) % 1f) * w
         val fy = ((i * 0.4142136f) % 1f) * h
@@ -176,7 +176,7 @@ private fun DrawScope.drawTrain(
     val chassisTop = wheelCy - 4f * u
     val boilerTop = chassisTop - 28f * u
 
-    // Wagons (jitne screen pe fit ho)
+    // Wagons (as many as fit on screen)
     val maxFit = ((locoX - 6f * u) / (58f * u)).toInt()
     val shown = minOf(wagons, maxFit)
     for (i in 0 until shown) {
@@ -224,7 +224,7 @@ private fun DrawScope.drawTrain(
     drawWheel(locoX + 42f * u, wheelCy, wheelR, worldX / 10f, accent, u)
     drawWheel(locoX + 66f * u, wheelCy, wheelR, worldX / 10f, accent, u)
 
-    // Dhuan
+    // Smoke
     val cx = locoX + 66.5f * u
     val cy = boilerTop - 15f * u
     for (i in 0 until 5) {

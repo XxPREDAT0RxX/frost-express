@@ -84,7 +84,7 @@ fun GameScreen(vm: GameViewModel) {
             onDismissRequest = vm::dismissOffline,
             title = { Text("Welcome back!") },
             text = {
-                Text("Aapki train ne ${fmtDistance(vm.offlineMeters)} chalke ${fmt(vm.offlineCoins)} coins kamaye.")
+                Text("Your train travelled ${fmtDistance(vm.offlineMeters)} while you were away and earned ${fmt(vm.offlineCoins)} coins.")
             },
             confirmButton = { TextButton(onClick = vm::dismissOffline) { Text("Collect") } },
         )
@@ -115,7 +115,7 @@ private fun Header(vm: GameViewModel) {
 private fun BoostBar(vm: GameViewModel) {
     val fill = vm.boostMeter.toFloat().coerceIn(0f, 1f)
     val status = when {
-        vm.boostLocked -> "Recharging ${(fill * 100).toInt()}%  (full hone tak boost band)"
+        vm.boostLocked -> "Recharging ${(fill * 100).toInt()}% · boost locked until full"
         vm.isBoosting -> "Boost x${fmt(vm.boostMultiplier, 1)} active · ${vm.boostTimeLeft.toInt() + 1}s"
         else -> "Tap BOOST: x${fmt(vm.boostMultiplier, 1)} income, 3s per tap"
     }
@@ -179,15 +179,15 @@ private fun Upgrades(vm: GameViewModel, modifier: Modifier = Modifier) {
     if (confirmEvolve) {
         AlertDialog(
             onDismissRequest = { confirmEvolve = false },
-            title = { Text("Train evolve karni hai?") },
+            title = { Text("Evolve your train?") },
             text = {
-                Text("Coins aur upgrades reset honge. Aapko ${vm.coreGain} Frost Core milenge (permanent bonus) aur nayi train unlock hogi.")
+                Text("Coins and upgrades will reset. You will get ${vm.coreGain} Frost Core(s) (permanent bonus) and unlock the next train.")
             },
             confirmButton = {
-                TextButton(onClick = { vm.evolve(); confirmEvolve = false }) { Text("Haan") }
+                TextButton(onClick = { vm.evolve(); confirmEvolve = false }) { Text("Evolve") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmEvolve = false }) { Text("Nahi") }
+                TextButton(onClick = { confirmEvolve = false }) { Text("Cancel") }
             },
         )
     }
@@ -226,7 +226,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Evolve", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Text(
-                "Abhi: ${TIERS[vm.tierIndex].name} (Tier ${vm.tierIndex + 1}) · Frost Cores: ${vm.cores} (+${vm.cores * 25}% coins)",
+                "Current: ${TIERS[vm.tierIndex].name} (Tier ${vm.tierIndex + 1}) · Frost Cores: ${vm.cores} (+${vm.cores * 25}% coins)",
                 fontSize = 13.sp,
                 color = Muted,
             )
@@ -249,7 +249,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
                 color = Muted,
             )
             Button(onClick = onEvolve, enabled = vm.canEvolve, modifier = Modifier.fillMaxWidth()) {
-                Text(if (vm.canEvolve) "Evolve to ${next.name}  (+${vm.coreGain} cores)" else "Aur door chalo")
+                Text(if (vm.canEvolve) "Evolve to ${next.name}  (+${vm.coreGain} cores)" else "Travel further to evolve")
             }
         }
     }
