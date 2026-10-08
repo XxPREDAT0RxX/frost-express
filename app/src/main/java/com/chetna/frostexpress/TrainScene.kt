@@ -266,7 +266,7 @@ private fun DrawScope.drawScene(npc: Npc, time: Float, scroll: Float, tier: Trai
     val u = density
     val w = size.width
     val h = size.height
-    val z = (w / u * 0.60f / CAR_W).coerceIn(1f, 1.7f)
+    val z = (w / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f)
     npc.viewH = h / u / z
     val trainPx = CAR_W * u * z
     val originX = (w - trainPx) / 2f
