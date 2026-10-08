@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -61,9 +62,13 @@ private class Look(
 
 private class Decor(val side: Int, val fx: Float, val y: Float, val r: Float, val kind: Int)
 
-private val DECOR = List(16) { i ->
-    Decor(i % 2, (i * 0.37f + 0.11f) % 1f, (i * 27.3f) % DECOR_PERIOD, 7f + ((i * 5) % 9), i % 3)
-}
+// Roadside scenery that scrolls past. Kinds: 0 pine, 1 large pine, 2 rock, 3 shrub, 4 snow drift.
+// Sorted so ground details are drawn first and trees last (on top).
+private val DECOR = List(36) { i ->
+    val kind = when (i % 9) { 0, 1, 2 -> 0; 3 -> 1; 4 -> 2; 5 -> 3; 6, 7 -> 4; else -> 0 }
+    val r = when (kind) { 0 -> 9f + (i * 5) % 7; 1 -> 17f + (i * 3) % 6; 2 -> 6f + (i * 3) % 5; 3 -> 6f + (i * 7) % 4; else -> 14f + (i * 5) % 12 }
+    Decor(i % 2, (i * 0.381966f + 0.07f) % 1f, (i * 37.7f) % DECOR_PERIOD, r, kind)
+}.sortedBy { if (it.kind == 4) 0 else if (it.kind == 2 || it.kind == 3) 1 else 2 }
 
 private fun carY(car: Int, localY: Float): Float = NOSE + car * PITCH + localY
 
@@ -271,7 +276,7 @@ private fun DrawScope.drawScene(npc: Npc, time: Float, scroll: Float, tier: Trai
     val trainPx = CAR_W * u * z
     val originX = (w - trainPx) / 2f
     val centerOff = max(0f, (npc.viewH - npc.trainLen) / 2f)
-    drawRect(Color(0xFFE6EFF6), size = size)
+    drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
     drawDecor(scroll, originX, trainPx, h, u)
     translate(left = originX, top = (centerOff - npc.camY) * u * z) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
@@ -301,28 +306,86 @@ private fun DrawScope.drawDecor(scroll: Float, originX: Float, trainPx: Float, h
     }
 }
 
+private fun DrawScope.starPath(cx: Float, cy: Float, rOut: Float, rIn: Float, n: Int, rot: Float): Path {
+    val p = Path()
+    for (i in 0 until n * 2) {
+        val ang = rot + i * PI_F / n
+        val rr = if (i % 2 == 0) rOut else rIn
+        val px = cx + cos(ang) * rr
+        val py = cy + sin(ang) * rr
+        if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
+    }
+    p.close()
+    return p
+}
+
 private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float) {
-    if (kind == 2) {
-        drawOval(Color(0xFFB8C4CE), Offset(x - r, y - r * 0.7f), Size(2f * r, 1.4f * r))
-        drawOval(Color(0xFFD7E0E7), Offset(x - r * 0.6f, y - r * 0.5f), Size(1.2f * r, 0.8f * r))
-    } else {
-        drawCircle(Color(0xFF3F6B7A), r, Offset(x, y))
-        drawCircle(Color(0xFF5D8FA0), r * 0.68f, Offset(x, y))
-        drawCircle(Color(0xFFF2F8FC), r * 0.3f, Offset(x - r * 0.1f, y - r * 0.1f))
+    val seed = (x * 0.013f + r)
+    when (kind) {
+        4 -> { // snow drift
+            drawOval(Color(0xFFD3E2EE), Offset(x - r * 1.5f, y - r * 0.55f), Size(r * 3f, r * 1.1f))
+            drawOval(Color(0xFFF7FBFE), Offset(x - r * 1.35f, y - r * 0.5f), Size(r * 2.6f, r * 0.85f))
+        }
+        2 -> { // rock with a snow cap
+            drawOval(Color(0x33203040), Offset(x - r * 0.8f, y - r * 0.35f), Size(r * 2.1f, r * 1.4f))
+            drawOval(Color(0xFF7D8A96), Offset(x - r, y - r * 0.75f), Size(r * 2f, r * 1.5f))
+            drawOval(Color(0xFFA3AFBA), Offset(x - r * 0.85f, y - r * 0.7f), Size(r * 1.5f, r * 1.0f))
+            drawOval(Color(0xFFF4F9FC), Offset(x - r * 0.6f, y - r * 0.7f), Size(r * 1.2f, r * 0.6f))
+        }
+        3 -> { // shrub
+            drawOval(Color(0x33203040), Offset(x - r * 0.9f, y - r * 0.2f), Size(r * 2.2f, r * 1.4f))
+            drawCircle(Color(0xFF3B5E4F), r * 0.8f, Offset(x - r * 0.45f, y))
+            drawCircle(Color(0xFF486F5C), r * 0.85f, Offset(x + r * 0.4f, y + r * 0.1f))
+            drawCircle(Color(0xFF557F69), r * 0.7f, Offset(x, y - r * 0.4f))
+            drawCircle(Color(0xFFF4F9FC), r * 0.35f, Offset(x - r * 0.1f, y - r * 0.55f))
+        }
+        else -> { // pine seen from above: soft shadow, layered needle rings, snow dusting
+            drawOval(Color(0x30203040), Offset(x - r * 0.45f, y - r * 0.35f), Size(r * 2.1f, r * 1.9f))
+            val rings = listOf(
+                Color(0xFF244B41), Color(0xFF2F6052), Color(0xFF3E7864), Color(0xFF54927B),
+            )
+            for (i in rings.indices) {
+                val rr = r * (1f - i * 0.22f)
+                drawPath(starPath(x, y, rr, rr * 0.66f, 11, seed + i * 0.35f), rings[i])
+            }
+            drawCircle(Color(0xFF6BA891), r * 0.12f, Offset(x, y))
+            for (i in 0 until 5) {
+                val ang = seed * 3f + i * 1.26f
+                val d = r * (0.45f + 0.12f * (i % 2))
+                drawCircle(Color.White.copy(alpha = 0.8f), r * 0.14f, Offset(x + cos(ang) * d, y + sin(ang) * d))
+            }
+            drawCircle(Color.White.copy(alpha = 0.85f), r * 0.2f, Offset(x - r * 0.12f, y - r * 0.14f))
+        }
     }
 }
 
 private fun DrawScope.drawTrack(scroll: Float, len: Float) {
     val cx = CAR_W / 2f
-    box(Color(0xFF9AA7B3), cx - 26f, -900f, 52f, len + 1800f)
+    val top = -900f
+    val total = len + 1800f
+    // gravel bed with darker edges
+    box(Color(0xFF7C8793), cx - 33f, top, 66f, total)
+    box(Color(0xFF99A5B0), cx - 30f, top, 60f, total)
+    // sleepers: ids stay attached to the ground as the track scrolls
+    val n = (scroll / 14f).toInt()
     val off = scroll % 14f
-    var y = -902f + off
+    var y = top - 2f + off
+    var k = 0
     while (y < len + 900f) {
-        box(Color(0xFF6B5B4B), cx - 24f, y, 48f, 4f)
+        val id = n - k
+        val dark = (id * 7 + 3) % 5 == 0
+        box(Color(0x33000000), cx - 24f, y + 1.5f, 50f, 4.5f, 1f)
+        box(if (dark) Color(0xFF5A4A3B) else Color(0xFF6E5B49), cx - 25f, y, 50f, 4.5f, 1f)
+        box(Color(0x22FFFFFF), cx - 25f, y, 50f, 1f)
         y += 14f
+        k++
     }
-    box(Color(0xFF3D4A57), cx - 15f, -900f, 3f, len + 1800f)
-    box(Color(0xFF3D4A57), cx + 12f, -900f, 3f, len + 1800f)
+    // steel rails with a bright top edge
+    for (rx in listOf(cx - 16f, cx + 12f)) {
+        box(Color(0x33000000), rx + 1.5f, top, 4f, total)
+        box(Color(0xFF4A5560), rx, top, 4f, total)
+        box(Color(0xFFC5CED6), rx + 1.2f, top, 1.2f, total)
+    }
 }
 
 private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Float, boosting: Boolean) {
@@ -359,6 +422,9 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
         close()
     }
     drawPath(p, body)
+    dot(Color(0x33FFE680), 56f, 15f, 10f)
+    dot(Color(0x33FFE680), 134f, 15f, 10f)
+    box(Color(0x22FFFFFF), 46f, 4f, 98f, 4f, 2f)
     dot(Color(0xFFFFE680), 56f, 15f, 5f)
     dot(Color(0xFFFFE680), 134f, 15f, 5f)
     box(accent, 70f, 10f, 50f, 4f, 2f)
@@ -366,22 +432,38 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
 }
 
 private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor: Color, plank: Color) {
-    box(Color(0x33000000), 3f, top + 4f, CAR_W, CAR_H, 12f)
+    // layered soft shadow on the ground
+    box(Color(0x1A101820), 8f, top + 10f, CAR_W, CAR_H, 14f)
+    box(Color(0x26101820), 4f, top + 5f, CAR_W, CAR_H, 12f)
     box(body, 0f, top, CAR_W, CAR_H, 12f)
+    box(Color(0x26FFFFFF), 0f, top, CAR_W, 6f, 12f)            // roof edge highlight
+    box(Color(0x22000000), 0f, top + CAR_H - 6f, CAR_W, 6f, 12f) // lower edge shade
     box(floor, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f)
     var y = top + 19f
     while (y < top + CAR_H - 8f) {
         box(plank, 7f, y, CAR_W - 14f, 1.2f)
         y += 12f
     }
+    // inset shading so the floor looks recessed
+    box(Color(0x30000000), 7f, top + 7f, CAR_W - 14f, 5f, 4f)
+    box(Color(0x1E000000), 7f, top + 7f, 4f, CAR_H - 14f, 2f)
+    box(Color(0x18FFFFFF), 7f, top + CAR_H - 11f, CAR_W - 14f, 4f, 2f)
     var wy = top + 14f
     while (wy < top + CAR_H - 20f) {
-        box(Color(0xFFCFE9FF), 1.5f, wy, 4f, 14f, 1.5f)
-        box(Color(0xFFCFE9FF), CAR_W - 5.5f, wy, 4f, 14f, 1.5f)
+        for (wx in listOf(1.5f, CAR_W - 5.5f)) {
+            box(Color(0xFF9CC3E0), wx, wy, 4f, 14f, 1.5f)
+            box(Color(0x88FFFFFF), wx + 0.8f, wy + 1.5f, 1.2f, 6f, 0.6f)
+        }
         wy += 24f
     }
     box(accent, 12f, top + 1.5f, CAR_W - 24f, 2.5f, 1f)
     box(accent, 12f, top + CAR_H - 4f, CAR_W - 24f, 2.5f, 1f)
+    var rx = 18f
+    while (rx < CAR_W - 14f) { // rivets
+        dot(Color(0x66FFFFFF), rx, top + 2.8f, 0.8f)
+        dot(Color(0x66FFFFFF), rx, top + CAR_H - 2.8f, 0.8f)
+        rx += 22f
+    }
 }
 
 private fun DrawScope.drawVestibule(y: Float) {
@@ -629,6 +711,7 @@ private fun DrawScope.drawNpc(npc: Npc) {
         }
         // body
         drawRoundRect(jacket, Offset(cx - 10f * u, cy - 5.5f * u), Size(20f * u, 11f * u), CornerRadius(5f * u, 5f * u))
+        drawRoundRect(Color(0x40000000), Offset(cx - 10f * u, cy - 5.5f * u), Size(20f * u, 11f * u), CornerRadius(5f * u, 5f * u), style = Stroke(width = 0.9f * u))
         drawRoundRect(Color(0xFFE0762B), Offset(cx - 10f * u, cy - 1f * u), Size(20f * u, 3f * u), CornerRadius(1.5f * u, 1.5f * u))
         // hands
         drawCircle(skin, 3f * u, Offset(cx + lx * u, cy + ly * u))
@@ -636,6 +719,8 @@ private fun DrawScope.drawNpc(npc: Npc) {
         // head: hat with a pompom, face peeking out at the front
         drawCircle(Color(0xFF7FD8FF), 6.5f * u, Offset(cx, cy - 0.5f * u))
         drawCircle(skin, 3.2f * u, Offset(cx, cy - 6f * u))
+        drawCircle(Color(0xFF4FB4E6), 6.5f * u, Offset(cx, cy - 0.5f * u), style = Stroke(width = 1.1f * u))
+        drawCircle(Color.White.copy(alpha = 0.45f), 2.2f * u, Offset(cx - 2.2f * u, cy - 2.6f * u))
         drawCircle(Color.White, 2f * u, Offset(cx, cy + 0.5f * u))
         // shovel blade, with coal on it while delivering
         if (hasShovel) {
