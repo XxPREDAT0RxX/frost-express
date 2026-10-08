@@ -64,6 +64,11 @@ object Balance {
     const val BOOST_RECHARGE_PER_SEC = 0.04 // empty to full in about 25 sec
     const val COAL_BONUS = 0.08
 
+    // Rewarded ad boost (hidden while ADS_ENABLED is false)
+    const val ADS_ENABLED = false
+    const val AD_BOOST_MULT = 2.0
+    const val AD_BOOST_SEC = 120.0
+
     // Offline
     const val OFFLINE_CAP_SEC = 8 * 3600L
     const val OFFLINE_BASE = 0.25

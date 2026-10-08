@@ -11,6 +11,9 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Idle-game basics**: buy x1 / x10 / x100 / MAX selector, and milestone bonuses (x2 effect at levels 25, 50, 100, 200, 300 for Engine, Wagon, Heat and Food).
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 
+## Ads (planned for after launch)
+Rewarded ad boosts (watch an ad for x2 income for 2 minutes) are prepared but OFF. See `Ads.kt` and `Balance.ADS_ENABLED`. Add AdMob, implement `AdProvider`, then switch the flag on.
+
 ## Run it
 1. Open the project folder in the latest Android Studio. Gradle syncs automatically.
 2. Pick a phone or emulator and press Run.

@@ -29,6 +29,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var boostMeter by mutableDoubleStateOf(1.0); private set
     var boostTimeLeft by mutableDoubleStateOf(0.0); private set
     var boostLocked by mutableStateOf(false); private set
+    var adBoostLeft by mutableDoubleStateOf(0.0); private set
+    var ads: AdProvider = NoAds
     var offlineCoins by mutableDoubleStateOf(0.0); private set
     var offlineMeters by mutableDoubleStateOf(0.0); private set
     val levels = mutableStateListOf<Int>()
@@ -67,7 +69,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER)
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
-    val incomeMultiplier: Double get() = if (isBoosting) boostMultiplier else 1.0
+    val incomeMultiplier: Double
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0)
     val coinsPerSec: Double get() = speed * coinsPerMeter * incomeMultiplier
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL))
@@ -137,6 +140,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         save()
     }
 
+    /** Watch a rewarded ad for a timed income multiplier. */
+    fun watchAdBoost() {
+        if (!Balance.ADS_ENABLED) return
+        ads.showRewarded { adBoostLeft = Balance.AD_BOOST_SEC }
+    }
+
     fun dismissOffline() {
         offlineCoins = 0.0
         offlineMeters = 0.0
@@ -181,6 +190,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val meters = speed * dt
         runDistance += meters
         coins += meters * coinsPerMeter * incomeMultiplier
+        if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)
         if (boostLocked && boostMeter >= 1.0) boostLocked = false

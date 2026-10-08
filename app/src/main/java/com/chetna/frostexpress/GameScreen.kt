@@ -219,6 +219,12 @@ private fun BottomBar(vm: GameViewModel, onOpenUpgrades: () -> Unit, modifier: M
             }
             Text(status, fontSize = 11.sp, color = Muted)
         }
+        if (Balance.ADS_ENABLED) {
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = vm::watchAdBoost, enabled = vm.adBoostLeft <= 0.0) {
+                Text(if (vm.adBoostLeft > 0.0) "x2 ${vm.adBoostLeft.toInt()}s" else "AD x2")
+            }
+        }
         Spacer(Modifier.width(12.dp))
         Button(
             onClick = vm::boost,
