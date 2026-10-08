@@ -399,6 +399,8 @@ private fun MenuButton(onClick: () -> Unit) {
 
 @Composable
 private fun AchievementBanner(title: String?, modifier: Modifier = Modifier) {
+    var shown by remember { mutableStateOf("") }
+    if (title != null) shown = title
     AnimatedVisibility(visible = title != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
         Row(
             Modifier
@@ -409,16 +411,18 @@ private fun AchievementBanner(title: String?, modifier: Modifier = Modifier) {
         ) {
             StarIcon(Color.White, Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Achievement: ${title ?: ""}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Achievement: $shown", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
 
 @Composable
 private fun ToastBanner(text: String?, modifier: Modifier = Modifier) {
+    var shown by remember { mutableStateOf("") }
+    if (text != null) shown = text
     AnimatedVisibility(visible = text != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
         Text(
-            text ?: "",
+            shown,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,

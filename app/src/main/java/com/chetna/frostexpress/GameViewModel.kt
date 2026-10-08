@@ -111,7 +111,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun collectCrate() {
         if (event != GameEvent.CRATE) return
-        val gain = max(50.0, coinsPerSec * 60.0)
+        val gain = max(50.0, baseCoinsPerSec * 60.0)
         coins += gain
         event = GameEvent.NONE
         eventLeft = 0.0
@@ -121,7 +121,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called by the scene when a station reaches the train. */
     fun collectStation() {
-        val gain = max(30.0, coinsPerSec * Balance.STATION_BONUS_SEC)
+        val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC)
         coins += gain
         audio.play(R.raw.sfx_buy)
         showToast("Station: passengers paid +${fmt(gain)} coins")
@@ -159,7 +159,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun today(): Long = java.time.LocalDate.now().toEpochDay()
     val dailyNextStreak: Int get() = if (lastDailyDay >= 0 && lastDailyDay == today() - 1) dailyStreak + 1 else 1
     fun dailyCoins(streak: Int): Double =
-        max(200.0, coinsPerSec * 900.0) * (1.0 + 0.25 * (min(streak, 7) - 1))
+        max(200.0, baseCoinsPerSec * 900.0) * (1.0 + 0.25 * (min(streak, 7) - 1))
     fun dailyGivesCore(streak: Int): Boolean = streak % 7 == 0
 
     fun claimDaily() {
@@ -212,7 +212,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         for (a in ACHIEVEMENTS) {
             if (a.id in unlocked || !achievementMet(a.id)) continue
             unlocked.add(a.id)
-            if (a.cores > 0) cores += a.cores else coins += max(100.0, coinsPerSec * 600.0)
+            if (a.cores > 0) cores += a.cores else coins += max(100.0, baseCoinsPerSec * 600.0)
             achievementPopup = a.title
             popupLeft = 3.5
             audio.play(R.raw.sfx_buy)
@@ -229,7 +229,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         totalDistance = 0.0; boostTaps = 0; purchases = 0
         dailyStreak = 0; lastDailyDay = -1L; dailyReady = true
         unlocked.clear(); achievementPopup = null
-        event = GameEvent.NONE; eventLeft = 0.0; nextStationAt = Balance.STATION_EVERY_M
+        event = GameEvent.NONE; eventLeft = 0.0; adBoostLeft = 0.0; toast = null
+        nextStationAt = (floor(0.0 / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
         tutorialDone = false
@@ -290,6 +291,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     val incomeMultiplier: Double
         get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult
     val coinsPerSec: Double get() = speed * coinsPerMeter * incomeMultiplier
+    /** Steady income without boost, aurora or ad multipliers; used to size one-off rewards. */
+    private val baseCoinsPerSec: Double get() = speed * coinsPerMeter
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL))
     private val offlineRate: Double

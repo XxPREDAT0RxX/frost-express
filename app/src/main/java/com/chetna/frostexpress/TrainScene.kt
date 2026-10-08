@@ -138,8 +138,9 @@ private class Npc {
         cycle = buildCycle(heat, food, bed, cargo)
         trainLen = NOSE + (2 + cargo) * PITCH - GAP + 10f
         if (y > trainLen - 20f) y = trainLen - 20f
-        idx = if (cycle.isEmpty()) 0 else startOffset % cycle.size
-        if (startOffset > 0) cycle.getOrNull(idx)?.let { x = it.x; y = it.y }
+        // startOffset -1 = begin halfway through the routine, so two workers never move in lockstep
+        idx = if (cycle.isEmpty() || startOffset == 0) 0 else (if (startOffset < 0) cycle.size / 2 else startOffset % cycle.size)
+        if (startOffset != 0) cycle.getOrNull(idx)?.let { x = it.x; y = it.y }
         plan()
     }
 
@@ -200,7 +201,7 @@ private class Npc {
 @Composable
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
     val npc = remember { Npc() }
-    val npc2 = remember { Npc().also { it.startOffset = 7 } }
+    val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val stations = remember { ArrayList<Station>() }
     val halfH = remember { floatArrayOf(300f) }
     var seenStations by remember { mutableIntStateOf(vm.stationSerial) }
@@ -340,7 +341,7 @@ private fun DrawScope.drawScene(
             moveTo(cx - 40f * u * z, ny + 4f * u * z); lineTo(cx + 40f * u * z, ny + 4f * u * z)
             lineTo(cx + 110f * u * z, ny - 190f * u * z); lineTo(cx - 110f * u * z, ny - 190f * u * z); close()
         }
-        drawPath(beam, Brush.verticalGradient(listOf(Color(0x66FFF3B0).copy(alpha = dark * 1.4f), Color.Transparent), startY = ny, endY = ny - 190f * u * z))
+        drawPath(beam, Brush.verticalGradient(listOf(Color.Transparent, Color(0xFFFFF3B0).copy(alpha = dark * 1.4f)), startY = ny - 190f * u * z, endY = ny))
     }
     if (eventId == GameEvent.AURORA.ordinal) drawAurora(time, w, h)
     drawSnowfall(time, w, h, u, eventId == GameEvent.BLIZZARD.ordinal)
