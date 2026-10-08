@@ -62,7 +62,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         soundOn = !soundOn
         audio.enabled = soundOn
         prefs.edit().putBoolean("sound", soundOn).apply()
-        if (soundOn) { audio.startMusic(); audio.play(R.raw.sfx_click) } else audio.pauseMusic()
+        if (soundOn) audio.startMusic() else audio.pauseMusic()
     }
 
     override fun onCleared() {

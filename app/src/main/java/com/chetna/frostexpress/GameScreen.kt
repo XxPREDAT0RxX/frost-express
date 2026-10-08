@@ -383,7 +383,7 @@ private fun BottomBar(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(if (sheetOpen) Ice else PanelHi)
-                .clickable(onClick = { vm.audio.play(R.raw.sfx_click); onToggleUpgrades() }),
+                .clickable(onClick = onToggleUpgrades),
             contentAlignment = Alignment.Center,
         ) {
             GearIcon(if (sheetOpen) Color.White else Ice, Modifier.size(22.dp))
@@ -494,7 +494,7 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
             }
             TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
         }
-        TabRow(tab, { tab = it; vm.audio.play(R.raw.sfx_click) }, Modifier.padding(horizontal = 12.dp))
+        TabRow(tab, { tab = it }, Modifier.padding(horizontal = 12.dp))
         if (tab == 0) BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -630,7 +630,7 @@ private fun BuyAmountRow(vm: GameViewModel, modifier: Modifier = Modifier) {
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) Ice else Panel)
-                    .clickable { vm.audio.play(R.raw.sfx_click); vm.buyAmount = amount }
+                    .clickable { vm.buyAmount = amount }
                     .padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {

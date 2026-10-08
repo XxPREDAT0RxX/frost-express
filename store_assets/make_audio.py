@@ -85,9 +85,20 @@ def sfx(name, notes, gap=0.07, dur=0.9, vol=0.7):
     for i, m in enumerate(notes): place(b, bell(hz(m), dur, 0.8), i * gap)
     save(name, norm(reverb(b, 0.3), vol))
 
-sfx("sfx_buy", [76, 83], 0.07, 0.7)
+def tok(freq, dur=0.14):
+    t = np.arange(int(SR * dur)) / SR
+    return (np.sin(2*np.pi*freq*t) * np.exp(-t*55) + 0.5*np.sin(2*np.pi*freq*2.1*t) * np.exp(-t*85))
+
+# Buy: two soft wooden "tok" sounds (low pitched, not a bell)
+b = np.zeros(int(SR * 0.3))
+place(b, tok(380), 0.0); place(b, tok(500), 0.07)
+save("sfx_buy", norm(b, 0.7))
 sfx("sfx_coin", [88], 0.0, 0.5, 0.5)
-sfx("sfx_click", [84], 0.0, 0.18, 0.4)
+# UI click: a crisp mechanical tick (short noise burst plus a tiny high sine)
+ct = np.arange(int(SR * 0.05)) / SR
+noise = np.diff(np.random.default_rng(3).normal(size=len(ct) + 1))
+click = noise * np.exp(-ct * 220) + 0.6 * np.sin(2*np.pi*1900*ct) * np.exp(-ct * 260)
+save("sfx_click", norm(click, 0.6))
 sfx("sfx_evolve", [60, 64, 67, 72, 76, 79, 84], 0.11, 1.4, 0.8)
 t = np.arange(int(SR * 0.9)) / SR
 whoosh = np.random.default_rng(1).normal(size=len(t)) * np.sin(np.pi * t / 0.9) ** 2 * 0.25
