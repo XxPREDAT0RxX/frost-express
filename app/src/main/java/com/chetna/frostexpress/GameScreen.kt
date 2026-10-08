@@ -466,6 +466,7 @@ private fun Pill(label: String, bg: Color, fg: Color, enabled: Boolean, onClick:
 @Composable
 private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
     var confirmEvolve by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(0) }
 
     Column(
         modifier
@@ -482,42 +483,78 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Upgrades", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            CoinIcon(Modifier.size(16.dp))
-            Spacer(Modifier.width(5.dp))
-            Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
+            if (tab == 0) {
+                CoinIcon(Modifier.size(16.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
+            } else {
+                CoreIcon(Ice, Modifier.size(16.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("${vm.coresAvailable}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ice)
+            }
             TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
         }
-        BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
+        TabRow(tab, { tab = it; vm.audio.play(R.raw.sfx_click) }, Modifier.padding(horizontal = 12.dp))
+        if (tab == 0) BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            if (tab == 1) {
+                item {
+                    Text(
+                        "Kept forever. Bought with Frost Cores, which you earn by evolving.",
+                        fontSize = 11.sp, color = Muted,
+                    )
+                }
+                items(PERMANENT) { spec ->
+                    val lvl = vm.permLevel(spec.type)
+                    val maxed = lvl >= spec.maxLevel
+                    val cost = vm.permCost(spec)
+                    UpgradeRow(
+                        type = permIcon(spec.type),
+                        title = spec.title,
+                        level = "Lv $lvl/${spec.maxLevel}",
+                        effect = spec.effect,
+                        note = null,
+                        buttonTop = if (maxed) "MAX" else "Buy",
+                        buttonBottom = if (maxed) null else "$cost",
+                        enabled = !maxed && vm.coresAvailable >= cost,
+                        onBuy = { vm.buyPerm(spec) },
+                        core = true,
+                    )
+                }
+            } else {
+                item {
+                    Text("Reset when you evolve.", fontSize = 11.sp, color = Muted)
+                }
             items(UPGRADES) { spec ->
-                val lvl = vm.level(spec.type)
-                val maxed = lvl >= spec.maxLevel
-                val n = vm.buyCount(spec)
-                val cost = vm.bulkCost(spec, n)
-                val next = vm.nextMilestone(spec.type)
-                val mult = vm.milestoneMult(spec.type)
-                UpgradeRow(
-                    type = spec.type,
-                    title = spec.title,
-                    level = "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
-                    effect = spec.effect,
-                    note = when {
-                        mult > 1.0 && next != null -> "Bonus x${fmt(mult)} · next x2 at Lv $next"
-                        mult > 1.0 -> "Bonus x${fmt(mult)}"
-                        next != null -> "Next x2 bonus at Lv $next"
-                        else -> null
-                    },
-                    buttonTop = if (maxed) "MAX" else "+$n",
-                    buttonBottom = if (maxed) null else fmt(cost),
-                    enabled = !maxed && vm.coins >= cost,
-                    onBuy = { vm.buy(spec) },
-                )
+                    val lvl = vm.level(spec.type)
+                    val maxed = lvl >= spec.maxLevel
+                    val n = vm.buyCount(spec)
+                    val cost = vm.bulkCost(spec, n)
+                    val next = vm.nextMilestone(spec.type)
+                    val mult = vm.milestoneMult(spec.type)
+                    UpgradeRow(
+                        type = spec.type,
+                        title = spec.title,
+                        level = "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
+                        effect = spec.effect,
+                        note = when {
+                            mult > 1.0 && next != null -> "Bonus x${fmt(mult)} · next x2 at Lv $next"
+                            mult > 1.0 -> "Bonus x${fmt(mult)}"
+                            next != null -> "Next x2 bonus at Lv $next"
+                            else -> null
+                        },
+                        buttonTop = if (maxed) "MAX" else "+$n",
+                        buttonBottom = if (maxed) null else fmt(cost),
+                        enabled = !maxed && vm.coins >= cost,
+                        onBuy = { vm.buy(spec) },
+                    )
+                }
             }
-            item { EvolveCard(vm, onEvolve = { confirmEvolve = true }) }
+            if (tab == 0) item { EvolveCard(vm, onEvolve = { confirmEvolve = true }) }
         }
     }
 
@@ -526,7 +563,7 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
             onDismissRequest = { confirmEvolve = false },
             title = { Text("Evolve your train?") },
             text = {
-                Text("Coins and upgrades will reset. You will get ${vm.coreGain} Frost Core(s) (permanent bonus) and unlock the next train.")
+                Text("Coins and run upgrades will reset (permanent upgrades stay). You will get ${vm.coreGain} Frost Core(s) (permanent bonus) and unlock the next train.")
             },
             confirmButton = {
                 TextButton(onClick = { vm.evolve(); confirmEvolve = false }) { Text("Evolve") }
@@ -535,6 +572,46 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
                 TextButton(onClick = { confirmEvolve = false }) { Text("Cancel") }
             },
         )
+    }
+}
+
+private fun permIcon(t: PermType): UpgradeType = when (t) {
+    PermType.INCOME -> UpgradeType.HEAT
+    PermType.SPEED -> UpgradeType.ENGINE
+    PermType.START -> UpgradeType.COAL
+    PermType.BOOST -> UpgradeType.BOOSTER
+    PermType.OFFLINE -> UpgradeType.CONDUCTOR
+}
+
+@Composable
+private fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        val p = Path().apply {
+            moveTo(.5f * s, .02f * s); lineTo(.95f * s, .5f * s); lineTo(.5f * s, .98f * s); lineTo(.05f * s, .5f * s); close()
+        }
+        drawPath(p, color)
+        drawLine(Color.White.copy(alpha = .55f), Offset(.5f * s, .2f * s), Offset(.5f * s, .8f * s), strokeWidth = .07f * s)
+    }
+}
+
+@Composable
+private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("Run upgrades", "Permanent").forEachIndexed { i, label ->
+            val on = selected == i
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (on) Wood else PanelHi)
+                    .clickable { onSelect(i) }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
+            }
+        }
     }
 }
 
@@ -574,6 +651,7 @@ private fun UpgradeRow(
     buttonBottom: String?,
     enabled: Boolean,
     onBuy: () -> Unit,
+    core: Boolean = false,
 ) {
     val accent = upgradeColor(type)
     Row(
@@ -615,7 +693,7 @@ private fun UpgradeRow(
             Text(buttonTop, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Color.White else Muted)
             if (buttonBottom != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CoinIcon(Modifier.size(9.dp))
+                    if (core) CoreIcon(if (enabled) Color.White else Muted, Modifier.size(9.dp)) else CoinIcon(Modifier.size(9.dp))
                     Spacer(Modifier.width(3.dp))
                     Text(buttonBottom, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (enabled) Color.White else Muted)
                 }

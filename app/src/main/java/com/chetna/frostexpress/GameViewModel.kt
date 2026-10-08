@@ -35,6 +35,26 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var offlineMeters by mutableDoubleStateOf(0.0); private set
     val levels = mutableStateListOf<Int>()
 
+    // Permanent upgrades (kept across evolves) and the Frost Cores spent on them.
+    val permLevels = mutableStateListOf<Int>()
+    var coresSpent by mutableIntStateOf(0); private set
+    val coresAvailable: Int get() = cores - coresSpent
+    fun permLevel(t: PermType): Int = permLevels[t.ordinal]
+    fun permCost(spec: PermSpec): Int =
+        kotlin.math.ceil(spec.baseCost * spec.growth.pow(permLevel(spec.type))).toInt()
+    fun buyPerm(spec: PermSpec) {
+        if (permLevel(spec.type) >= spec.maxLevel) return
+        val cost = permCost(spec)
+        if (coresAvailable >= cost) {
+            coresSpent += cost
+            permLevels[spec.type.ordinal] = permLevel(spec.type) + 1
+            audio.play(R.raw.sfx_buy)
+        }
+    }
+    private val startCoins: Double
+        get() = if (permLevel(PermType.START) == 0) 0.0
+        else Balance.START_COINS_BASE * Balance.START_COINS_GROWTH.pow(permLevel(PermType.START) - 1)
+
     val audio = GameAudio(app)
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
 
@@ -71,17 +91,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         get() = (Balance.BASE_SPEED + Balance.SPEED_PER_ENGINE * level(UpgradeType.ENGINE)) *
             milestoneMult(UpgradeType.ENGINE) *
             (1.0 + Balance.PLOW_BONUS * level(UpgradeType.PLOW)) *
-            (1.0 + Balance.TIER_SPEED_BONUS * tierIndex)
+            (1.0 + Balance.TIER_SPEED_BONUS * tierIndex) *
+            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED))
 
     val coinsPerMeter: Double
         get() = (1.0 + Balance.WAGON_BONUS * level(UpgradeType.WAGON)) * milestoneMult(UpgradeType.WAGON) *
             (1.0 + Balance.HEAT_BONUS * level(UpgradeType.HEAT)) * milestoneMult(UpgradeType.HEAT) *
             (1.0 + Balance.FOOD_BONUS * level(UpgradeType.FOOD)) * milestoneMult(UpgradeType.FOOD) *
             Balance.TIER_INCOME.pow(tierIndex) *
-            (1.0 + Balance.CORE_BONUS * cores)
+            (1.0 + Balance.CORE_BONUS * cores) *
+            (1.0 + Balance.PERM_INCOME * permLevel(PermType.INCOME))
 
     val boostMultiplier: Double
-        get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER)
+        get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER) +
+            Balance.PERM_BOOST * permLevel(PermType.BOOST)
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
@@ -90,7 +113,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL))
     private val offlineRate: Double
-        get() = min(1.0, Balance.OFFLINE_BASE + Balance.CONDUCTOR_BONUS * level(UpgradeType.CONDUCTOR))
+        get() = min(1.0, Balance.OFFLINE_BASE + Balance.CONDUCTOR_BONUS * level(UpgradeType.CONDUCTOR) +
+            Balance.PERM_OFFLINE * permLevel(PermType.OFFLINE))
 
     val evolveDistance: Double get() = Balance.EVOLVE_BASE_DISTANCE * Balance.EVOLVE_GROWTH.pow(evolutions)
     val canEvolve: Boolean get() = runDistance >= evolveDistance
@@ -150,9 +174,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.play(R.raw.sfx_evolve)
         cores += coreGain
         evolutions++
-        coins = 0.0
+        for (i in levels.indices) levels[i] = 0 // temporary upgrades reset; permanent ones stay
+        coins = startCoins
         runDistance = 0.0
-        for (i in levels.indices) levels[i] = 0
         boostMeter = 1.0
         boostTimeLeft = 0.0
         boostLocked = false
@@ -177,6 +201,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putInt("cores", cores)
             .putInt("evo", evolutions)
             .putString("levels", levels.joinToString(","))
+            .putString("perm", permLevels.joinToString(","))
+            .putInt("spent", coresSpent)
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -190,6 +216,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val saved = prefs.getString("levels", "")?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
         levels.clear()
         UpgradeType.values().indices.forEach { levels.add(saved.getOrElse(it) { 0 }) }
+        val savedPerm = prefs.getString("perm", "")?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
+        PermType.values().indices.forEach { permLevels.add(savedPerm.getOrElse(it) { 0 }) }
+        coresSpent = prefs.getInt("spent", 0)
 
         val last = prefs.getLong("last", 0L)
         if (last > 0L) {

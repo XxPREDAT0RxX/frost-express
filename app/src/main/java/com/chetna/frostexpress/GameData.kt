@@ -40,6 +40,26 @@ val UPGRADES = listOf(
     UpgradeSpec(UpgradeType.CONDUCTOR, "Night Conductor", "+5% offline earnings", 1000.0, 1.40, 15),
 )
 
+/** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
+enum class PermType { INCOME, SPEED, START, OFFLINE, BOOST }
+
+data class PermSpec(
+    val type: PermType,
+    val title: String,
+    val effect: String,
+    val baseCost: Int,
+    val growth: Double,
+    val maxLevel: Int,
+)
+
+val PERMANENT = listOf(
+    PermSpec(PermType.INCOME, "Eternal Furnace", "+20% coins from distance", 1, 1.7, 30),
+    PermSpec(PermType.SPEED, "Permafrost Rails", "+10% train speed", 2, 1.7, 30),
+    PermSpec(PermType.START, "Head Start", "Start each run with more coins", 2, 1.8, 10),
+    PermSpec(PermType.BOOST, "Deep Freeze Core", "+0.25 boost multiplier", 3, 1.8, 8),
+    PermSpec(PermType.OFFLINE, "Hibernation", "+5% offline earnings", 3, 1.8, 10),
+)
+
 object Balance {
     const val BASE_SPEED = 2.0            // metres per second
     const val SPEED_PER_ENGINE = 0.5
@@ -54,6 +74,14 @@ object Balance {
 
     const val EVOLVE_BASE_DISTANCE = 3000.0 // metres, x4 after each evolve
     const val EVOLVE_GROWTH = 4.0
+
+    // Permanent upgrades
+    const val PERM_INCOME = 0.20
+    const val PERM_SPEED = 0.10
+    const val PERM_BOOST = 0.25
+    const val PERM_OFFLINE = 0.05
+    const val START_COINS_BASE = 50.0     // Head Start: 50 x 3^level coins
+    const val START_COINS_GROWTH = 3.0
 
     // Boost
     const val BOOST_BASE_MULT = 2.0
