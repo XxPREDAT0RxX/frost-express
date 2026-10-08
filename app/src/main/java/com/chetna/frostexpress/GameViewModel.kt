@@ -86,23 +86,61 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         toastLeft = 3.5
     }
 
-    private val eventSpeedMult: Double get() = if (event == GameEvent.BLIZZARD) Balance.BLIZZARD_SPEED else 1.0
+    // Snow storm: its own random timer, independent of the other events.
+    var stormLeft by mutableDoubleStateOf(0.0); private set
+    private var stormTotal = 0.0
+    private var nextStormIn = 60.0 + Math.random() * 60.0
+
+    /** 0..1, fades in and out so the storm builds up smoothly. */
+    val stormLevel: Float
+        get() = if (stormLeft <= 0.0) 0f
+        else (min(stormLeft, stormTotal - stormLeft) / Balance.STORM_FADE_SEC).coerceIn(0.0, 1.0).toFloat()
+
+    // Day and night cycle
+    var dayTime by mutableDoubleStateOf(0.0); private set
+    private val cycleSec = Balance.DAY_SEC + Balance.DUSK_SEC + Balance.NIGHT_SEC + Balance.DAWN_SEC
+
+    /** 0 (bright) .. 0.42 (darkest), used to tint the scene. */
+    val darkness: Float
+        get() {
+            val t = dayTime
+            val d = Balance.DAY_SEC
+            val du = Balance.DUSK_SEC
+            val n = Balance.NIGHT_SEC
+            val v = when {
+                t < d -> 0.0
+                t < d + du -> (t - d) / du
+                t < d + du + n -> 1.0
+                else -> 1.0 - (t - d - du - n) / Balance.DAWN_SEC
+            }
+            return (v * 0.42).toFloat()
+        }
+
+    /** Current phase name and seconds until the next phase. */
+    fun dayPhase(): Pair<String, Int> {
+        val t = dayTime
+        val d = Balance.DAY_SEC
+        val du = Balance.DUSK_SEC
+        val n = Balance.NIGHT_SEC
+        return when {
+            t < d -> "Day" to (d - t).toInt() + 1
+            t < d + du -> "Dusk" to (d + du - t).toInt() + 1
+            t < d + du + n -> "Night" to (d + du + n - t).toInt() + 1
+            else -> "Dawn" to (cycleSec - t).toInt() + 1
+        }
+    }
+
+    private val eventSpeedMult: Double get() = if (stormLeft > 0.0) Balance.STORM_SPEED else 1.0
     private val eventIncomeMult: Double get() = if (event == GameEvent.AURORA) Balance.AURORA_INCOME else 1.0
 
     private fun startRandomEvent() {
-        event = when ((0..2).random()) {
-            0 -> GameEvent.BLIZZARD
-            1 -> GameEvent.AURORA
-            else -> GameEvent.CRATE
-        }
+        event = if ((0..1).random() == 0) GameEvent.AURORA else GameEvent.CRATE
         eventLeft = when (event) {
-            GameEvent.BLIZZARD -> Balance.BLIZZARD_SEC
             GameEvent.AURORA -> Balance.AURORA_SEC
             else -> Balance.CRATE_SEC
         }
         showToast(
             when (event) {
-                GameEvent.BLIZZARD -> "Blizzard! Speed -25% for ${Balance.BLIZZARD_SEC.toInt()}s"
                 GameEvent.AURORA -> "Aurora! Income x${fmt(Balance.AURORA_INCOME, 1)} for ${Balance.AURORA_SEC.toInt()}s"
                 else -> "Supply crate spotted! Tap it"
             }
@@ -128,6 +166,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun tickEvents(dt: Double) {
+        dayTime = (dayTime + dt) % cycleSec
+        if (stormLeft > 0.0) {
+            stormLeft -= dt
+        } else {
+            nextStormIn -= dt
+            if (nextStormIn <= 0.0) {
+                nextStormIn = Balance.STORM_MIN_GAP + Math.random() * (Balance.STORM_MAX_GAP - Balance.STORM_MIN_GAP)
+                stormTotal = Balance.STORM_MIN_SEC + Math.random() * (Balance.STORM_MAX_SEC - Balance.STORM_MIN_SEC)
+                stormLeft = stormTotal
+                showToast("Snow storm! Speed -25% for ${stormTotal.toInt()}s")
+            }
+        }
         if (toastLeft > 0.0) {
             toastLeft -= dt
             if (toastLeft <= 0.0) toast = null
@@ -230,6 +280,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         dailyStreak = 0; lastDailyDay = -1L; dailyReady = true
         unlocked.clear(); achievementPopup = null
         event = GameEvent.NONE; eventLeft = 0.0; adBoostLeft = 0.0; toast = null
+        stormLeft = 0.0
         nextStationAt = (floor(0.0 / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0

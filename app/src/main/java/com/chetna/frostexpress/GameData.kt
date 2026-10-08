@@ -92,7 +92,7 @@ val LIVERIES = listOf(
 )
 
 /** Random events that happen while the train runs. */
-enum class GameEvent { NONE, BLIZZARD, AURORA, CRATE }
+enum class GameEvent { NONE, AURORA, CRATE }
 
 object Balance {
     const val BASE_SPEED = 2.0            // metres per second
@@ -121,8 +121,17 @@ object Balance {
     // Random events and stations
     const val EVENT_MIN_GAP = 80.0        // seconds between events: 80..160
     const val EVENT_MAX_GAP = 160.0
-    const val BLIZZARD_SEC = 20.0
-    const val BLIZZARD_SPEED = 0.75
+    const val STORM_MIN_GAP = 100.0       // snow storms come on their own timer: every 100..240 s
+    const val STORM_MAX_GAP = 240.0
+    const val STORM_MIN_SEC = 20.0        // and last 20..40 s
+    const val STORM_MAX_SEC = 40.0
+    const val STORM_FADE_SEC = 3.0
+    // Day and night cycle (seconds)
+    const val DAY_SEC = 70.0
+    const val DUSK_SEC = 20.0
+    const val NIGHT_SEC = 40.0
+    const val DAWN_SEC = 20.0
+    const val STORM_SPEED = 0.75
     const val AURORA_SEC = 30.0
     const val AURORA_INCOME = 1.5
     const val CRATE_SEC = 12.0

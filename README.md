@@ -12,7 +12,7 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Sound**: cozy synthesized background music and sound effects (buy, boost, evolve, taps). The speaker icon in the top bar mutes everything. Regenerate with `python store_assets/make_audio.py` (needs numpy and ffmpeg).
 - **Two kinds of upgrades**: *Run upgrades* (coins) reset when you evolve. *Permanent upgrades* (Frost Cores) stay forever: Eternal Furnace, Permafrost Rails, Head Start, Deep Freeze Core, Hibernation.
 - **Daily reward** with a login streak (every 7th day gives a Frost Core), a short **tutorial** on first launch, 13 **achievements**, and a **settings** dialog (volumes, reset progress, privacy policy).
-- **World**: day and night with headlights, random events (blizzard, aurora, tap-able supply crate), stations that pass every 400 m and pay a bonus, and a **Second Worker** permanent upgrade that adds another worker to the train.
+- **World**: a 150 s day and night cycle (shown in the top bar) with headlights, snow storms at random intervals (every 100 to 240 s, slow the train 25%), random events (aurora, tap-able supply crate), drag the scene up or down to look along a long train, stations that pass every 400 m and pay a bonus, and a **Second Worker** permanent upgrade that adds another worker to the train.
 - **Train paint**: unlock new liveries with each evolve and pick one in Settings.
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 

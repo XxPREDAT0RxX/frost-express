@@ -373,6 +373,44 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
             Spacer(Modifier.width(8.dp))
             Text(fmtDistance(vm.runDistance), fontSize = 10.sp, color = Muted)
         }
+        TimeChip(vm)
+    }
+}
+
+/** Shows the time of day (and a storm warning when a snow storm is active). */
+@Composable
+private fun TimeChip(vm: GameViewModel) {
+    val (phase, secs) = vm.dayPhase()
+    val night = phase == "Night" || phase == "Dusk"
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(12.dp)) {
+            val s = size.minDimension
+            if (night) {
+                drawCircle(Color(0xFF5C7CFA), .38f * s, Offset(.5f * s, .5f * s))
+                drawCircle(Color.White, .32f * s, Offset(.66f * s, .4f * s))
+            } else {
+                drawCircle(Gold, .24f * s, Offset(.5f * s, .5f * s))
+                for (i in 0 until 8) {
+                    val a = i * PI / 4
+                    drawLine(Gold, Offset(.5f * s + cos(a).toFloat() * .34f * s, .5f * s + sin(a).toFloat() * .34f * s),
+                        Offset(.5f * s + cos(a).toFloat() * .48f * s, .5f * s + sin(a).toFloat() * .48f * s), strokeWidth = .07f * s)
+                }
+            }
+        }
+        Spacer(Modifier.width(5.dp))
+        Text("$phase · next in ${secs}s", fontSize = 10.sp, color = Muted)
+        if (vm.stormLeft > 0.0) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Storm ${vm.stormLeft.toInt() + 1}s",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ice,
+                modifier = Modifier
+                    .background(Ice.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
     }
 }
 

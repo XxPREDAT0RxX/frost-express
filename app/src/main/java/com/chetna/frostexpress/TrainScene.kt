@@ -1,6 +1,8 @@
 package com.chetna.frostexpress
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -106,6 +108,9 @@ private class Npc {
     var phase = 0f
     var actT = 0f
     var camY = 0f
+    var zoom = 1f
+    var manualCam = 0f      // camera position while the player scrolls by hand
+    var manualLeft = 0f     // seconds left before the camera follows the worker again
     var viewH = 600f // visible height in train-space dp, set from the canvas every frame
     var trainLen = NOSE + 2 * PITCH
     var working = false
@@ -193,8 +198,13 @@ private class Npc {
                 plan()
             }
         }
-        val target = (y - viewH / 2f).coerceIn(0f, max(0f, trainLen - viewH))
-        camY += (target - camY) * min(1f, dt * 3f)
+        if (manualLeft > 0f) {
+            manualLeft -= dt
+            camY += (manualCam - camY) * min(1f, dt * 12f)
+        } else {
+            val target = (y - viewH / 2f).coerceIn(0f, max(0f, trainLen - viewH))
+            camY += (target - camY) * min(1f, dt * 3f)
+        }
     }
 }
 
@@ -249,7 +259,22 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
     val base = TIERS[vm.tierIndex]
     val lv = LIVERIES[vm.liveryIndex.coerceIn(0, LIVERIES.lastIndex)]
     val tier = if (vm.liveryIndex > 0 && vm.liveryUnlocked(vm.liveryIndex)) TrainTier(base.name, lv.body, lv.accent) else base
-    Canvas(modifier) {
+    Canvas(
+        modifier.pointerInput(Unit) {
+            // Drag up or down to look along a long train. The camera follows the worker again after 5 s.
+            detectVerticalDragGestures(
+                onDragStart = { npc.manualCam = npc.camY },
+                onVerticalDrag = { change, dy ->
+                    change.consume()
+                    val maxY = max(0f, npc.trainLen - npc.viewH)
+                    if (maxY > 0f) {
+                        npc.manualCam = (npc.manualCam - dy / (density * npc.zoom)).coerceIn(0f, maxY)
+                        npc.manualLeft = 5f
+                    }
+                },
+            )
+        }
+    ) {
         val look = Look(
             heat = vm.level(UpgradeType.HEAT),
             food = vm.level(UpgradeType.FOOD),
@@ -260,7 +285,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
             cargo = min(vm.level(UpgradeType.WAGON), MAX_CARGO),
         )
         halfH[0] = size.height / density / 2f
-        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event.ordinal, stations)
+        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations)
     }
 }
 
@@ -297,26 +322,16 @@ private fun DrawScope.slot(x: Float, y: Float, w: Float, h: Float) {
     )
 }
 
-private fun darknessAt(time: Float): Float {
-    val ph = time % 150f
-    val d = when {
-        ph < 70f -> 0f
-        ph < 90f -> (ph - 70f) / 20f
-        ph < 130f -> 1f
-        else -> 1f - (ph - 130f) / 20f
-    }
-    return d * 0.42f
-}
-
 private fun DrawScope.drawScene(
     npc: Npc, npc2: Npc?, time: Float, scroll: Float, tier: TrainTier, look: Look,
-    boosting: Boolean, eventId: Int, stations: List<Station>,
+    boosting: Boolean, aurora: Boolean, storm: Float, dark: Float, stations: List<Station>,
 ) {
     val u = density
     val w = size.width
     val h = size.height
     val z = (w / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f)
     npc.viewH = h / u / z
+    npc.zoom = z
     val trainPx = CAR_W * u * z
     val originX = (w - trainPx) / 2f
     val centerOff = max(0f, (npc.viewH - npc.trainLen) / 2f)
@@ -332,7 +347,6 @@ private fun DrawScope.drawScene(
         }
     }
     // day and night: a blue tint, with headlight beams once it is dark
-    val dark = darknessAt(time)
     if (dark > 0.01f) {
         drawRect(Color(0xFF0B1B3A).copy(alpha = dark), size = size)
         val ny = (centerOff - npc.camY) * u * z
@@ -343,8 +357,14 @@ private fun DrawScope.drawScene(
         }
         drawPath(beam, Brush.verticalGradient(listOf(Color.Transparent, Color(0xFFFFF3B0).copy(alpha = dark * 1.4f)), startY = ny - 190f * u * z, endY = ny))
     }
-    if (eventId == GameEvent.AURORA.ordinal) drawAurora(time, w, h)
-    drawSnowfall(time, w, h, u, eventId == GameEvent.BLIZZARD.ordinal)
+    if (aurora) drawAurora(time, w, h)
+    drawSnowfall(time, w, h, u, storm)
+    if (npc.trainLen > npc.viewH + 1f) { // scroll bar: the train is taller than the screen
+        val frac = npc.viewH / npc.trainLen
+        val barH = h * frac
+        val barY = h * (npc.camY / npc.trainLen)
+        drawRoundRect(Color(0x55203040), Offset(w - 7f * u, barY), Size(4f * u, barH), CornerRadius(2f * u, 2f * u))
+    }
     if (boosting) drawSpeedLines(time, originX, trainPx, w, h, u)
 }
 
@@ -705,17 +725,25 @@ private fun DrawScope.drawCargoCar(top: Float, idx: Int, npc: Npc) {
     if (placing) crate(132f, top + 86f)
 }
 
-private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float, heavy: Boolean) {
-    val n = if (heavy) 130 else 26
-    val wind = if (heavy) 60f else 10f
+/** [storm] 0 = light snow, 1 = full snow storm (dense wind-driven flakes, streaks and a white-out). */
+private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float, storm: Float) {
+    val n = 26 + (150 * storm).toInt()
+    val wind = 10f + 50f * storm
+    val fall = 26f + 110f * storm
+    val drift = 120f * storm
     for (i in 0 until n) {
         val fx = ((i * 0.6180339f) % 1f) * w
         val fy = ((i * 0.4142136f) % 1f) * h
-        val sx = (((fx + sin(time * 0.8f + i) * wind * u + time * (if (heavy) 90f else 0f) * u) % w) + w) % w
-        val sy = (fy + time * (if (heavy) 90f else 26f) * u + i * 11f) % h
-        drawCircle(Color.White.copy(alpha = 0.85f), (1.4f + (i % 3) * 0.6f) * u, Offset(sx, sy))
+        val sx = (((fx + sin(time * 0.8f + i) * wind * u + time * drift * u) % w) + w) % w
+        val sy = (fy + time * fall * u + i * 11f) % h
+        val r = (1.4f + (i % 3) * 0.6f) * u
+        if (storm > 0.3f && i % 3 == 0) {
+            drawLine(Color.White.copy(alpha = 0.7f * storm), Offset(sx, sy), Offset(sx - 14f * u * storm, sy - 7f * u * storm), r * 0.9f)
+        } else {
+            drawCircle(Color.White.copy(alpha = 0.85f), r, Offset(sx, sy))
+        }
     }
-    if (heavy) drawRect(Color.White.copy(alpha = 0.18f), size = size)
+    if (storm > 0f) drawRect(Color(0xFFEAF2F8).copy(alpha = 0.34f * storm), size = size)
 }
 
 private fun DrawScope.drawSpeedLines(time: Float, originX: Float, trainPx: Float, w: Float, h: Float, u: Float) {
