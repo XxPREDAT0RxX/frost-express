@@ -34,10 +34,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,40 +64,45 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-private val Ink = Color(0xFF0E1A24)
-private val Panel = Color(0xFF182836)
-private val PanelHi = Color(0xFF223648)
-private val Ice = Color(0xFF7FD8FF)
-private val Ember = Color(0xFFFF9F43)
-private val Gold = Color(0xFFFFC83D)
-private val Mint = Color(0xFF63E6BE)
-private val Muted = Color(0xFF8FA6B8)
-private val Glass = Ink.copy(alpha = 0.74f)
+// Palette: snowy exterior (matches the scene) + warm wooden interior (matches the train floor).
+private val Snow = Color(0xFFE6EFF6)
+private val Ink = Color(0xFF2A2118)       // dark warm brown for text
+private val Panel = Color(0xFFF6F0E4)     // cream, like the car floor
+private val PanelHi = Color(0xFFE6DAC3)
+private val Track = Color(0xFFD9CDB5)     // empty part of progress bars
+private val Wood = Color(0xFFB98B5E)
+private val Ice = Color(0xFF2F7FB0)
+private val Ember = Color(0xFFE8772B)
+private val Gold = Color(0xFFF2B01E)
+private val GoldText = Color(0xFF9A6200)
+private val Mint = Color(0xFF2E9E78)
+private val Muted = Color(0xFF7C6F5C)
+private val Glass = Color.White.copy(alpha = 0.82f)
 
 private fun upgradeColor(t: UpgradeType): Color = when (t) {
-    UpgradeType.ENGINE -> Color(0xFFFFB02E)
-    UpgradeType.WAGON -> Color(0xFF4DABF7)
-    UpgradeType.HEAT -> Color(0xFFFF6B6B)
-    UpgradeType.FOOD -> Color(0xFF69DB7C)
-    UpgradeType.PLOW -> Color(0xFFA5D8FF)
-    UpgradeType.COAL -> Color(0xFFCED4DA)
-    UpgradeType.BOOSTER -> Color(0xFFDA77F2)
-    UpgradeType.CONDUCTOR -> Color(0xFF91A7FF)
+    UpgradeType.ENGINE -> Color(0xFFE8890C)
+    UpgradeType.WAGON -> Color(0xFF2F8FE0)
+    UpgradeType.HEAT -> Color(0xFFE5484D)
+    UpgradeType.FOOD -> Color(0xFF3FAE5A)
+    UpgradeType.PLOW -> Color(0xFF5BA7D9)
+    UpgradeType.COAL -> Color(0xFF6B7580)
+    UpgradeType.BOOSTER -> Color(0xFFB24DD6)
+    UpgradeType.CONDUCTOR -> Color(0xFF5C7CFA)
 }
 
 @Composable
 fun FrostTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = darkColorScheme(
+        colorScheme = lightColorScheme(
             primary = Ice,
-            onPrimary = Ink,
-            background = Ink,
+            onPrimary = Color.White,
+            background = Snow,
             surface = Panel,
-            onSurface = Color(0xFFEAF4FA),
-            onBackground = Color(0xFFEAF4FA),
+            onSurface = Ink,
+            onBackground = Ink,
             secondary = Muted,
         ),
-        content = content,
+        content = { CompositionLocalProvider(LocalContentColor provides Ink) { content() } },
     )
 }
 
@@ -108,7 +115,7 @@ fun GameScreen(vm: GameViewModel) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(Ink)
+            .background(Snow)
     ) {
         // The running scene takes whatever space the upgrades sheet leaves free.
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -267,14 +274,14 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Glass)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .border(1.dp, Color.White, RoundedCornerShape(14.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CoinIcon(Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
-            Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.weight(1f))
+            Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = GoldText, modifier = Modifier.weight(1f))
             SpeakerButton(vm.soundOn, vm::toggleSound)
             Spacer(Modifier.width(8.dp))
             StatChip("${fmt(vm.speed, 1)} m/s", Ice)
@@ -289,7 +296,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier) {
                     .weight(1f)
                     .height(5.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Panel)
+                    .background(Track)
             ) {
                 Box(
                     Modifier
@@ -367,6 +374,7 @@ private fun BottomBar(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Panel)
+            .border(1.5.dp, Wood.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -378,7 +386,7 @@ private fun BottomBar(
                 .clickable(onClick = { vm.audio.play(R.raw.sfx_click); onToggleUpgrades() }),
             contentAlignment = Alignment.Center,
         ) {
-            GearIcon(if (sheetOpen) Ink else Ice, Modifier.size(22.dp))
+            GearIcon(if (sheetOpen) Color.White else Ice, Modifier.size(22.dp))
             if (canBuySomething && !sheetOpen) {
                 Box(
                     Modifier
@@ -397,7 +405,7 @@ private fun BottomBar(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Ink)
+                    .background(Track)
             ) {
                 Box(
                     Modifier
@@ -463,8 +471,8 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Ink)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Panel)
+            .border(1.5.dp, Wood.copy(alpha = 0.55f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
     ) {
         Row(
@@ -476,7 +484,7 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
             Text("Upgrades", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             CoinIcon(Modifier.size(16.dp))
             Spacer(Modifier.width(5.dp))
-            Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Gold)
+            Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
             TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
         }
         BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
@@ -549,7 +557,7 @@ private fun BuyAmountRow(vm: GameViewModel, modifier: Modifier = Modifier) {
                     .padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Ink else Muted)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
             }
         }
     }
@@ -593,7 +601,7 @@ private fun UpgradeRow(
                 Text(level, fontSize = 10.sp, color = accent, fontWeight = FontWeight.SemiBold)
             }
             Text(effect, fontSize = 11.sp, color = Muted)
-            if (note != null) Text(note, fontSize = 10.sp, color = Gold)
+            if (note != null) Text(note, fontSize = 10.sp, color = GoldText)
         }
         Column(
             Modifier
@@ -604,12 +612,12 @@ private fun UpgradeRow(
                 .padding(vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(buttonTop, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Ink else Muted)
+            Text(buttonTop, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Color.White else Muted)
             if (buttonBottom != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CoinIcon(Modifier.size(9.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text(buttonBottom, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (enabled) Ink else Muted)
+                    Text(buttonBottom, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (enabled) Color.White else Muted)
                 }
             }
         }
@@ -624,7 +632,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF1E3A52), Color(0xFF2B2A52))))
+            .background(Brush.linearGradient(listOf(Color(0xFFDCEEF9), Color(0xFFE8E0F8))))
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -639,7 +647,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
-                .background(Ink)
+                .background(Track)
         ) {
             Box(
                 Modifier
