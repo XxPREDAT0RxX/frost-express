@@ -62,7 +62,142 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var totalDistance by mutableDoubleStateOf(0.0); private set
     var boostTaps by mutableIntStateOf(0); private set
     var purchases by mutableIntStateOf(0); private set
-    var tutorialDone by mutableStateOf(prefs.getBoolean("tut", false)); private set
+    // Guided tutorial, first launch only: 0 welcome, 1 open upgrades, 2 buy Engine, 3 tap Boost, 4 done.
+    var tutorialStage by mutableIntStateOf(if (prefs.getBoolean("tut", false)) 4 else prefs.getInt("tstage", 0)); private set
+    val tutorialDone: Boolean get() = tutorialStage >= 4
+
+    fun tutorialAdvance(from: Int) {
+        if (tutorialStage != from) return
+        tutorialStage = from + 1
+        prefs.edit().putInt("tstage", tutorialStage).apply()
+        if (tutorialStage >= 4) {
+            prefs.edit().putBoolean("tut", true).apply()
+            showToast("Tutorial done! New upgrades unlock as you level up.")
+        }
+    }
+
+    // Upgrades unlock one after another (see UpgradeSpec.unlockType). Unlocks are kept after evolving.
+    val unlockedUpgrades = mutableStateListOf<String>()
+    fun isUnlocked(spec: UpgradeSpec): Boolean = spec.unlockType == null || spec.type.name in unlockedUpgrades
+
+    private fun checkUnlocks() {
+        for (spec in UPGRADES) {
+            if (isUnlocked(spec)) continue
+            val req = spec.unlockType ?: continue
+            if (level(spec.type) > 0) {
+                unlockedUpgrades.add(spec.type.name) // old saves: already owned
+            } else if (level(req) >= spec.unlockLevel) {
+                unlockedUpgrades.add(spec.type.name)
+                showToast("New upgrade unlocked: ${spec.title}")
+                audio.play(R.raw.sfx_buy)
+            }
+        }
+        if (tutorialStage == 2 && level(UpgradeType.ENGINE) >= 1) tutorialAdvance(2)
+        if (tutorialStage == 3 && boostTaps >= 1) tutorialAdvance(3)
+    }
+
+    // ---- Google Play sign-in and cloud save ----
+    private var cloud: CloudSaveProvider = NoCloud
+    var cloudSignedIn by mutableStateOf(false); private set
+    var cloudStatus by mutableStateOf(""); private set
+    /** A cloud save that is further along than this device: waits for the player's choice. */
+    var cloudConflict by mutableStateOf<String?>(null); private set
+
+    fun attachCloud(provider: CloudSaveProvider) {
+        cloud = provider
+        if (Balance.PLAY_GAMES_ENABLED) {
+            provider.init()
+            provider.checkSignedIn { ok ->
+                cloudSignedIn = ok
+                if (ok) syncFromCloud()
+            }
+        }
+    }
+
+    fun cloudSignIn() {
+        if (!Balance.PLAY_GAMES_ENABLED) {
+            cloudStatus = "Google Play sign-in is not set up in this build yet."
+            return
+        }
+        cloud.signIn { ok ->
+            cloudSignedIn = ok
+            cloudStatus = if (ok) "Signed in. Progress is saved to your Google account." else "Sign-in failed. Try again."
+            if (ok) syncFromCloud()
+        }
+    }
+
+    private fun progressScore(): Double = evolutions * 1e9 + totalDistance
+
+    private fun syncFromCloud() {
+        cloud.load { json ->
+            if (json == null) {
+                cloudSaveNow()
+            } else {
+                val cloudScore = try {
+                    org.json.JSONObject(json).let { it.optInt("evo", 0) * 1e9 + (it.optString("totalDist", "0").toDoubleOrNull() ?: 0.0) }
+                } catch (e: Exception) { 0.0 }
+                if (cloudScore > progressScore() + 1.0) cloudConflict = json else cloudSaveNow()
+            }
+        }
+    }
+
+    fun describeCloud(json: String): String = try {
+        val o = org.json.JSONObject(json)
+        "${o.optInt("evo", 0)} evolutions, ${fmtDistance(o.optString("totalDist", "0").toDoubleOrNull() ?: 0.0)} travelled"
+    } catch (e: Exception) { "unknown" }
+
+    fun describeLocal(): String = "$evolutions evolutions, ${fmtDistance(totalDistance)} travelled"
+
+    fun useCloudSave() {
+        cloudConflict?.let { importProgress(it) }
+        cloudConflict = null
+    }
+
+    fun keepLocalSave() {
+        cloudConflict = null
+        cloudSaveNow()
+    }
+
+    fun cloudSaveNow() {
+        if (cloudSignedIn) {
+            cloud.save(exportProgress())
+            cloudStatus = "Saved to the cloud."
+        }
+    }
+
+    private fun exportProgress(): String = org.json.JSONObject().apply {
+        put("coins", coins.toString()); put("dist", runDistance.toString())
+        put("cores", cores); put("evo", evolutions); put("spent", coresSpent)
+        put("levels", levels.joinToString(",")); put("perm", permLevels.joinToString(","))
+        put("totalDist", totalDistance.toString()); put("taps", boostTaps); put("purch", purchases)
+        put("streak", dailyStreak); put("dailyDay", lastDailyDay)
+        put("ach", unlocked.joinToString(",")); put("unl", unlockedUpgrades.joinToString(","))
+        put("livery", liveryIndex); put("tstage", tutorialStage)
+    }.toString()
+
+    private fun importProgress(json: String) {
+        try {
+            val o = org.json.JSONObject(json)
+            fun ints(key: String) = o.optString(key, "").split(",").mapNotNull { it.toIntOrNull() }
+            coins = o.optString("coins", "0").toDoubleOrNull() ?: 0.0
+            runDistance = o.optString("dist", "0").toDoubleOrNull() ?: 0.0
+            cores = o.optInt("cores", 0); evolutions = o.optInt("evo", 0); coresSpent = o.optInt("spent", 0)
+            val lv = ints("levels"); for (i in levels.indices) levels[i] = lv.getOrElse(i) { 0 }
+            val pl = ints("perm"); for (i in permLevels.indices) permLevels[i] = pl.getOrElse(i) { 0 }
+            totalDistance = o.optString("totalDist", "0").toDoubleOrNull() ?: 0.0
+            boostTaps = o.optInt("taps", 0); purchases = o.optInt("purch", 0)
+            dailyStreak = o.optInt("streak", 0); lastDailyDay = o.optLong("dailyDay", -1L)
+            unlocked.clear(); unlocked.addAll(o.optString("ach", "").split(",").filter { it.isNotEmpty() })
+            unlockedUpgrades.clear(); unlockedUpgrades.addAll(o.optString("unl", "").split(",").filter { it.isNotEmpty() })
+            liveryIndex = o.optInt("livery", 0)
+            tutorialStage = o.optInt("tstage", 4)
+            dailyReady = lastDailyDay != today()
+            save()
+            showToast("Cloud save loaded")
+        } catch (e: Exception) {
+            showToast("Could not read the cloud save")
+        }
+    }
     var dailyStreak by mutableIntStateOf(prefs.getInt("streak", 0)); private set
     private var lastDailyDay = prefs.getLong("dailyDay", -1L)
     var dailyReady by mutableStateOf(false); private set
@@ -225,8 +360,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun finishTutorial() {
-        tutorialDone = true
-        prefs.edit().putBoolean("tut", true).apply()
+        tutorialStage = 4
+        prefs.edit().putBoolean("tut", true).putInt("tstage", 4).apply()
     }
 
     fun changeMusicVolume(v: Float) {
@@ -284,7 +419,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         nextStationAt = (floor(0.0 / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
-        tutorialDone = false
+        tutorialStage = 0
+        unlockedUpgrades.clear()
         save()
     }
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
@@ -387,6 +523,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- actions ----
     fun buy(spec: UpgradeSpec) {
+        if (!isUnlocked(spec)) return
         val lvl = level(spec.type)
         if (lvl >= spec.maxLevel) return
         val n = buyCount(spec)
@@ -449,6 +586,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putInt("streak", dailyStreak)
             .putLong("dailyDay", lastDailyDay)
             .putString("ach", unlocked.joinToString(","))
+            .putString("unl", unlockedUpgrades.joinToString(","))
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -468,6 +606,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         totalDistance = prefs.getString("totalDist", "0")?.toDoubleOrNull() ?: 0.0
         boostTaps = prefs.getInt("taps", 0)
         purchases = prefs.getInt("purch", 0)
+        unlockedUpgrades.clear()
+        prefs.getString("unl", "")?.split(",")?.filter { it.isNotEmpty() }?.let { unlockedUpgrades.addAll(it) }
         unlocked.clear()
         prefs.getString("ach", "")?.split(",")?.filter { it.isNotEmpty() }?.let { unlocked.addAll(it) }
 
@@ -496,6 +636,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (popupLeft <= 0.0) achievementPopup = null
         }
         checkAchievements()
+        checkUnlocks()
         tickEvents(dt)
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
@@ -507,6 +648,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             var lastTick = System.nanoTime()
             var sinceSave = 0.0
+            var sinceCloud = 0.0
             while (true) {
                 delay(100)
                 val now = System.nanoTime()
@@ -517,6 +659,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 if (sinceSave >= 5.0) {
                     save()
                     sinceSave = 0.0
+                }
+                sinceCloud += dt
+                if (sinceCloud >= 60.0) {
+                    cloudSaveNow()
+                    sinceCloud = 0.0
                 }
             }
         }

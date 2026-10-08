@@ -9,6 +9,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FrostExpress">
 
+        <!-- Replace the id in strings.xml with your Play Games Services project id (see README). -->
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/game_services_project_id" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -147,6 +147,14 @@ fun GameScreen(vm: GameViewModel) {
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(top = 120.dp),
             )
+            val hint = when {
+                vm.tutorialStage == 1 -> "Tap the gear to open your upgrades"
+                vm.tutorialStage == 2 && !showUpgrades -> "Tap the gear and buy Engine Power"
+                vm.tutorialStage == 2 -> "Wait for 20 coins, then buy Engine Power"
+                vm.tutorialStage == 3 -> "Now tap BOOST a few times for bonus income"
+                else -> null
+            }
+            if (hint != null) TutorialHint(hint, Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp))
             if (vm.event == GameEvent.CRATE) {
                 SupplyCrate(
                     vm::collectCrate,
@@ -159,7 +167,12 @@ fun GameScreen(vm: GameViewModel) {
         BottomBar(
             vm,
             sheetOpen = showUpgrades,
-            onToggleUpgrades = { showUpgrades = !showUpgrades },
+            onToggleUpgrades = {
+                if (!showUpgrades) vm.tutorialAdvance(1)
+                showUpgrades = !showUpgrades
+            },
+            pulseGear = vm.tutorialStage == 1 || (vm.tutorialStage == 2 && !showUpgrades),
+            pulseBoost = vm.tutorialStage == 3,
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         )
@@ -175,28 +188,18 @@ fun GameScreen(vm: GameViewModel) {
         }
     }
 
-    var tutorialStep by remember { mutableStateOf(0) }
-
-    // Pop-ups in order: tutorial, daily reward, welcome back.
-    if (!vm.tutorialDone) {
-        val steps = listOf(
-            "Welcome aboard! Your train earns coins from the distance it travels. It keeps running even when the app is closed.",
-            "Tap the gear to buy upgrades. Run upgrades cost coins and reset when you evolve. Permanent upgrades cost Frost Cores and stay forever.",
-            "Tap BOOST again and again for a temporary income multiplier. The meter drains, then recharges before you can boost again.",
-            "Travel far enough and you can evolve into a new train. You earn Frost Cores, which unlock permanent upgrades.",
-        )
+    // Pop-ups in order: tutorial welcome, daily reward, welcome back. The rest of the tutorial is shown as hints.
+    if (vm.tutorialStage == 0) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Frost Express  ${tutorialStep + 1}/${steps.size}") },
-            text = { Text(steps[tutorialStep]) },
-            confirmButton = {
-                TextButton(onClick = { if (tutorialStep < steps.lastIndex) tutorialStep++ else vm.finishTutorial() }) {
-                    Text(if (tutorialStep < steps.lastIndex) "Next" else "Let's go")
-                }
+            title = { Text("Welcome aboard!") },
+            text = {
+                Text("Your train earns coins from the distance it travels, even when the app is closed. Let's buy your first upgrade and try the boost. It takes about a minute.")
             },
+            confirmButton = { TextButton(onClick = { vm.tutorialAdvance(0) }) { Text("Start") } },
             dismissButton = { TextButton(onClick = vm::finishTutorial) { Text("Skip") } },
         )
-    } else if (vm.dailyReady) {
+    } else if (vm.tutorialDone && vm.dailyReady) {
         val streak = vm.dailyNextStreak
         AlertDialog(
             onDismissRequest = {},
@@ -210,7 +213,7 @@ fun GameScreen(vm: GameViewModel) {
             },
             confirmButton = { TextButton(onClick = vm::claimDaily) { Text("Claim") } },
         )
-    } else if (vm.offlineCoins > 0.0) {
+    } else if (vm.tutorialDone && vm.offlineCoins > 0.0) {
         AlertDialog(
             onDismissRequest = vm::dismissOffline,
             title = { Text("Welcome back!") },
@@ -218,6 +221,18 @@ fun GameScreen(vm: GameViewModel) {
                 Text("Your train travelled ${fmtDistance(vm.offlineMeters)} while you were away and earned ${fmt(vm.offlineCoins)} coins.")
             },
             confirmButton = { TextButton(onClick = vm::dismissOffline) { Text("Collect") } },
+        )
+    }
+
+    vm.cloudConflict?.let { cloudJson ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Cloud save found") },
+            text = {
+                Text("Cloud: ${vm.describeCloud(cloudJson)}\nThis device: ${vm.describeLocal()}\n\nWhich progress do you want to keep?")
+            },
+            confirmButton = { TextButton(onClick = vm::useCloudSave) { Text("Use cloud save") } },
+            dismissButton = { TextButton(onClick = vm::keepLocalSave) { Text("Keep this device") } },
         )
     }
 
@@ -455,6 +470,29 @@ private fun AchievementBanner(title: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun TutorialHint(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.White,
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Ember)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun LockIcon(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        drawArc(color, 180f, 180f, false, Offset(.25f * s, .08f * s), Size(.5f * s, .5f * s), style = Stroke(width = .1f * s))
+        drawRoundRect(color, Offset(.15f * s, .4f * s), Size(.7f * s, .52f * s), CornerRadius(.08f * s))
+    }
+}
+
+@Composable
 private fun ToastBanner(text: String?, modifier: Modifier = Modifier) {
     var shown by remember { mutableStateOf("") }
     if (text != null) shown = text
@@ -532,6 +570,11 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Sound on", modifier = Modifier.weight(1f))
                     Switch(vm.soundOn, { vm.toggleSound() })
+                }
+                Text("Google Play account", fontSize = 12.sp, color = Muted)
+                if (vm.cloudStatus.isNotEmpty()) Text(vm.cloudStatus, fontSize = 11.sp, color = Ice)
+                TextButton(onClick = { if (vm.cloudSignedIn) vm.cloudSaveNow() else vm.cloudSignIn() }) {
+                    Text(if (vm.cloudSignedIn) "Signed in · Save to cloud now" else "Sign in with Google Play")
                 }
                 Text("Train paint (unlocks with evolves)", fontSize = 12.sp, color = Muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -626,7 +669,14 @@ private fun BottomBar(
     sheetOpen: Boolean,
     onToggleUpgrades: () -> Unit,
     modifier: Modifier = Modifier,
+    pulseGear: Boolean = false,
+    pulseBoost: Boolean = false,
 ) {
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "tutorialPulse").animateFloat(
+        0.25f, 1f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "tutorialPulseValue",
+    )
     val fill = vm.boostMeter.toFloat().coerceIn(0f, 1f)
     val status = when {
         vm.boostLocked -> "Recharging ${(fill * 100).toInt()}%"
@@ -648,6 +698,7 @@ private fun BottomBar(
         Box(
             Modifier
                 .size(40.dp)
+                .border(if (pulseGear) 3.dp else 0.dp, Ember.copy(alpha = pulse), CircleShape)
                 .clip(CircleShape)
                 .background(if (sheetOpen) Ice else PanelHi)
                 .clickable(onClick = onToggleUpgrades),
@@ -697,6 +748,7 @@ private fun BottomBar(
         Row(
             Modifier
                 .height(40.dp)
+                .border(if (pulseBoost) 3.dp else 0.dp, Ice.copy(alpha = pulse), RoundedCornerShape(20.dp))
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     if (vm.boostLocked) Brush.horizontalGradient(listOf(PanelHi, PanelHi))
@@ -961,8 +1013,9 @@ private fun UpgradeRow(
     enabled: Boolean,
     onBuy: () -> Unit,
     core: Boolean = false,
+    locked: Boolean = false,
 ) {
-    val accent = upgradeColor(type)
+    val accent = if (locked) Muted else upgradeColor(type)
     Row(
         Modifier
             .fillMaxWidth()
@@ -979,7 +1032,7 @@ private fun UpgradeRow(
                 .background(accent.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center,
         ) {
-            UpgradeIcon(type, accent, Modifier.size(22.dp))
+            if (locked) LockIcon(Muted, Modifier.size(20.dp)) else UpgradeIcon(type, accent, Modifier.size(22.dp))
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -11,6 +11,7 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Idle-game basics**: buy x1 / x10 / x100 / MAX selector, and milestone bonuses (x2 effect at levels 25, 50, 100, 200, 300 for Engine, Wagon, Heat and Food).
 - **Sound**: cozy synthesized background music and sound effects (buy, boost, evolve, taps). The speaker icon in the top bar mutes everything. Regenerate with `python store_assets/make_audio.py` (needs numpy and ffmpeg).
 - **Two kinds of upgrades**: *Run upgrades* (coins) reset when you evolve. *Permanent upgrades* (Frost Cores) stay forever: Eternal Furnace, Permafrost Rails, Head Start, Deep Freeze Core, Hibernation.
+- **Upgrade chain**: upgrades unlock one after another (for example Cargo Wagon unlocks at Engine Lv 5). Unlocks are kept after evolving. The tutorial is guided (hints and highlights) and runs on the first launch only.
 - **Daily reward** with a login streak (every 7th day gives a Frost Core), a short **tutorial** on first launch, 13 **achievements**, and a **settings** dialog (volumes, reset progress, privacy policy).
 - **World**: a 150 s day and night cycle (shown in the top bar) with headlights, snow storms at random intervals (every 100 to 240 s, slow the train 25%), random events (aurora, tap-able supply crate), drag the scene up or down to look along a long train, stations that pass every 400 m and pay a bonus, and a **Second Worker** permanent upgrade that adds another worker to the train.
 - **Train paint**: unlock new liveries with each evolve and pick one in Settings.
@@ -22,6 +23,14 @@ Rewarded ad boosts (watch an ad for x2 income for 2 minutes) are prepared but OF
 ## Planned for later (needs accounts or servers)
 - **In-app purchases** (remove ads, starter pack): hook in `Billing.kt`, flag `Balance.IAP_ENABLED`. Needs Google Play Billing and products created in Play Console.
 - **Leaderboards, weekly events, cloud save**: need a backend (for example Google Play Games Services). Not included yet. Android Auto Backup already restores local progress when a user reinstalls or changes phone.
+
+## Google Play sign-in and cloud save (setup)
+The code is ready (`CloudSave.kt`, Settings dialog) but switched off with `Balance.PLAY_GAMES_ENABLED = false`, because it needs your Play Console project:
+1. In Play Console create the app, then Grow > Play Games Services > Setup and management > Configuration, and create the game project. Enable **Saved games**.
+2. Add the credential for Android with your app's package name and the SHA-1 of your **upload/app signing key** (and the debug key while testing).
+3. Copy the project id into `app/src/main/res/values/strings.xml` (`game_services_project_id`).
+4. Set `Balance.PLAY_GAMES_ENABLED = true`, rebuild. Add yourself as a tester in the Play Games Services testing tab.
+Progress is saved automatically every minute and when the app goes to the background. If the cloud save is further along than the device, the player is asked which to keep.
 
 ## Run it
 1. Open the project folder in the latest Android Studio. Gradle syncs automatically.

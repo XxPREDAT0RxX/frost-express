@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             window.attributes = lp
         }
+        vm.attachCloud(if (Balance.PLAY_GAMES_ENABLED) PlayGamesCloud(this) else NoCloud)
         setContent {
             FrostTheme {
                 GameScreen(vm)
@@ -60,5 +61,6 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         vm.audio.pauseMusic()
         vm.save()
+        vm.cloudSaveNow()
     }
 }

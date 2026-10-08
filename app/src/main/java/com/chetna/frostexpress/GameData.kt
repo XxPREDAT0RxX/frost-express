@@ -26,18 +26,21 @@ data class UpgradeSpec(
     val baseCost: Double,
     val growth: Double,
     val maxLevel: Int = Int.MAX_VALUE,
+    /** This upgrade unlocks once [unlockType] reaches [unlockLevel] (null = available from the start). */
+    val unlockType: UpgradeType? = null,
+    val unlockLevel: Int = 0,
 )
 
 /** To add an upgrade: add an UpgradeType, an entry here, and its formula in GameViewModel. */
 val UPGRADES = listOf(
     UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.18),
-    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+60% coins per metre", 50.0, 1.45, 40),
-    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+8% income, warm passengers pay more", 150.0, 1.30),
-    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+6% income", 400.0, 1.32),
-    UpgradeSpec(UpgradeType.PLOW, "Ice Plow", "+5% speed", 600.0, 1.35, 60),
-    UpgradeSpec(UpgradeType.COAL, "Coal Stoker", "+8% faster boost recharge", 300.0, 1.30, 30),
-    UpgradeSpec(UpgradeType.BOOSTER, "Boost Core", "+0.2 boost multiplier", 800.0, 1.40, 20),
-    UpgradeSpec(UpgradeType.CONDUCTOR, "Night Conductor", "+5% offline earnings", 1000.0, 1.40, 15),
+    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+60% coins per metre", 50.0, 1.45, 40, UpgradeType.ENGINE, 5),
+    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+8% income, warm passengers pay more", 150.0, 1.30, Int.MAX_VALUE, UpgradeType.WAGON, 3),
+    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+6% income", 400.0, 1.32, Int.MAX_VALUE, UpgradeType.HEAT, 5),
+    UpgradeSpec(UpgradeType.PLOW, "Ice Plow", "+5% speed", 600.0, 1.35, 60, UpgradeType.FOOD, 3),
+    UpgradeSpec(UpgradeType.COAL, "Coal Stoker", "+8% faster boost recharge", 300.0, 1.30, 30, UpgradeType.PLOW, 5),
+    UpgradeSpec(UpgradeType.BOOSTER, "Boost Core", "+0.2 boost multiplier", 800.0, 1.40, 20, UpgradeType.COAL, 5),
+    UpgradeSpec(UpgradeType.CONDUCTOR, "Night Conductor", "+5% offline earnings", 1000.0, 1.40, 15, UpgradeType.BOOSTER, 3),
 )
 
 /** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
@@ -148,6 +151,7 @@ object Balance {
     const val COAL_BONUS = 0.08
 
     const val IAP_ENABLED = false
+    const val PLAY_GAMES_ENABLED = false  // set to true after the Play Games setup in the README
 
     // Rewarded ad boost (hidden while ADS_ENABLED is false)
     const val ADS_ENABLED = false
