@@ -93,6 +93,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
@@ -256,7 +257,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(bottom = 64.dp + bottomInset * (1f - sheetP)),
+                        .padding(bottom = 84.dp + bottomInset * (1f - sheetP)),
                 )
             }
             LevelUpPopup(vm, Modifier.align(Alignment.Center))
@@ -483,7 +484,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
             Spacer(Modifier.width(8.dp))
             CoinIcon(Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
-            Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = GoldText, modifier = Modifier.weight(1f))
+            Text(fmt(vm.coins), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = GoldText, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = Modifier.weight(1f))
             Row(
                 Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -502,13 +503,11 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
             SpeakerButton(vm.soundOn, vm::toggleSound)
             Spacer(Modifier.width(6.dp))
             MenuButton(onOpenSettings)
-            Spacer(Modifier.width(8.dp))
-            StatChip("${fmt(vm.speed, 1)} m/s", Ice)
-            Spacer(Modifier.width(6.dp))
-            StatChip("${fmt(vm.coinsPerSec, 1)}/s", Mint)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(TIERS[vm.tierIndex].name, fontSize = 10.sp, color = Muted, fontWeight = FontWeight.SemiBold)
+            StatChip("${fmt(vm.speed, 1)} m/s", Ice)
+            Spacer(Modifier.width(5.dp))
+            StatChip("+${fmt(vm.coinsPerSec, 1)}/s", Mint)
             Spacer(Modifier.width(8.dp))
             Box(
                 Modifier
@@ -525,7 +524,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text("Evolve ${vm.runLevels}/${vm.evolveLevels}", fontSize = 10.sp, color = Muted)
+            Text("Evolve ${vm.runLevels}/${vm.evolveLevels}", fontSize = 10.sp, color = Muted, maxLines = 1, softWrap = false)
         }
         TimeChip(vm)
     }
@@ -882,8 +881,10 @@ private fun StatChip(text: String, color: Color) {
     Text(
         text,
         fontSize = 10.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = color,
+        maxLines = 1,
+        softWrap = false,
         modifier = Modifier
             .background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
             .padding(horizontal = 7.dp, vertical = 3.dp),
@@ -917,15 +918,39 @@ private fun BottomBar(
     val canBuySomething = UPGRADES.any { spec ->
         vm.level(spec.type) < spec.maxLevel && vm.coins >= vm.upgradeCost(spec)
     }
-    Row(
+    Column(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Panel.copy(alpha = 0.95f))
             .border(OutlineW, Wood, RoundedCornerShape(16.dp))
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
+        // boost meter on its own line, so the buttons below always fit, even on small phones
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(9.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Track)
+                    .border(1.2.dp, Ink.copy(alpha = 0.5f), RoundedCornerShape(5.dp))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(fill)
+                        .background(
+                            if (vm.boostLocked) Brush.horizontalGradient(listOf(Muted, Muted))
+                            else Brush.horizontalGradient(listOf(Gold, Ember))
+                        )
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(status, fontSize = 10.sp, color = Muted, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
                 .size(38.dp)
@@ -955,28 +980,8 @@ private fun BottomBar(
         FooterIcon(sprites.iconGems, openSheet == 3, Color(0xFFFFE1EA), onToggleGems)
         Spacer(Modifier.width(6.dp))
         FooterIcon(sprites.iconBag, openSheet == 4, Color(0xFFDDEEFB), onToggleBag, badge = vm.inventoryCount)
-        Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Track)
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(fill)
-                        .background(
-                            if (vm.boostLocked) Brush.horizontalGradient(listOf(Muted, Muted))
-                            else Brush.horizontalGradient(listOf(Gold, Ember))
-                        )
-                )
-            }
-            Text(status, fontSize = 10.sp, color = Muted)
-        }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(6.dp))
         Row(
             Modifier
                 .height(40.dp)
@@ -992,8 +997,9 @@ private fun BottomBar(
         ) {
             BoltIcon(if (vm.boostLocked) Muted else Ink, Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("BOOST!", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = if (vm.boostLocked) Muted else Ink)
+            Text("BOOST!", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = if (vm.boostLocked) Muted else Ink, maxLines = 1, softWrap = false)
         }
+    }
     }
 }
 
@@ -2769,7 +2775,7 @@ fun LoadingScreen(progress: Float) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(bottom = 90.dp),
+                .padding(bottom = 26.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(tip, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
@@ -2874,7 +2880,7 @@ private fun DailyGiftCard(vm: GameViewModel) {
                     val big = k == 6
                     Column(
                         Modifier
-                            .width(if (big) 120.dp else 66.dp)
+                            .weight(if (big) 2f else 1f)
                             .graphicsLayer { if (today) { scaleX = pulse; scaleY = pulse } }
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (today) Color(0xFFFFE49A) else if (claimed) PanelHi else Color.White.copy(alpha = 0.7f))
@@ -2882,7 +2888,7 @@ private fun DailyGiftCard(vm: GameViewModel) {
                             .padding(vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text("Day $day", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = if (claimed) Muted else Ink)
+                        Text("Day $day", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = if (claimed) Muted else Ink, maxLines = 1, softWrap = false)
                         Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                             if (big) Row { CoreIcon(Ice, Modifier.size(22.dp)); GemIcon(Modifier.size(22.dp)) }
                             else if (k % 2 == 1) GemIcon(Modifier.size(22.dp)) else CoinIcon(Modifier.size(24.dp))
@@ -2896,8 +2902,8 @@ private fun DailyGiftCard(vm: GameViewModel) {
                             }
                         }
                         Text(
-                            if (big) "+${vm.dailyGems(day)} gems, core" else if (k % 2 == 1) "+${vm.dailyGems(day)} gems" else "coins",
-                            fontSize = 9.sp, color = Muted, fontWeight = FontWeight.Bold,
+                            if (big) "+${vm.dailyGems(day)} gems, core" else if (k % 2 == 1) "+${vm.dailyGems(day)}" else "coins",
+                            fontSize = 9.sp, color = Muted, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
                         )
                     }
                 }
