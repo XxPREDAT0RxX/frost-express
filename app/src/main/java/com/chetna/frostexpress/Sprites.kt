@@ -142,7 +142,7 @@ private fun DrawScope.drawFx(fx: DevFx, ox: Float, oy: Float, k: Float, t: Float
             drawCircle(Color(0xFF6B4A3A).copy(alpha = 0.25f * (1f - ph)), (2.2f + 4.5f * ph) * k, p(x + sin(ph * 6f + i) * 3f, y - ph * 20f), style = Stroke(0.6f * k))
         }
         FxKind.GLOW -> {
-            val a = 0.22f + 0.16f * sin(t * 3f) + 0.35f * night
+            val a = 0.2f + 0.12f * sin(t * 3f) + 0.08f * night
             val c = p(x, y)
             drawCircle(Brush.radialGradient(listOf(col.copy(alpha = a.coerceIn(0f, 1f)), Color.Transparent), c, fx.a * k), fx.a * k, c, blendMode = BlendMode.Plus)
         }

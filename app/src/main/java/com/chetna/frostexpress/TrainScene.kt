@@ -373,6 +373,9 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     val shelterDwell = remember { floatArrayOf(-1f) }
     var seenStations by remember { mutableIntStateOf(vm.stationSerial) }
     var seenStorms by remember { mutableIntStateOf(vm.stormStationSerial) }
+    // supply crate beside the track: [active, y in dp, side, x px, y px]
+    val crate = remember { floatArrayOf(0f, 0f, 0f, 0f, 0f) }
+    var seenCrates by remember { mutableIntStateOf(vm.crateSerial) }
     var time by remember { mutableFloatStateOf(0f) }
     var scroll by remember { mutableFloatStateOf(0f) }
 
@@ -410,6 +413,17 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     shelterDwell[0] = shelter?.takeIf { it.paid && !it.done }?.dwell ?: -1f
                     val ds = (40f + 26f * sqrt(vm.travelSpeed.toFloat())) * (if (boosting) 1.6f else 1f) * dt * factor
                     scroll += ds
+                    if (seenCrates < vm.crateSerial) {
+                        seenCrates = vm.crateSerial
+                        crate[0] = 1f; crate[1] = -70f; crate[2] = if (Math.random() < 0.5) 0f else 1f
+                    }
+                    if (crate[0] > 0f) {
+                        if (vm.event != GameEvent.CRATE) crate[0] = 0f
+                        else {
+                            crate[1] += ds
+                            if (crate[1] > halfH[0] * 2f + 70f) { crate[0] = 0f; vm.missCrate() }
+                        }
+                    }
                     for (st in stations) {
                         st.y += ds
                         if (!st.stop && !st.paid && st.y >= halfH[0]) { st.paid = true; vm.collectStation() }
@@ -455,6 +469,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
             // Tap a device on the train to open its upgrade.
             detectTapGestures { pos ->
                 val u = density
+                if (crate[0] > 0f && kotlin.math.hypot(pos.x - crate[3], pos.y - crate[4]) < 40f * u) {
+                    crate[0] = 0f
+                    vm.collectCrate()
+                    return@detectTapGestures
+                }
                 val tx = (pos.x - npc.originXpx) / (u * npc.zoom)
                 val ty = pos.y / (u * npc.zoom) - (npc.centerOffDp - npc.camY)
                 hotspotAt(tx, ty, npc.cars)?.let(onDeviceTap)
@@ -492,6 +511,15 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         shopTurbo = vm.shopSpeedLeft > 0.0
         sceneSurvivors = survivors.take(min(vm.level(UpgradeType.SURVIVORS), survivors.size))
         drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
+        if (crate[0] > 0f) {
+            val u = density
+            val trainPx = CAR_W * u * npc.zoom
+            val ox = npc.originXpx
+            val cx = if (crate[2] < 0.5f) ox * 0.5f else ox + trainPx + (size.width - ox - trainPx) * 0.5f
+            val cy = crate[1] * u
+            crate[3] = cx; crate[4] = cy
+            drawSupplyCrate(cx, cy, time, sprites.crate)
+        }
     }
 }
 
@@ -579,8 +607,9 @@ private fun DrawScope.drawScene(
     }
     if (dark > 0.01f) {
         val trainH = npc.trainLen * u * z
-        drawRect(Color(0xFF0B1B3A).copy(alpha = dark * 0.3f), Offset(originX, ny), Size(trainPx, trainH))
-        drawRect(Color(0xFFFFB866).copy(alpha = dark * 0.22f), Offset(originX, ny), Size(trainPx, trainH), blendMode = BlendMode.Plus)
+        // the whole interior is lit evenly: a little dimmer and a little warmer, no bright hot spots
+        drawRect(Color(0xFF0B1B3A).copy(alpha = dark * 0.5f), Offset(originX, ny), Size(trainPx, trainH))
+        drawRect(Color(0xFFFFB866).copy(alpha = dark * 0.12f), Offset(originX, ny), Size(trainPx, trainH), blendMode = BlendMode.Plus)
         val cx = originX + trainPx / 2f
         val beam = Path().apply {
             moveTo(cx - 40f * u * z, ny + 4f * u * z); lineTo(cx + 40f * u * z, ny + 4f * u * z)
@@ -897,7 +926,6 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             1 -> drawUtilityCar(top, look, npc, time)
             else -> drawModuleCar(top, i, look, time)
         }
-        glow(AISLE_X, top + CAR_H / 2f, 90f, Color(0xFFFFD9A0), fxDark * 1.1f) // warm ceiling lamp at night
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
 }
@@ -1504,4 +1532,36 @@ private fun DrawScope.drawNpcCozy(npc: Npc, look: ImageBitmap? = null) {
         drawLine(Color(0xFF6B4A3A), Offset(cx + 9f * u, cy - 2f * u), Offset(cx + 15f * u, cy - 10f * u + sin(npc.phase * 2f) * 2f * u), 3f * u, StrokeCap.Round)
         drawLine(Color(0xFFB9876A), Offset(cx + 9f * u, cy - 2f * u), Offset(cx + 15f * u, cy - 10f * u + sin(npc.phase * 2f) * 2f * u), 1.6f * u, StrokeCap.Round)
     }
+}
+
+
+/** The supply crate on the snow beside the track, with a bouncing arrow so it is easy to spot. */
+private fun DrawScope.drawSupplyCrate(cx: Float, cy: Float, time: Float, img: ImageBitmap?) {
+    val u = density
+    val pulse = 0.5f + 0.5f * sin(time * 5f)
+    // soft gold ring
+    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFE49A).copy(alpha = 0.55f + 0.25f * pulse), Color.Transparent), Offset(cx, cy), 42f * u), 42f * u, Offset(cx, cy))
+    drawCircle(Color(0xFF6B4A3A).copy(alpha = 0.5f), (24f + 3f * pulse) * u, Offset(cx, cy), style = Stroke(2f * u))
+    drawOval(Color(0x22000000), Offset(cx - 16f * u, cy + 10f * u), Size(32f * u, 8f * u))
+    val bob = sin(time * 4f) * 1.5f * u
+    if (img != null) drawSprite(img, cx - 19f * u, cy - 19f * u + bob, 38f * u, 38f * u)
+    else drawRoundRect(Color(0xFFD9A576), Offset(cx - 14f * u, cy - 14f * u), Size(28f * u, 28f * u), CornerRadius(4f * u, 4f * u))
+    // little sparkles
+    for (i in 0 until 3) {
+        val ph = (time * 0.8f + i / 3f) % 1f
+        val a = sin(ph * PI_F)
+        val ang = i * 2.1f + (time * 0.8f + i / 3f).toInt() * 1.7f
+        val p = Offset(cx + cos(ang) * 22f * u, cy + sin(ang) * 18f * u)
+        val r = 4f * a * u
+        drawLine(Color.White.copy(alpha = a), Offset(p.x - r, p.y), Offset(p.x + r, p.y), 1.6f * u, StrokeCap.Round)
+        drawLine(Color.White.copy(alpha = a), Offset(p.x, p.y - r), Offset(p.x, p.y + r), 1.6f * u, StrokeCap.Round)
+    }
+    // bouncing arrow above it
+    val ay = cy - 34f * u - kotlin.math.abs(sin(time * 4f)) * 6f * u
+    val arrow = Path().apply {
+        moveTo(cx - 7f * u, ay - 10f * u); lineTo(cx + 7f * u, ay - 10f * u); lineTo(cx + 7f * u, ay - 2f * u)
+        lineTo(cx + 12f * u, ay - 2f * u); lineTo(cx, ay + 9f * u); lineTo(cx - 12f * u, ay - 2f * u); lineTo(cx - 7f * u, ay - 2f * u); close()
+    }
+    drawPath(arrow, Color(0xFFFFB86B))
+    drawPath(arrow, Color(0xFF6B4A3A), style = Stroke(2.2f * u, join = androidx.compose.ui.graphics.StrokeJoin.Round))
 }

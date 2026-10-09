@@ -84,6 +84,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -232,14 +234,6 @@ fun GameScreen(vm: GameViewModel) {
                     .padding(top = 118.dp, end = 10.dp),
             )
             BoosterPopup(vm, Modifier.align(Alignment.Center))
-            if (vm.event == GameEvent.CRATE) {
-                SupplyCrate(
-                    vm::collectCrate,
-                    Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 20.dp),
-                )
-            }
             BottomBar(
                 vm,
                 sheetOpen = showUpgrades,
@@ -1239,13 +1233,14 @@ private fun BuyAmountRow(vm: GameViewModel, modifier: Modifier = Modifier) {
             Box(
                 Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (on) Ice else Panel)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (on) Color(0xFF9FC5EA) else Panel)
+                    .border(2.dp, Ink, RoundedCornerShape(10.dp))
                     .clickable { vm.buyAmount = amount }
                     .padding(vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (on) Ink else Muted)
             }
         }
     }
@@ -1445,7 +1440,7 @@ fun CrashScreen(report: String, onContinue: () -> Unit, onReset: () -> Unit) {
 @Composable
 private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> Unit) {
     val spec = UPGRADES.firstOrNull { it.type == type } ?: return
-    val color = gadgetColor(spec.gadget)
+    val accent = upgradeColor(type)
     val lvl = vm.level(type)
     val maxed = lvl >= spec.maxLevel
     val locked = !vm.isUnlocked(spec)
@@ -1453,112 +1448,200 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
     val cost = vm.bulkCost(spec, n)
     val canBuy = !locked && !maxed && vm.coins >= cost
     val buyNow = androidx.compose.runtime.rememberUpdatedState { vm.buy(spec) }
-
-    val mats = rememberMaterials()
     val sprites = rememberGameSprites()
+
     var t by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(Unit) {
-        while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f }
-    }
+    LaunchedEffect(Unit) { while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f } }
     val flash = remember { Animatable(0f) }
     val pop = remember { Animatable(1f) }
     var prev by remember { mutableIntStateOf(lvl) }
     LaunchedEffect(lvl) {
         if (lvl > prev) {
-            launch { flash.snapTo(1f); flash.animateTo(0f, tween(900)) }
-            launch { pop.snapTo(1.16f); pop.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 300f)) }
+            launch { flash.snapTo(1f); flash.animateTo(0f, tween(1100)) }
+            launch { pop.snapTo(1.22f); pop.animateTo(1f, spring(dampingRatio = 0.32f, stiffness = 280f)) }
         }
         prev = lvl
     }
+    val enter = remember { Animatable(0.85f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 400f)) }
+
+    val car = carOf(type)
+    val place = when {
+        type == UpgradeType.SURVIVORS -> "Your crew"
+        type == UpgradeType.PLOW -> "Car 1 · the nose"
+        else -> "Car ${car + 1}"
+    }
+    val category = upgradeCategory(spec)
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
+        Box(
             Modifier
-                .fillMaxWidth(0.92f)
+                .fillMaxWidth(0.9f)
                 .widthIn(max = 380.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Panel)
-                .border(OutlineW, Wood, RoundedCornerShape(24.dp))
-                .padding(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .graphicsLayer { scaleX = enter.value; scaleY = enter.value },
         ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(spec.title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-                Text(
-                    if (locked) "Locked" else "Lv $lvl" + (if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            // the device, on a patch of the train's wooden floor
-            Box(
+            Column(
                 Modifier
+                    .padding(top = 18.dp)
                     .fillMaxWidth()
-                    .height(190.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0xFFEBDDBF), Color(0xFFD8C298))))
-                    .border(OutlineW, Wood, RoundedCornerShape(16.dp)),
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Panel)
+                    .border(3.dp, Ink, RoundedCornerShape(28.dp))
+                    .padding(start = 16.dp, end = 16.dp, top = 30.dp, bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Canvas(Modifier.fillMaxSize()) {
-                    var py = 14f * density
-                    while (py < size.height) {
-                        drawLine(Color(0x1A5A4A3B), Offset(0f, py), Offset(size.width, py), 1.5f * density)
-                        py += 30f * density
+                // where it is and what it does
+                Text(place, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Muted, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    category, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(accent.copy(alpha = 0.25f))
+                        .border(1.5.dp, Ink, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                // the stage: the device on a round spotlight, with confetti when it levels up
+                Box(Modifier.size(200.dp), contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        val c = Offset(size.width / 2f, size.height / 2f)
+                        val r = size.minDimension / 2f
+                        drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF0D2), accent.copy(alpha = 0.35f)), c, r), r, c)
+                        // slowly turning rays
+                        for (i in 0 until 12) {
+                            val a = (i * PI / 6).toFloat() + t * 0.25f
+                            val ray = Path().apply {
+                                moveTo(c.x, c.y)
+                                lineTo(c.x + cos(a - 0.11f) * r, c.y + sin(a - 0.11f) * r)
+                                lineTo(c.x + cos(a + 0.11f) * r, c.y + sin(a + 0.11f) * r)
+                                close()
+                            }
+                            drawPath(ray, Color.White.copy(alpha = 0.28f))
+                        }
+                        drawCircle(Ink, r - 1.5.dp.toPx(), c, style = Stroke(3.dp.toPx()))
+                        drawOval(Color(0x22000000), Offset(c.x - r * 0.45f, c.y + r * 0.52f), Size(r * 0.9f, r * 0.16f))
                     }
-                }
-                Canvas(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(10.dp)
-                        .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
-                ) {
-                    val side = min(size.width, size.height) * 1.05f
-                    val ox = (size.width - side) / 2f
-                    val oy = (size.height - side) / 2f
-                    if (drawDeviceSprite(sprites, type, ox, oy, side, t, 0.6f)) {
+                    Canvas(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(18.dp)
+                            .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
+                    ) {
+                        val side = min(size.width, size.height)
+                        if (!drawDeviceSprite(sprites, type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, 0.3f)) {
+                            drawGadget(spec.gadget, accent, t, lvl, flash.value)
+                        }
+                    }
+                    Canvas(Modifier.fillMaxSize()) {
                         val f = flash.value
                         if (f > 0.01f) {
-                            val c0 = Offset(size.width / 2f, size.height / 2f)
-                            drawCircle(Color(0xFFFFE680).copy(alpha = f * 0.8f), side * (0.15f + 0.4f * (1f - f)), c0, style = Stroke(side * 0.04f * f))
-                            for (i in 0 until 8) {
-                                val a = (PI / 4 * i).toFloat() + 0.3f
-                                val d = side * (0.2f + 0.3f * (1f - f))
-                                drawCircle(Color.White.copy(alpha = f), side * 0.02f, Offset(c0.x + cos(a) * d, c0.y + sin(a) * d))
+                            val c = Offset(size.width / 2f, size.height / 2f)
+                            val cols = listOf(Color(0xFFF28C8C), Color(0xFFFFC85C), Color(0xFF8FDBA8), Color(0xFF8FBCE6), Color(0xFFC9B6F2), Color(0xFFF49AB2))
+                            for (i in 0 until 26) {
+                                val a = i * 0.7f + i * i * 0.13f
+                                val sp = 0.55f + (i % 5) * 0.12f
+                                val d = (1f - f) * size.minDimension * 0.55f * sp
+                                val p = Offset(c.x + cos(a) * d, c.y + sin(a) * d + (1f - f) * (1f - f) * 60f)
+                                rotate(a * 57f + (1f - f) * 400f, p) {
+                                    drawRect(cols[i % cols.size].copy(alpha = f.coerceAtMost(1f)), Offset(p.x - 4f, p.y - 2.5f), Size(8f, 5f))
+                                }
                             }
                         }
-                    } else withMaterial(mats.forType(type), 0f, 0f, size.width, size.height, density / 3f) {
-                        if (spec.eff != null) {
-                            val side = min(size.width, size.height) * 0.92f
-                            drawDevice(type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, maxOf(lvl, 1), flash.value, 0.6f)
-                        } else {
-                            drawGadget(spec.gadget, color, t, lvl, flash.value)
+                    }
+                    if (flash.value > 0.05f) {
+                        Text(
+                            "Level up!", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .graphicsLayer { alpha = flash.value; translationY = -30f * (1f - flash.value) }
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFFFE49A))
+                                .border(2.dp, Ink, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 10.dp, vertical = 2.dp),
+                        )
+                    }
+                    // level badge at the bottom of the stage
+                    Text(
+                        if (locked) "Locked" else if (spec.maxLevel != Int.MAX_VALUE) "Lv $lvl / ${spec.maxLevel}" else "Lv $lvl",
+                        fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (locked) PanelHi else Color(0xFFFFE49A))
+                            .border(2.dp, Ink, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 3.dp),
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                // level pips (or progress to the next x2 milestone for endless upgrades)
+                if (!locked) {
+                    if (spec.maxLevel <= 20) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth()) {
+                            for (i in 0 until spec.maxLevel) {
+                                Box(
+                                    Modifier
+                                        .size(if (spec.maxLevel > 12) 9.dp else 12.dp)
+                                        .clip(CircleShape)
+                                        .background(if (i < lvl) accent else PanelHi)
+                                        .border(1.5.dp, Ink, CircleShape),
+                                )
+                            }
+                        }
+                    } else {
+                        val next = vm.nextMilestone(type)
+                        if (next != null) {
+                            val prevM = Balance.MILESTONES.lastOrNull { it <= lvl } ?: 0
+                            val frac = ((lvl - prevM).toFloat() / (next - prevM)).coerceIn(0f, 1f)
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(0.8f)
+                                    .height(12.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(PanelHi)
+                                    .border(1.5.dp, Ink, RoundedCornerShape(6.dp)),
+                            ) { Box(Modifier.fillMaxHeight().fillMaxWidth(frac).background(accent)) }
+                            Text("x2 bonus at Lv $next", fontSize = 11.sp, color = GoldText, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 3.dp))
                         }
                     }
+                    Spacer(Modifier.height(10.dp))
                 }
-            }
-            Spacer(Modifier.height(8.dp))
-            if (locked) {
-                val req = UPGRADES.firstOrNull { it.type == spec.unlockType }
-                Text(if (vm.blockedByTier(spec)) "This car comes with a bigger train. Evolve to unlock it." else "Reach ${req?.title} Lv ${spec.unlockLevel} to unlock.", fontSize = 12.sp, color = Muted)
-            } else {
-                val eff = spec.eff
-                if (eff != null) {
-                    Text("Now: " + (if (lvl == 0) "no bonus yet" else effText(eff, spec.per * lvl)), fontSize = 12.sp, color = Ink)
-                    if (!maxed) Text("Next level: " + effText(eff, spec.per * (lvl + 1)), fontSize = 12.sp, color = GoldText, fontWeight = FontWeight.SemiBold)
+                // now -> next
+                if (locked) {
+                    val req = UPGRADES.firstOrNull { it.type == spec.unlockType }
+                    Text(
+                        if (vm.blockedByTier(spec)) "This car comes with a bigger train.\nEvolve to unlock it." else "Reach ${req?.title} Lv ${spec.unlockLevel} to unlock.",
+                        fontSize = 13.sp, color = Muted, textAlign = TextAlign.Center,
+                    )
                 } else {
-                    Text("Each level: ${spec.effect}", fontSize = 12.sp, color = Ink)
-                    vm.nextMilestone(type)?.let { Text("Double bonus at Lv $it", fontSize = 12.sp, color = GoldText, fontWeight = FontWeight.SemiBold) }
+                    val eff = spec.eff
+                    val nowText = when {
+                        eff != null -> if (lvl == 0) "Nothing yet" else effText(eff, spec.per * lvl)
+                        else -> if (lvl == 0) "Nothing yet" else "Level $lvl"
+                    }
+                    val nextText = when {
+                        maxed -> "Fully upgraded"
+                        eff != null -> effText(eff, spec.per * (lvl + 1))
+                        else -> spec.effect
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        StatBubble("Now", nowText, PanelHi, Modifier.weight(1f))
+                        Text("  >  ", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        StatBubble(if (maxed) "Max" else "Next", nextText, accent.copy(alpha = 0.3f), Modifier.weight(1f))
+                    }
                 }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { UiSound.click(); onClose() }, modifier = Modifier.weight(1f)) { Text("Close") }
+                Spacer(Modifier.height(12.dp))
+                if (!locked && !maxed) {
+                    BuyAmountRow(vm, Modifier.fillMaxWidth(0.9f))
+                    Spacer(Modifier.height(8.dp))
+                }
+                // the big button: tap to buy, hold to keep buying
                 Column(
                     Modifier
-                        .weight(1.4f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (canBuy) color else PanelHi)
-                        // Tap to buy once; hold to keep buying, faster the longer you hold.
+                        .fillMaxWidth(0.85f)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(if (canBuy) Brush.verticalGradient(listOf(Color(0xFFFFC98A), Color(0xFFFFA65C))) else Brush.verticalGradient(listOf(PanelHi, PanelHi)))
+                        .border(2.5.dp, Ink, RoundedCornerShape(22.dp))
                         .pointerInput(canBuy) {
                             if (!canBuy) return@pointerInput
                             awaitEachGesture {
@@ -1573,23 +1656,89 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                                 }
                             }
                         }
-                        .padding(vertical = 9.dp),
+                        .padding(vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        if (locked) "Locked" else if (maxed) "MAX" else "Upgrade +$n",
-                        fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (canBuy) Color.White else Muted,
+                        if (locked) "Locked" else if (maxed) "All done!" else "Upgrade +$n",
+                        fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = if (canBuy) Ink else Muted,
                     )
                     if (!locked && !maxed) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CoinIcon(Modifier.size(11.dp))
+                            CoinIcon(Modifier.size(13.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text(fmt(cost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (canBuy) Color.White else Muted)
+                            Text(fmt(cost), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (canBuy) Ink else Muted)
                         }
                     }
                 }
+                if (!locked && !maxed) Text("Hold the button to keep upgrading", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 6.dp))
+            }
+            // name ribbon on top of the card
+            Text(
+                spec.title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Brush.horizontalGradient(listOf(accent.copy(alpha = 0.55f).compositeOver(Panel), accent.copy(alpha = 0.35f).compositeOver(Panel))))
+                    .border(3.dp, Ink, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+            )
+            // close button
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 0.dp)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF7A3A3))
+                    .border(2.5.dp, Ink, CircleShape)
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(Modifier.size(12.dp)) {
+                    drawLine(Ink, Offset.Zero, Offset(size.width, size.height), 3.dp.toPx(), StrokeCap.Round)
+                    drawLine(Ink, Offset(size.width, 0f), Offset(0f, size.height), 3.dp.toPx(), StrokeCap.Round)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun StatBubble(label: String, value: String, bg: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .border(2.dp, Ink, RoundedCornerShape(14.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(label.uppercase(), fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = Muted)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
+    }
+}
+
+private fun upgradeCategory(spec: UpgradeSpec): String = when (spec.eff) {
+    Eff.SPEED -> "Speed"
+    Eff.INCOME -> "Coins"
+    Eff.RECHARGE -> "Boost recharge"
+    Eff.BOOSTMULT -> "Boost power"
+    Eff.BOOSTLEN -> "Boost time"
+    Eff.OFFLINE -> "Offline earnings"
+    Eff.STATION -> "Stations"
+    Eff.CRATE -> "Supply crates"
+    Eff.STORM -> "Snow storms"
+    Eff.NIGHT -> "Night time"
+    Eff.AURORA -> "Aurora"
+    null -> when (spec.type) {
+        UpgradeType.ENGINE, UpgradeType.PLOW -> "Speed"
+        UpgradeType.WAGON, UpgradeType.HEAT, UpgradeType.FOOD -> "Coins"
+        UpgradeType.COAL -> "Boost recharge"
+        UpgradeType.BOOSTER -> "Boost power"
+        UpgradeType.CONDUCTOR -> "Offline earnings"
+        UpgradeType.SURVIVORS -> "Crew"
+        else -> "Upgrade"
     }
 }
 

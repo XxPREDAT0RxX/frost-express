@@ -278,14 +278,26 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         event = if ((0..1).random() == 0) GameEvent.AURORA else GameEvent.CRATE
         eventLeft = when (event) {
             GameEvent.AURORA -> Balance.AURORA_SEC
-            else -> Balance.CRATE_SEC
+            else -> 120.0 // the scene ends it earlier, when the crate has passed the train
         }
+        if (event == GameEvent.CRATE) crateSerial++
         showToast(
             when (event) {
                 GameEvent.AURORA -> "Aurora! Income x${fmt(Balance.AURORA_INCOME, 1)} for ${Balance.AURORA_SEC.toInt()}s"
-                else -> "Supply crate spotted! Tap it"
+                else -> "Supply crate ahead! Tap it before it passes"
             }
         )
+    }
+
+    /** Increases when a supply crate appears beside the track (the scene then scrolls it past the train). */
+    var crateSerial by mutableIntStateOf(0); private set
+
+    /** The crate scrolled away without being tapped. */
+    fun missCrate() {
+        if (event != GameEvent.CRATE) return
+        event = GameEvent.NONE
+        eventLeft = 0.0
+        showToast("The supply crate slipped away...")
     }
 
     fun collectCrate() {
