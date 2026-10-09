@@ -983,7 +983,7 @@ fun EvolveCutscene(fromTier: Int, toTier: Int, onDone: () -> Unit) {
             Text(
                 if (t < 0.48f) "Evolving..." else TIERS[toTier].name,
                 fontSize = 30.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Color.White,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 90.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp),
             )
         }
     }

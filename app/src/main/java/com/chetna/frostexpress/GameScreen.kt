@@ -544,7 +544,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                     ) {
                         CoinIcon(Modifier.size(22.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text(fmt(vm.coins), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = GoldText, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                        Text(fmt(vm.coins), fontSize = if (LocalConfiguration.current.screenWidthDp < 360) 16.sp else 19.sp, fontWeight = FontWeight.ExtraBold, color = GoldText, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
                     }
                     Spacer(Modifier.width(6.dp))
                     CurrencyPill({ GemIcon(Modifier.size(15.dp)) }, "${vm.gems}", GemPink, onClick = onOpenGems, plus = true)
