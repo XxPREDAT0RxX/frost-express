@@ -11,7 +11,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,6 +38,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Slider
@@ -50,6 +56,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -110,10 +118,35 @@ fun FrostTheme(content: @Composable () -> Unit) {
     )
 }
 
+/** Dialog that matches the game: cream card with a wooden border. */
+@Composable
+private fun FrostAlert(
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable (() -> Unit)? = null,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        title = title,
+        text = text,
+        modifier = Modifier.border(2.dp, Wood.copy(alpha = 0.7f), RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Panel,
+        titleContentColor = Ink,
+        textContentColor = Ink,
+        tonalElevation = 0.dp,
+    )
+}
+
 @Composable
 fun GameScreen(vm: GameViewModel) {
     var showUpgrades by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var focusType by remember { mutableStateOf<UpgradeType?>(null) }
     BackHandler(enabled = showUpgrades) { showUpgrades = false }
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
 
@@ -124,7 +157,11 @@ fun GameScreen(vm: GameViewModel) {
     ) {
         // The running scene takes whatever space the upgrades sheet leaves free.
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            TrainScene(vm, Modifier.fillMaxSize())
+            TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
+                vm.tutorialAdvance(1)
+                focusType = type
+                showUpgrades = true
+            })
             TopHud(
                 vm,
                 Modifier
@@ -181,7 +218,11 @@ fun GameScreen(vm: GameViewModel) {
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         ) {
-            UpgradesSheet(vm, Modifier.height(sheetHeight), onClose = { showUpgrades = false })
+            UpgradesSheet(
+                vm, Modifier.height(sheetHeight),
+                focus = focusType, onFocusDone = { focusType = null },
+                onClose = { showUpgrades = false },
+            )
         }
         if (!showUpgrades) {
             Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
@@ -190,7 +231,7 @@ fun GameScreen(vm: GameViewModel) {
 
     // Pop-ups in order: tutorial welcome, daily reward, welcome back. The rest of the tutorial is shown as hints.
     if (vm.tutorialStage == 0) {
-        AlertDialog(
+        FrostAlert(
             onDismissRequest = {},
             title = { Text("Welcome aboard!") },
             text = {
@@ -201,7 +242,7 @@ fun GameScreen(vm: GameViewModel) {
         )
     } else if (vm.tutorialDone && vm.dailyReady) {
         val streak = vm.dailyNextStreak
-        AlertDialog(
+        FrostAlert(
             onDismissRequest = {},
             title = { Text("Daily reward · Day $streak") },
             text = {
@@ -214,7 +255,7 @@ fun GameScreen(vm: GameViewModel) {
             confirmButton = { TextButton(onClick = vm::claimDaily) { Text("Claim") } },
         )
     } else if (vm.tutorialDone && vm.offlineCoins > 0.0) {
-        AlertDialog(
+        FrostAlert(
             onDismissRequest = vm::dismissOffline,
             title = { Text("Welcome back!") },
             text = {
@@ -225,7 +266,7 @@ fun GameScreen(vm: GameViewModel) {
     }
 
     vm.cloudConflict?.let { cloudJson ->
-        AlertDialog(
+        FrostAlert(
             onDismissRequest = {},
             title = { Text("Cloud save found") },
             text = {
@@ -555,63 +596,145 @@ private fun StarIcon(color: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun SettingsCard(title: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(PanelHi.copy(alpha = 0.7f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(title.uppercase(), fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = Wood)
+        content()
+    }
+}
+
+@Composable
+private fun PillButton(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = fg)
+    }
+}
+
+@Composable
+private fun SettingToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(
+            checked, onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White, checkedTrackColor = Mint, checkedBorderColor = Mint,
+                uncheckedThumbColor = Color.White, uncheckedTrackColor = Track, uncheckedBorderColor = Track,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, color = Muted, modifier = Modifier.width(58.dp))
+        androidx.compose.material3.Slider(
+            value, onChange, modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(thumbColor = Ember, activeTrackColor = Ember, inactiveTrackColor = Track),
+        )
+    }
+}
+
+@Composable
 private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
     var confirmReset by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    AlertDialog(
+    FrostAlert(
         onDismissRequest = onClose,
-        title = { Text("Settings") },
+        title = { Text("Settings", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Music volume", fontSize = 12.sp, color = Muted)
-                Slider(vm.musicVolume, vm::changeMusicVolume, valueRange = 0f..1f)
-                Text("Sound effects volume", fontSize = 12.sp, color = Muted)
-                Slider(vm.sfxVolume, vm::changeSfxVolume, valueRange = 0f..1f)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Sound on", modifier = Modifier.weight(1f))
-                    Switch(vm.soundOn, { vm.toggleSound() })
+            Column(
+                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SettingsCard("Sound") {
+                    SettingToggle("Sound on", vm.soundOn) { vm.toggleSound() }
+                    LabeledSlider("Music", vm.musicVolume, vm::changeMusicVolume)
+                    LabeledSlider("Effects", vm.sfxVolume, vm::changeSfxVolume)
                 }
-                Text("Google Play account", fontSize = 12.sp, color = Muted)
-                if (vm.cloudStatus.isNotEmpty()) Text(vm.cloudStatus, fontSize = 11.sp, color = Ice)
-                TextButton(onClick = { if (vm.cloudSignedIn) vm.cloudSaveNow() else vm.cloudSignIn() }) {
-                    Text(if (vm.cloudSignedIn) "Signed in · Save to cloud now" else "Sign in with Google Play")
-                }
-                Text("Train paint (unlocks with evolves)", fontSize = 12.sp, color = Muted)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LIVERIES.forEachIndexed { i, l ->
-                        val open = vm.liveryUnlocked(i)
-                        val c = if (i == 0) Ice else Color(l.body)
-                        Box(
-                            Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(if (open) c else Track)
-                                .border(if (vm.liveryIndex == i) 3.dp else 0.dp, Ink, CircleShape)
-                                .clickable(enabled = open) { vm.chooseLivery(i) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (!open) Text("🔒", fontSize = 11.sp)
+                SettingsCard("Graphics") {
+                    Text("Frame rate", fontSize = 12.sp, color = Muted)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(30, 60, 90, 120).forEach { fps ->
+                            val on = vm.fpsCap == fps
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (on) Wood else Track)
+                                    .clickable { vm.changeFps(fps) }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("$fps", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
+                            }
                         }
                     }
+                    Text("Your phone may cap this at its screen refresh rate. Lower values save battery.", fontSize = 10.sp, color = Muted)
+                    SettingToggle("Post-processing", vm.postFx) { vm.changePostFx(it) }
+                    Text("Light bloom, colour grading and vignette. Turn off on slow phones.", fontSize = 10.sp, color = Muted)
                 }
-                TextButton(onClick = {
-                    context.startActivity(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))
-                    )
-                }) { Text("Privacy policy") }
-                TextButton(onClick = { confirmReset = true }) { Text("Reset all progress", color = Color(0xFFC0392B)) }
-                Text("Frost Express v${BuildConfigVersion}", fontSize = 11.sp, color = Muted)
+                SettingsCard("Train paint") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LIVERIES.forEachIndexed { i, l ->
+                            val open = vm.liveryUnlocked(i)
+                            val c = if (i == 0) Ice else Color(l.body)
+                            Box(
+                                Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (open) c else Track)
+                                    .border(if (vm.liveryIndex == i) 3.dp else 0.dp, Ink, CircleShape)
+                                    .clickable(enabled = open) { vm.chooseLivery(i) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (!open) LockIcon(Muted, Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                    Text("A new paint unlocks with each evolve.", fontSize = 10.sp, color = Muted)
+                }
+                SettingsCard("Google Play") {
+                    if (vm.cloudStatus.isNotEmpty()) Text(vm.cloudStatus, fontSize = 11.sp, color = Ice)
+                    PillButton(
+                        if (vm.cloudSignedIn) "Save to cloud now" else "Sign in with Google Play",
+                        Ice, Color.White,
+                    ) { if (vm.cloudSignedIn) vm.cloudSaveNow() else vm.cloudSignIn() }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PillButton("Privacy policy", Track, Ink) {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))
+                        )
+                    }
+                    PillButton("Reset progress", Color(0xFFF3D3CF), Color(0xFFB03A2E)) { confirmReset = true }
+                }
+                Text("Frost Express v${BuildConfigVersion}", fontSize = 10.sp, color = Muted)
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+        confirmButton = { PillButton("Done", Ice, Color.White, onClick = onClose) },
     )
     if (confirmReset) {
-        AlertDialog(
+        FrostAlert(
             onDismissRequest = { confirmReset = false },
             title = { Text("Reset everything?") },
             text = { Text("All coins, upgrades, cores and achievements will be deleted. This cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = { vm.resetAll(); confirmReset = false; onClose() }) { Text("Reset", color = Color(0xFFC0392B)) }
+                TextButton(onClick = { vm.resetAll(); confirmReset = false; onClose() }) { Text("Reset", color = Color(0xFFB03A2E)) }
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
         )
@@ -783,9 +906,27 @@ private fun Pill(label: String, bg: Color, fg: Color, enabled: Boolean, onClick:
 // ---------- upgrades sheet ----------
 
 @Composable
-private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+private fun UpgradesSheet(
+    vm: GameViewModel,
+    modifier: Modifier = Modifier,
+    focus: UpgradeType? = null,
+    onFocusDone: () -> Unit = {},
+    onClose: () -> Unit,
+) {
     var confirmEvolve by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Tapping a device on the train jumps to its upgrade and highlights it for a moment.
+    androidx.compose.runtime.LaunchedEffect(focus) {
+        if (focus != null) {
+            tab = 0
+            kotlinx.coroutines.delay(90)
+            listState.animateScrollToItem((1 + UPGRADES.indexOfFirst { it.type == focus }).coerceAtLeast(0))
+            kotlinx.coroutines.delay(2500)
+            onFocusDone()
+        }
+    }
 
     Column(
         modifier
@@ -816,6 +957,7 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
         TabRow(tab, { tab = it }, Modifier.padding(horizontal = 12.dp))
         if (tab == 0) BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -854,39 +996,43 @@ private fun UpgradesSheet(vm: GameViewModel, modifier: Modifier = Modifier, onCl
                 }
             } else {
                 item {
-                    Text("Reset when you evolve.", fontSize = 11.sp, color = Muted)
+                    Text("Reset when you evolve. Hold a buy button to keep buying.", fontSize = 11.sp, color = Muted)
                 }
             items(UPGRADES) { spec ->
-                    val lvl = vm.level(spec.type)
-                    val maxed = lvl >= spec.maxLevel
-                    val n = vm.buyCount(spec)
-                    val cost = vm.bulkCost(spec, n)
-                    val next = vm.nextMilestone(spec.type)
-                    val mult = vm.milestoneMult(spec.type)
-                    UpgradeRow(
-                        type = spec.type,
-                        title = spec.title,
-                        level = "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
-                        effect = spec.effect,
-                        note = when {
-                            mult > 1.0 && next != null -> "Bonus x${fmt(mult)} · next x2 at Lv $next"
-                            mult > 1.0 -> "Bonus x${fmt(mult)}"
-                            next != null -> "Next x2 bonus at Lv $next"
-                            else -> null
-                        },
-                        buttonTop = if (maxed) "MAX" else "+$n",
-                        buttonBottom = if (maxed) null else fmt(cost),
-                        enabled = !maxed && vm.coins >= cost,
-                        onBuy = { vm.buy(spec) },
-                    )
-                }
+                val lvl = vm.level(spec.type)
+                val maxed = lvl >= spec.maxLevel
+                val n = vm.buyCount(spec)
+                val cost = vm.bulkCost(spec, n)
+                val next = vm.nextMilestone(spec.type)
+                val mult = vm.milestoneMult(spec.type)
+                val locked = !vm.isUnlocked(spec)
+                val req = UPGRADES.firstOrNull { it.type == spec.unlockType }
+                UpgradeRow(
+                    type = spec.type,
+                    title = spec.title,
+                    level = if (locked) "Locked" else "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
+                    effect = if (locked) "Reach ${req?.title} Lv ${spec.unlockLevel} (now Lv ${if (req != null) vm.level(req.type) else 0})" else spec.effect,
+                    note = if (locked) null else when {
+                        mult > 1.0 && next != null -> "Bonus x${fmt(mult)} · next x2 at Lv $next"
+                        mult > 1.0 -> "Bonus x${fmt(mult)}"
+                        next != null -> "Next x2 bonus at Lv $next"
+                        else -> null
+                    },
+                    buttonTop = if (locked) "Locked" else if (maxed) "MAX" else "+$n",
+                    buttonBottom = if (maxed || locked) null else fmt(cost),
+                    enabled = !locked && !maxed && vm.coins >= cost,
+                    onBuy = { vm.buy(spec) },
+                    locked = locked,
+                    highlight = focus == spec.type,
+                )
             }
+        }
             if (tab == 0) item { EvolveCard(vm, onEvolve = { confirmEvolve = true }) }
         }
     }
 
     if (confirmEvolve) {
-        AlertDialog(
+        FrostAlert(
             onDismissRequest = { confirmEvolve = false },
             title = { Text("Evolve your train?") },
             text = {
@@ -1014,11 +1160,14 @@ private fun UpgradeRow(
     onBuy: () -> Unit,
     core: Boolean = false,
     locked: Boolean = false,
+    highlight: Boolean = false,
 ) {
+    val buyNow = androidx.compose.runtime.rememberUpdatedState(onBuy)
     val accent = if (locked) Muted else upgradeColor(type)
     Row(
         Modifier
             .fillMaxWidth()
+            .border(if (highlight) 2.5.dp else 0.dp, Ember, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Panel)
             .padding(8.dp),
@@ -1048,7 +1197,21 @@ private fun UpgradeRow(
                 .width(70.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(if (enabled) accent else PanelHi)
-                .clickable(enabled = enabled, onClick = onBuy)
+                // Tap to buy once; hold to keep buying, faster the longer you hold.
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        buyNow.value()
+                        var wait = 450L
+                        while (true) {
+                            val released = withTimeoutOrNull(wait) { waitForUpOrCancellation(); true } ?: false
+                            if (released) break
+                            buyNow.value()
+                            wait = (wait * 0.82f).toLong().coerceAtLeast(90L)
+                        }
+                    }
+                }
                 .padding(vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

@@ -109,7 +109,7 @@ object Balance {
     val MILESTONES = listOf(25, 50, 100, 200, 300) // each doubles that upgrade's effect
     const val CORE_BONUS = 0.25           // each core = +25% coins (permanent)
 
-    const val EVOLVE_BASE_DISTANCE = 3000.0 // metres, x4 after each evolve
+    const val EVOLVE_BASE_DISTANCE = 20000.0 // metres for the first evolve (about 15 to 25 minutes), x4 after each evolve
     const val EVOLVE_GROWTH = 4.0
 
     // Permanent upgrades

@@ -15,6 +15,7 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Daily reward** with a login streak (every 7th day gives a Frost Core), a short **tutorial** on first launch, 13 **achievements**, and a **settings** dialog (volumes, reset progress, privacy policy).
 - **World**: a 150 s day and night cycle (shown in the top bar) with headlights, snow storms at random intervals (every 100 to 240 s, slow the train 25%), random events (aurora, tap-able supply crate), drag the scene up or down to look along a long train, stations that pass every 400 m and pay a bonus, and a **Second Worker** permanent upgrade that adds another worker to the train.
 - **Train paint**: unlock new liveries with each evolve and pick one in Settings.
+- **Controls**: tap a device on the train to jump to its upgrade; hold a buy button to keep buying. Settings has a frame rate cap (30/60/90/120) and a post-processing switch (bloom, colour grading, vignette).
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 
 ## Ads (planned for after launch)

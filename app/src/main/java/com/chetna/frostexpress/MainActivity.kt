@@ -8,6 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -25,6 +28,14 @@ class MainActivity : ComponentActivity() {
             lp.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             window.attributes = lp
+        }
+        // Ask the display for the frame rate chosen in Settings (a hint; the device may cap it).
+        lifecycleScope.launch {
+            snapshotFlow { vm.fpsCap }.collect { fps ->
+                val lp = window.attributes
+                lp.preferredRefreshRate = fps.toFloat()
+                window.attributes = lp
+            }
         }
         vm.attachCloud(if (Balance.PLAY_GAMES_ENABLED) PlayGamesCloud(this) else NoCloud)
         setContent {

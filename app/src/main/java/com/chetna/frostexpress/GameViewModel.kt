@@ -333,6 +333,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // Display settings
+    var fpsCap by mutableIntStateOf(prefs.getInt("fps", 60)); private set
+    var postFx by mutableStateOf(prefs.getBoolean("postfx", true)); private set
+    fun changeFps(v: Int) { fpsCap = v; prefs.edit().putInt("fps", v).apply() }
+    fun changePostFx(on: Boolean) { postFx = on; prefs.edit().putBoolean("postfx", on).apply() }
+
     var liveryIndex by mutableIntStateOf(prefs.getInt("livery", 0)); private set
     fun liveryUnlocked(i: Int): Boolean = i <= evolutions
     fun chooseLivery(i: Int) {
@@ -407,7 +413,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Wipes all progress (settings stay). */
     fun resetAll() {
         liveryIndex = 0
-        prefs.edit().clear().putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
+        prefs.edit().clear().putInt("fps", fpsCap).putBoolean("postfx", postFx).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
         coins = 0.0; runDistance = 0.0; cores = 0; evolutions = 0; coresSpent = 0
         for (i in levels.indices) levels[i] = 0
         for (i in permLevels.indices) permLevels[i] = 0

@@ -1,6 +1,7 @@
 package com.chetna.frostexpress
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.Composable
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -76,6 +78,26 @@ private val DECOR = List(36) { i ->
     Decor(i % 2, (i * 0.381966f + 0.07f) % 1f, (i * 37.7f) % DECOR_PERIOD, r, kind)
 }.sortedBy { if (it.kind == 4) 0 else if (it.kind == 2 || it.kind == 3) 1 else 2 }
 
+private class Hotspot(val x: Float, val y: Float, val w: Float, val h: Float, val type: UpgradeType)
+
+/** Tappable devices in train space. The first match wins, so specific devices come before whole cars. */
+private fun hotspotAt(tx: Float, ty: Float, cargo: Int): UpgradeType? {
+    val list = ArrayList<Hotspot>()
+    val e = NOSE                 // engine car top
+    val u = NOSE + PITCH         // utility car top
+    list.add(Hotspot(14f, 0f, 162f, NOSE, UpgradeType.PLOW))
+    list.add(Hotspot(156f, e + 80f, 28f, 30f, UpgradeType.BOOSTER))
+    list.add(Hotspot(8f, e + 8f, 66f, 58f, UpgradeType.ENGINE))
+    list.add(Hotspot(118f, e + 80f, 38f, 30f, UpgradeType.ENGINE))
+    list.add(Hotspot(126f, e + 8f, 58f, 44f, UpgradeType.COAL))
+    list.add(Hotspot(6f, e + 78f, 54f, 32f, UpgradeType.CONDUCTOR))
+    list.add(Hotspot(6f, u + 6f, 68f, 58f, UpgradeType.HEAT))
+    list.add(Hotspot(126f, u + 6f, 58f, 70f, UpgradeType.FOOD))
+    list.add(Hotspot(6f, u + 74f, 66f, 36f, UpgradeType.FOOD))
+    for (c in 0 until cargo) list.add(Hotspot(0f, NOSE + (2 + c) * PITCH, CAR_W, CAR_H, UpgradeType.WAGON))
+    return list.firstOrNull { tx >= it.x && tx <= it.x + it.w && ty >= it.y && ty <= it.y + it.h }?.type
+}
+
 private fun carY(car: Int, localY: Float): Float = NOSE + car * PITCH + localY
 
 /** The worker visits every installed station in turn. Positions are car-local, converted by carY. */
@@ -109,6 +131,9 @@ private class Npc {
     var actT = 0f
     var camY = 0f
     var zoom = 1f
+    var originXpx = 0f      // set while drawing; used to turn taps into train-space positions
+    var centerOffDp = 0f
+    var cargoCars = 0
     var manualCam = 0f      // camera position while the player scrolls by hand
     var manualLeft = 0f     // seconds left before the camera follows the worker again
     var viewH = 600f // visible height in train-space dp, set from the canvas every frame
@@ -141,6 +166,7 @@ private class Npc {
         if (s == sig) return
         sig = s
         cycle = buildCycle(heat, food, bed, cargo)
+        cargoCars = cargo
         trainLen = NOSE + (2 + cargo) * PITCH - GAP + 10f
         if (y > trainLen - 20f) y = trainLen - 20f
         // startOffset -1 = begin halfway through the routine, so two workers never move in lockstep
@@ -209,7 +235,7 @@ private class Npc {
 }
 
 @Composable
-fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
+fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}) {
     val npc = remember { Npc() }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val stations = remember { ArrayList<Station>() }
@@ -220,10 +246,14 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
 
     LaunchedEffect(Unit) {
         var last = 0L
+        var acc = 0f
         while (true) {
             withFrameNanos { now ->
-                if (last != 0L) {
-                    val dt = ((now - last) / 1e9f).coerceAtMost(0.05f)
+                if (last != 0L) acc += (now - last) / 1e9f
+                // Frame-rate cap from Settings: only update and redraw once enough time has passed.
+                if (last != 0L && acc >= 1f / vm.fpsCap - 0.002f) {
+                    val dt = acc.coerceAtMost(0.05f)
+                    acc = 0f
                     val boosting = vm.isBoosting
                     time += dt
                     val ds = (40f + 26f * sqrt(vm.speed.toFloat())) * (if (boosting) 1.6f else 1f) * dt
@@ -261,6 +291,14 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
     val tier = if (vm.liveryIndex > 0 && vm.liveryUnlocked(vm.liveryIndex)) TrainTier(base.name, lv.body, lv.accent) else base
     Canvas(
         modifier.pointerInput(Unit) {
+            // Tap a device on the train to open its upgrade.
+            detectTapGestures { pos ->
+                val u = density
+                val tx = (pos.x - npc.originXpx) / (u * npc.zoom)
+                val ty = pos.y / (u * npc.zoom) - (npc.centerOffDp - npc.camY)
+                hotspotAt(tx, ty, npc.cargoCars)?.let(onDeviceTap)
+            }
+        }.pointerInput(Unit) {
             // Drag up or down to look along a long train. The camera follows the worker again after 5 s.
             detectVerticalDragGestures(
                 onDragStart = { npc.manualCam = npc.camY },
@@ -285,7 +323,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier) {
             cargo = min(vm.level(UpgradeType.WAGON), MAX_CARGO),
         )
         halfH[0] = size.height / density / 2f
-        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations)
+        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
     }
 }
 
@@ -324,7 +362,7 @@ private fun DrawScope.slot(x: Float, y: Float, w: Float, h: Float) {
 
 private fun DrawScope.drawScene(
     npc: Npc, npc2: Npc?, time: Float, scroll: Float, tier: TrainTier, look: Look,
-    boosting: Boolean, aurora: Boolean, storm: Float, dark: Float, stations: List<Station>,
+    boosting: Boolean, aurora: Boolean, storm: Float, dark: Float, stations: List<Station>, fx: Boolean,
 ) {
     val u = density
     val w = size.width
@@ -332,11 +370,16 @@ private fun DrawScope.drawScene(
     val z = (w / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f)
     npc.viewH = h / u / z
     npc.zoom = z
+    fxOn = fx
+    fxDark = dark
     val trainPx = CAR_W * u * z
     val originX = (w - trainPx) / 2f
     val centerOff = max(0f, (npc.viewH - npc.trainLen) / 2f)
+    npc.originXpx = originX
+    npc.centerOffDp = centerOff
     drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
     drawDecor(scroll, originX, trainPx, h, u)
+    if (fx) drawGroundFx(time, scroll, w, h, u, dark, storm)
     for (st in stations) drawStation(st, originX, u)
     translate(left = originX, top = (centerOff - npc.camY) * u * z) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
@@ -359,6 +402,7 @@ private fun DrawScope.drawScene(
     }
     if (aurora) drawAurora(time, w, h)
     drawSnowfall(time, w, h, u, storm)
+    if (fx) drawPostFx(w, h, dark, storm)
     if (npc.trainLen > npc.viewH + 1f) { // scroll bar: the train is taller than the screen
         val frac = npc.viewH / npc.trainLen
         val barH = h * frac
@@ -366,6 +410,70 @@ private fun DrawScope.drawScene(
         drawRoundRect(Color(0x55203040), Offset(w - 7f * u, barY), Size(4f * u, barH), CornerRadius(2f * u, 2f * u))
     }
     if (boosting) drawSpeedLines(time, originX, trainPx, w, h, u)
+}
+
+// ---- post-processing helpers (can be switched off in Settings) ----
+private var fxOn = true
+private var fxDark = 0f
+
+/** Additive light bloom around a light source, in train-space dp. */
+private fun DrawScope.glow(x: Float, y: Float, r: Float, color: Color, strength: Float) {
+    if (!fxOn || strength <= 0.01f) return
+    val u = density
+    val c = Offset(x * u, y * u)
+    drawCircle(
+        Brush.radialGradient(listOf(color.copy(alpha = strength.coerceAtMost(1f)), Color.Transparent), center = c, radius = r * u),
+        radius = r * u, center = c, blendMode = BlendMode.Plus,
+    )
+}
+
+/** Cloud shadows drifting over the snow, and twinkling snow crystals in daylight. */
+private fun DrawScope.drawGroundFx(time: Float, scroll: Float, w: Float, h: Float, u: Float, dark: Float, storm: Float) {
+    for (i in 0 until 3) {
+        val x = ((i * 0.37f + 0.1f) * w + sin(time * 0.05f + i) * 40f * u)
+        val y = ((scroll * 0.35f + i * 380f) % (h / u + 300f)) * u - 150f * u
+        drawOval(Color(0x16203050), Offset(x - 130f * u, y - 70f * u), Size(260f * u, 140f * u))
+    }
+    if (dark < 0.12f && storm < 0.3f) {
+        for (i in 0 until 26) {
+            val fx = ((i * 0.7548777f) % 1f) * w
+            val fy = ((((i * 0.5698403f) % 1f) * h + scroll * u) % h)
+            val a = max(0f, sin(time * 2.2f + i * 1.7f))
+            if (a > 0.2f) {
+                val s = (1.2f + a) * u
+                drawLine(Color.White.copy(alpha = a * 0.9f), Offset(fx - s, fy), Offset(fx + s, fy), 0.9f * u)
+                drawLine(Color.White.copy(alpha = a * 0.9f), Offset(fx, fy - s), Offset(fx, fy + s), 0.9f * u)
+            }
+        }
+    }
+}
+
+/** Screen-space finishing: colour grading, warm sunset light and a vignette (frosty during storms). */
+private fun DrawScope.drawPostFx(w: Float, h: Float, dark: Float, storm: Float) {
+    // cool daylight grade, fading out as night falls
+    drawRect(Color(0xFFBFDFFF).copy(alpha = 0.06f * (1f - dark / 0.42f)), size = size)
+    // warm sunset or sunrise light during dusk and dawn
+    val mid = 1f - kotlin.math.abs(dark / 0.42f * 2f - 1f)
+    if (dark > 0.01f && dark < 0.41f) drawRect(Color(0xFFFF8A3D).copy(alpha = 0.16f * mid), size = size)
+    // vignette
+    val c = Offset(w / 2f, h / 2f)
+    val rad = sqrt(w * w + h * h) / 2f
+    drawRect(
+        Brush.radialGradient(
+            listOf(Color.Transparent, Color.Transparent, Color(0xFF0B1424).copy(alpha = 0.30f + dark * 0.6f)),
+            center = c, radius = rad,
+        ),
+        size = size,
+    )
+    if (storm > 0f) {
+        drawRect(
+            Brush.radialGradient(
+                listOf(Color.Transparent, Color.Transparent, Color.White.copy(alpha = 0.45f * storm)),
+                center = c, radius = rad,
+            ),
+            size = size,
+        )
+    }
 }
 
 private fun DrawScope.drawAurora(time: Float, w: Float, h: Float) {
@@ -519,7 +627,12 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         when (i) {
             0 -> { floor = Color(0xFF98A3AD); plank = Color(0xFF8A949E) }
             1 -> { floor = Color(0xFFE3DCCB); plank = Color(0xFFD3CBB8) }
-            else -> { floor = Color(0xFFC49A6C); plank = Color(0xFFAF8559) }
+            else -> when ((i - 2) % 4) {
+                1 -> { floor = Color(0xFFD9CBB4); plank = Color(0xFFC9B99F) }   // passenger lounge
+                2 -> { floor = Color(0xFFB9CDB0); plank = Color(0xFFA6BC9D) }   // greenhouse
+                3 -> { floor = Color(0xFFA9B1B9); plank = Color(0xFF99A2AB) }   // workshop
+                else -> { floor = Color(0xFFC49A6C); plank = Color(0xFFAF8559) } // cargo hold
+            }
         }
         drawCarShell(top, body, accent, floor, plank)
         when (i) {
@@ -527,6 +640,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             1 -> drawUtilityCar(top, look, npc, time)
             else -> drawCargoCar(top, i, npc)
         }
+        glow(AISLE_X, top + CAR_H / 2f, 90f, Color(0xFFFFD9A0), fxDark * 1.1f) // warm ceiling lamp at night
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
 }
@@ -544,6 +658,8 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     dot(Color(0x33FFE680), 56f, 15f, 10f)
     dot(Color(0x33FFE680), 134f, 15f, 10f)
     box(Color(0x22FFFFFF), 46f, 4f, 98f, 4f, 2f)
+    glow(56f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
+    glow(134f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
     dot(Color(0xFFFFE680), 56f, 15f, 5f)
     dot(Color(0xFFFFE680), 134f, 15f, 5f)
     box(accent, 70f, 10f, 50f, 4f, 2f)
@@ -600,6 +716,7 @@ private fun DrawScope.drawEngineCar(top: Float, look: Look, npc: Npc, time: Floa
     val heatAmt = (0.35f + 0.25f * flicker + (if (boosting) 0.35f else 0f) + (if (act == Act.SHOVEL_DROP) 0.25f else 0f))
         .coerceIn(0f, 1f)
     dot(Color(0x44FF8A2B), 68f, top + 34f, 10f + 8f * heatAmt)
+    glow(62f, top + 34f, 34f, Color(0xFFFF8A2B), 0.22f + 0.38f * heatAmt)
     box(lerp(Color(0xFF5A1A0A), Color(0xFFFF8A2B), heatAmt), 60f, top + 22f, 10f, 24f, 3f)
     dot(Color(0xFFE9E4D8), 28f, top + 38f, 8f)
     val needle = -2.2f + 1.0f * sin(time * 1.5f)
@@ -621,8 +738,9 @@ private fun DrawScope.drawEngineCar(top: Float, look: Look, npc: Npc, time: Floa
     box(Color(0xFF2B2F36), 124f, top + 85f, 24f, 9f, 2f)
     box(lerp(Color(0xFF2E6F8E), Color(0xFF7FD8FF), 0.5f + 0.5f * sin(time * 2f)), 126f, top + 87f, 20f, 5f, 1f)
     if (look.booster > 0) {
-        val glow = if (boosting) 1f else 0.5f + 0.3f * sin(time * 3f)
-        dot(lerp(Color(0xFF3B2A12), Color(0xFFFFB347), glow), 168f, top + 95f, 7f)
+        val bGlow = if (boosting) 1f else 0.5f + 0.3f * sin(time * 3f)
+        dot(lerp(Color(0xFF3B2A12), Color(0xFFFFB347), bGlow), 168f, top + 95f, 7f)
+        glow(168f, top + 95f, 26f, Color(0xFFFFB347), 0.2f + 0.4f * bGlow)
         dot(Color(0xAAFFFFFF), 166f, top + 93f, 2f)
     }
     val knobY = top + 94f + (if (act == Act.DRIVE) 5f * sin(npc.phase) else 1.5f * sin(time))
@@ -656,6 +774,7 @@ private fun DrawScope.drawUtilityCar(top: Float, look: Look, npc: Npc, time: Flo
         box(Color(0xFF4A6FA5), 8f, top + 8f, 54f, 54f, 8f)
         box(Color(0xFF3A5782), 12f, top + 12f, 46f, 46f, 6f)
         dot(lerp(Color(0xFF2B4B7A), Color(0xFFFFB347), pulse), 33f, top + 35f, 14f)
+        glow(33f, top + 35f, 38f, Color(0xFFFFB347), 0.15f + 0.3f * pulse)
         dot(Color(0x66FFFFFF), 29f, top + 31f, 4f)
         val ang = if (act == Act.TURN_VALVE) npc.phase * 1.2f else time * 0.4f
         val wy = top + 34f
@@ -681,7 +800,7 @@ private fun DrawScope.drawUtilityCar(top: Float, look: Look, npc: Npc, time: Flo
         dot(Color(0xFF50606E), 138f, top + 30f, 6.5f)
         dot(Color(0xFF2B2F36), 138f, top + 56f, 10f)
         dot(Color(0xFF50606E), 138f, top + 56f, 6.5f)
-        if (cooking) dot(Color(0x66FF8A2B), 138f, top + 30f, 9f)
+        if (cooking) { dot(Color(0x66FF8A2B), 138f, top + 30f, 9f); glow(138f, top + 30f, 30f, Color(0xFFFF8A2B), 0.5f) }
         dot(Color(0xFF9AA5AF), 138f, top + 30f, 8f)
         dot(Color(0xFFE0A21B), 138f, top + 30f, 5.6f)
         val sa = if (cooking) npc.phase * 2f else 0f
@@ -714,6 +833,59 @@ private fun DrawScope.crate(x: Float, y: Float) {
 }
 
 private fun DrawScope.drawCargoCar(top: Float, idx: Int, npc: Npc) {
+    // Four wagon types in rotation. The crate spots stay the same so the worker can always stack cargo.
+    when ((idx - 2) % 4) {
+        1 -> { // passenger lounge: rug, sofa and a coffee table
+            box(Color(0xFFB5443B), 22f, top + 68f, 84f, 38f, 6f)
+            box(Color(0xFFD1685D), 26f, top + 72f, 76f, 30f, 4f)
+            box(Color(0xFF7A4B3A), 94f, top + 12f, 82f, 28f, 9f)
+            for (k in 0 until 3) box(Color(0xFFD1856B), 99f + k * 25f, top + 16f, 22f, 18f, 5f)
+            box(Color(0xFF8B5E3C), 48f, top + 78f, 34f, 18f, 4f)
+            dot(Color(0xFFF2F2F2), 58f, top + 87f, 3.4f)
+            dot(Color(0xFFE0A21B), 58f, top + 87f, 2f)
+            dot(Color(0xFFF2F2F2), 72f, top + 88f, 3.4f)
+        }
+        2 -> { // greenhouse: planters and a growing lamp
+            for (k in 0 until 3) {
+                val px = 92f + k * 28f
+                box(Color(0xFF6E4A2E), px, top + 14f, 24f, 30f, 4f)
+                box(Color(0xFF3B2A1A), px + 2f, top + 16f, 20f, 26f, 3f)
+                dot(Color(0xFF2F8F4E), px + 12f, top + 29f, 9f)
+                dot(Color(0xFF4FBF6A), px + 10f, top + 27f, 5.5f)
+                dot(Color(0xFFE5484D), px + 14f, top + 26f, 1.8f)
+            }
+            glow(134f, top + 28f, 46f, Color(0xFFFF6BCB), 0.16f + fxDark * 0.6f)
+            box(Color(0xFFD9C7A0), 16f, top + 74f, 24f, 28f, 5f)
+            box(Color(0xFFC4B185), 20f, top + 80f, 16f, 4f, 2f)
+            box(Color(0xFF4DABF7), 52f, top + 88f, 20f, 13f, 3f)
+            line(Color(0xFF4DABF7), 72f, top + 92f, 82f, top + 86f, 2f)
+        }
+        3 -> { // workshop: workbench, vise, barrels and a toolbox
+            box(Color(0x33000000), 94f, top + 14f, 84f, 26f, 3f)
+            box(Color(0xFF5E6873), 92f, top + 12f, 84f, 26f, 3f)
+            box(Color(0xFF8B5E3C), 94f, top + 14f, 80f, 14f, 2f)
+            line(Color(0xFFC8CED4), 102f, top + 20f, 122f, top + 20f, 1.6f)
+            dot(Color(0xFFE5484D), 134f, top + 21f, 3f)
+            box(Color(0xFF2B2F36), 150f, top + 16f, 16f, 8f, 2f)
+            dot(Color(0xFF4A6FA5), 30f, top + 86f, 13f)
+            dot(Color(0xFF3A5782), 30f, top + 86f, 9f)
+            dot(Color(0xFF4A6FA5), 56f, top + 76f, 11f)
+            dot(Color(0xFF3A5782), 56f, top + 76f, 7.5f)
+            box(Color(0xFFE5484D), 70f, top + 90f, 32f, 15f, 2f)
+            box(Color(0xFFB83A3F), 70f, top + 94f, 32f, 2f)
+        }
+        else -> { // cargo hold: shelves of parcels and a rolled tarp
+            box(Color(0xFF7B8794), 96f, top + 12f, 80f, 10f, 2f)
+            box(Color(0xFF7B8794), 96f, top + 28f, 80f, 10f, 2f)
+            val parcel = listOf(Color(0xFFD9B27C), Color(0xFFC49A6C), Color(0xFFE0C18F))
+            for (k in 0 until 5) {
+                box(parcel[k % 3], 99f + k * 15f, top + 13f, 12f, 8f, 1f)
+                box(parcel[(k + 1) % 3], 99f + k * 15f, top + 29f, 12f, 8f, 1f)
+            }
+            box(Color(0xFF4A6FA5), 60f, top + 90f, 52f, 13f, 6f)
+            box(Color(0xFF6C8FC4), 62f, top + 92f, 48f, 4f, 2f)
+        }
+    }
     crate(12f, top + 14f)
     crate(34f, top + 14f)
     crate(12f, top + 36f)
