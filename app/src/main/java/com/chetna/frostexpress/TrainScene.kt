@@ -266,6 +266,9 @@ private class Npc {
     /** Automatic camera: a short train sits in the middle; a long one follows the worker. */
     private val autoLo: Float get() = if (trainLen <= viewH) (trainLen - viewH) / 2f else -60f
     private val autoHi: Float get() = if (trainLen <= viewH) autoLo else trainLen - viewH + 30f
+    /** Where the automatic camera would be. The world outside is drawn relative to it, so scrolling by hand
+     *  moves the snow and stations together with the train instead of sliding the train past a still world. */
+    var camAuto = 0f
     var working = false
     var cycle: List<Step> = emptyList()
     var idx = 0
@@ -373,6 +376,7 @@ private class Npc {
                 plan()
             }
         }
+        camAuto += ((y - viewH / 2f).coerceIn(autoLo, autoHi) - camAuto) * min(1f, dt * 3f)
         if (manualLeft > 0f) {
             manualLeft -= dt
             camY += (manualCam - camY) * min(1f, dt * 12f)
@@ -576,7 +580,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
             val trainPx = CAR_W * u * npc.zoom
             val ox = npc.originXpx
             val cx = if (crate[2] < 0.5f) ox * 0.5f else ox + trainPx + (size.width - ox - trainPx) * 0.5f
-            val cy = crate[1] * u
+            val cy = (crate[1] + (npc.camAuto - npc.camY) * npc.zoom) * u
             crate[3] = cx; crate[4] = cy
             drawSupplyCrate(cx, cy, time, sprites.crate)
         }
@@ -633,20 +637,22 @@ private fun DrawScope.drawScene(
     val originX = (w - trainPx) / 2f
     val centerOff = 0f
     npc.originXpx = originX
+    // how far the player has scrolled away from the automatic camera (dp on screen)
+    val worldDp = (npc.camAuto - npc.camY) * z
     npc.centerOffDp = centerOff
     val art = sceneArt
     if (art != null) {
         // painted snow that scrolls with the ground (256 dp tile)
         val tile = 256f
-        texRect(art.snow, 0f, -tile, w / u, h / u + 2f * tile, 2f, ay = (scroll % tile) - tile)
+        texRect(art.snow, 0f, -tile, w / u, h / u + 2f * tile, 2f, ay = (((scroll + worldDp) % tile) + tile) % tile - tile)
         // the cold has taken the colour out of the world: a pale, grey-blue frozen land
         drawRect(Color(0xFF8DA2B8).copy(alpha = 0.16f), size = size)
     } else {
         drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
     }
-    drawDecor(scroll, originX, trainPx, h, u)
-    if (fx) safeFx { drawGroundFx(time, scroll, w, h, u, dark, storm) }
-    for (st in stations) drawStation(st, originX, u)
+    drawDecor(scroll + worldDp, originX, trainPx, h, u)
+    if (fx) safeFx { drawGroundFx(time, scroll + worldDp, w, h, u, dark, storm) }
+    translate(top = worldDp * u) { for (st in stations) drawStation(st, originX, u) }
     val ny = (centerOff - npc.camY) * u * z
     // The outside world (track, ground, trees) gets the full night tint first...
     translate(left = originX, top = ny) {
@@ -655,7 +661,7 @@ private fun DrawScope.drawScene(
     if (dark > 0.01f) drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
     // station lamps and windows glow at night and in storms
     val lampOn = max((dark / 0.42f).coerceIn(0f, 1f), storm)
-    if (lampOn > 0.02f) for (st in stations) drawStationLights(st, originX, u, lampOn)
+    if (lampOn > 0.02f) translate(top = worldDp * u) { for (st in stations) drawStationLights(st, originX, u, lampOn) }
     // light spilling out of the windows onto the dark ground
     if (dark > 0.01f) {
         translate(left = originX, top = ny) {
@@ -703,19 +709,7 @@ private fun DrawScope.drawScene(
         drawRoundRect(Color(0x55203040), Offset(w - 7f * u, barY), Size(4f * u, barH), CornerRadius(2f * u, 2f * u))
     }
     if (boosting || shopTurbo) drawSpeedLines(time, originX, trainPx, w, h, u)
-    if (shopCocoa) {
-        // Hot Cocoa Rush: little gold coins float up beside the train
-        for (i in 0 until 10) {
-            val ph = (time * 0.35f + i * 0.1f) % 1f
-            val side = if (i % 2 == 0) originX - 14f * u else originX + trainPx + 14f * u
-            val x = side + sin(time * 2f + i) * 6f * u
-            val y = h * (1f - ph)
-            val a = (1f - ph) * 0.9f
-            drawCircle(Color(0xFF6B4A3A).copy(alpha = a), 5.2f * u, Offset(x, y))
-            drawCircle(Color(0xFFFFC85C).copy(alpha = a), 4f * u, Offset(x, y))
-            drawCircle(Color.White.copy(alpha = a * 0.8f), 1.3f * u, Offset(x - 1.3f * u, y - 1.3f * u))
-        }
-    }
+
 }
 
 // ---- post-processing helpers (can be switched off in Settings) ----

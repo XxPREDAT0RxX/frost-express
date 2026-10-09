@@ -19,6 +19,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
@@ -193,7 +195,11 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
         if (lastStage == 3 && vm.tutorialStage == 4) showTutorialDone = true
         lastStage = vm.tutorialStage
     }
+    var showGift by remember { mutableStateOf(false) }
+    var showQuit by remember { mutableStateOf(false) }
     BackHandler(enabled = sheet != 0) { sheet = 0 }
+    // back on the main screen: ask before leaving the game
+    BackHandler(enabled = sheet == 0) { showQuit = true }
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
     val sheetPx = with(LocalDensity.current) { sheetHeight.roundToPx() }
     // One progress value drives the sheet height, so opening and closing never jump.
@@ -226,6 +232,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 vm,
                 onQuests = { sheet = if (sheet == 5) 0 else 5 },
                 onAwards = { sheetTab = 2; sheet = 1 },
+                onGift = { showGift = true },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -332,7 +339,9 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
             onSkip = vm::finishTutorial,
         )
     } else if (vm.tutorialDone && vm.dailyReady) {
-        DailyGiftCard(vm)
+        DailyGiftCard(vm, onClose = if (showGift) ({ showGift = false }) else null)
+    } else if (showGift) {
+        DailyGiftCard(vm, onClose = { showGift = false })
     } else if (vm.tutorialDone && vm.offlineCoins > 0.0) {
         WelcomeBackCard(vm)
     }
@@ -350,6 +359,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
     }
 
     if (showSettings) SettingsDialog(vm, onClose = { showSettings = false })
+    if (showQuit) QuitCard(vm, onStay = { showQuit = false })
     if (showTutorialDone) {
         TutorialCard(
             title = "You're all set!",
@@ -476,63 +486,77 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 @Composable
 private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}, onOpenLevel: () -> Unit = {}) {
     val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Glass)
-            .border(OutlineW, Wood, RoundedCornerShape(18.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            LevelBadge(vm, onOpenLevel)
-            Spacer(Modifier.width(8.dp))
-            CoinIcon(Modifier.size(22.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(fmt(vm.coins), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = GoldText, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = Modifier.weight(1f))
-            Row(
-                Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(GemPink.copy(alpha = 0.14f))
-                    .clickable(onClick = onOpenGems)
-                    .padding(horizontal = 7.dp, vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    val shape = RoundedCornerShape(20.dp)
+    // a frosted wooden sign: snow on top, icicles below
+    Column(modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFFBF4), Color(0xFFF6E8D3))))
+                .border(OutlineW, Wood, shape),
+        ) {
+            SnowCap(Modifier.align(Alignment.TopCenter), seed = 3)
+            Column(
+                Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                GemIcon(Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("${vm.gems}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = GemPink)
-                Spacer(Modifier.width(3.dp))
-                Text("+", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = GemPink)
-            }
-            Spacer(Modifier.width(6.dp))
-            SpeakerButton(vm.soundOn, vm::toggleSound)
-            Spacer(Modifier.width(6.dp))
-            MenuButton(onOpenSettings)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatChip("${fmt(vm.speed, 1)} m/s", Ice)
-            Spacer(Modifier.width(5.dp))
-            StatChip("+${fmt(vm.coinsPerSec, 1)}/s", Mint)
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Track)
-            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LevelBadge(vm, onOpenLevel)
+                    Spacer(Modifier.width(6.dp))
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFFFF0D2))
+                            .border(1.8.dp, Ink, RoundedCornerShape(14.dp))
+                            .padding(start = 5.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CoinIcon(Modifier.size(22.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(fmt(vm.coins), fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = GoldText, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    CurrencyPill({ GemIcon(Modifier.size(15.dp)) }, "${vm.gems}", GemPink, onClick = onOpenGems, plus = true)
+                    Spacer(Modifier.width(6.dp))
+                    SpeakerButton(vm.soundOn, vm::toggleSound)
+                    Spacer(Modifier.width(5.dp))
+                    MenuButton(onOpenSettings)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    StatChip("${fmt(vm.speed, 1)} m/s", Ice)
+                    StatChip("+${fmt(vm.coinsPerSec, 1)}/s", Mint)
+                    val temp = (-38f - 14f * (vm.darkness / 0.42f) - 22f * vm.stormLevel).toInt()
+                    StatChip("$temp°C", Color(0xFF4C8DB8))
+                    Spacer(Modifier.weight(1f))
+                    TimeChip(vm)
+                }
+                // evolve progress, label inside the bar
                 Box(
                     Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progress)
-                        .background(Brush.horizontalGradient(listOf(Ice, Mint)))
-                )
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(Track)
+                        .border(1.5.dp, Ink, RoundedCornerShape(7.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .fillMaxHeight()
+                            .fillMaxWidth(progress)
+                            .background(Brush.horizontalGradient(listOf(Color(0xFFB8D8F2), Color(0xFFB9A2EE))))
+                    )
+                    Text(
+                        if (vm.canEvolve) "Ready to evolve!" else "Evolve ${vm.runLevels} / ${vm.evolveLevels}",
+                        fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false,
+                    )
+                }
             }
-            Spacer(Modifier.width(8.dp))
-            Text("Evolve ${vm.runLevels}/${vm.evolveLevels}", fontSize = 10.sp, color = Muted, maxLines = 1, softWrap = false)
         }
-        TimeChip(vm)
+        Icicles(Modifier.padding(horizontal = 18.dp))
     }
 }
 
@@ -541,8 +565,15 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
 private fun TimeChip(vm: GameViewModel) {
     val (phase, secs) = vm.dayPhase()
     val night = phase == "Night" || phase == "Dusk"
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(12.dp)) {
+    val storm = vm.stormLeft > 0.0
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (storm) Ice.copy(alpha = 0.16f) else if (night) Color(0xFF5C7CFA).copy(alpha = 0.12f) else Gold.copy(alpha = 0.18f))
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Canvas(Modifier.size(11.dp)) {
             val s = size.minDimension
             if (night) {
                 drawCircle(Color(0xFF5C7CFA), .38f * s, Offset(.5f * s, .5f * s))
@@ -556,20 +587,11 @@ private fun TimeChip(vm: GameViewModel) {
                 }
             }
         }
-        Spacer(Modifier.width(5.dp))
-        Text("$phase · next in ${secs}s", fontSize = 10.sp, color = Muted)
-        if (vm.stormLeft > 0.0) {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "Storm ${vm.stormLeft.toInt() + 1}s",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ice,
-                modifier = Modifier
-                    .background(Ice.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
+        Spacer(Modifier.width(4.dp))
+        Text(
+            if (storm) "Storm ${vm.stormLeft.toInt() + 1}s" else "$phase ${secs}s",
+            fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (storm) Ice else Muted, maxLines = 1, softWrap = false,
+        )
     }
 }
 
@@ -577,9 +599,10 @@ private fun TimeChip(vm: GameViewModel) {
 private fun MenuButton(onClick: () -> Unit) {
     Box(
         Modifier
-            .size(26.dp)
+            .size(30.dp)
             .clip(CircleShape)
-            .background(PanelHi)
+            .background(Color.White.copy(alpha = 0.8f))
+            .border(1.8.dp, Ink, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -882,9 +905,10 @@ private fun SpeakerButton(on: Boolean, onClick: () -> Unit) {
     val c = if (on) Ice else Muted
     Box(
         Modifier
-            .size(26.dp)
+            .size(30.dp)
             .clip(CircleShape)
-            .background(PanelHi)
+            .background(Color.White.copy(alpha = 0.8f))
+            .border(1.8.dp, Ink, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -941,6 +965,7 @@ private fun BottomBar(
     )
     val fill = vm.boostMeter.toFloat().coerceIn(0f, 1f)
     val status = when {
+        vm.endlessFuel -> "Endless fuel · ${fmtClock(vm.shopFuelLeft)}"
         vm.boostLocked -> "Recharging ${(fill * 100).toInt()}%"
         vm.isBoosting -> "x${fmt(vm.boostMultiplier, 1)} active · ${vm.boostTimeLeft.toInt() + 1}s"
         else -> "Tap BOOST · x${fmt(vm.boostMultiplier, 1)} income"
@@ -1064,38 +1089,24 @@ private fun UpgradesSheet(
         if (focus != null) {
             tab = 0
             kotlinx.coroutines.delay(90)
-            listState.animateScrollToItem((1 + UPGRADES.indexOfFirst { it.type == focus }).coerceAtLeast(0))
+            val idx = listState.layoutInfo.totalItemsCount
+            val chain = UPGRADES.filter { it.type != UpgradeType.SURVIVORS }
+            val pos = chain.indexOfFirst { it.type == focus }
+            // survivors card + one header per car before it
+            listState.animateScrollToItem((1 + pos + carOf(focus) + 1).coerceIn(0, maxOf(0, idx - 1)))
             kotlinx.coroutines.delay(2500)
             onFocusDone()
         }
     }
 
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Panel)
-            .border(OutlineW, Wood, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    val sprites = rememberGameSprites()
+    SheetFrame(
+        "Upgrades", sprites.iconEvolve, Color(0xFFCDE7F8), onClose, modifier,
+        right = {
+            if (tab != 1) CurrencyPill({ CoinIcon(Modifier.size(16.dp)) }, fmt(vm.coins), GoldText)
+            else CurrencyPill({ CoreIcon(Ice, Modifier.size(15.dp)) }, "${vm.coresAvailable}", Ice)
+        },
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 14.dp, end = 6.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Upgrades", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (tab != 1) {
-                CoinIcon(Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
-            } else {
-                CoreIcon(Ice, Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("${vm.coresAvailable}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ice)
-            }
-            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
-        }
         TabRow(tab, { tab = it }, Modifier.padding(horizontal = 12.dp))
         if (tab == 0) BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
         LazyColumn(
@@ -1134,18 +1145,25 @@ private fun UpgradesSheet(
                         enabled = !maxed && vm.coresAvailable >= cost,
                         onBuy = { vm.buyPerm(spec) },
                         core = true,
+                        sprite = sprites.device[permIcon(spec.type)],
+                        progress = lvl.toFloat() / spec.maxLevel,
                     )
                 }
             } else {
-                item {
-                    Text("Reset when you evolve. Hold a buy button to keep buying.", fontSize = 11.sp, color = Muted)
-                }
             item { SurvivorsCard(vm, onInfo = { onOpenDetail(UpgradeType.SURVIVORS) }) }
             // Show every unlocked upgrade plus the next locked one; the rest stay a surprise.
             val chain = UPGRADES.filter { it.type != UpgradeType.SURVIVORS }
             val firstLocked = chain.indexOfFirst { !vm.isUnlocked(it) }
             val visibleUpgrades = if (firstLocked < 0) chain else chain.take(firstLocked + 1)
-            items(visibleUpgrades) { spec ->
+            visibleUpgrades.groupBy { carOf(it.type) }.toSortedMap().forEach { (car, specs) ->
+            item(key = "car$car") {
+                SectionTitle(
+                    when (car) { 0 -> "Car 1 · Engine"; 1 -> "Car 2 · Workshop"; else -> "Car ${car + 1}" },
+                    listOf(Ember, Ice, Mint, XpPurple, GoldText, GemPink)[car % 6],
+                    if (car == 0) "Reset when you evolve. Hold a button to keep buying." else null,
+                )
+            }
+            items(specs, key = { it.type.name }) { spec ->
                 val lvl = vm.level(spec.type)
                 val maxed = lvl >= spec.maxLevel
                 val n = vm.buyCount(spec)
@@ -1172,7 +1190,14 @@ private fun UpgradesSheet(
                     locked = locked,
                     highlight = focus == spec.type,
                     onInfo = if (locked) null else ({ onOpenDetail(spec.type) }),
+                    sprite = sprites.device[spec.type],
+                    progress = when {
+                        spec.maxLevel != Int.MAX_VALUE -> lvl.toFloat() / spec.maxLevel
+                        next != null -> (lvl - (Balance.MILESTONES.lastOrNull { it <= lvl } ?: 0)).toFloat() / (next - (Balance.MILESTONES.lastOrNull { it <= lvl } ?: 0))
+                        else -> null
+                    },
                 )
+            }
             }
             if (firstLocked >= 0 && firstLocked + 1 < chain.size) item {
                 Text("${chain.size - firstLocked - 1} more upgrades to discover...", fontSize = 11.sp, color = Muted)
@@ -1222,15 +1247,26 @@ private fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
 
 @Composable
 private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    // a segmented switch in a recessed wooden track
+    Row(
+        modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(PanelHi)
+            .border(2.dp, Ink, RoundedCornerShape(16.dp))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
         listOf("Upgrades", "Permanent", "Awards").forEachIndexed { i, label ->
             val on = selected == i
+            val c = listOf(Color(0xFFFFC98A), Color(0xFFB8D8F2), Color(0xFFFFE49A))[i]
             Box(
                 Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (on) Color(0xFFFFC9A0) else PanelHi)
-                    .border(2.dp, Ink, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(if (on) Brush.verticalGradient(listOf(c.copy(alpha = 0.6f).compositeOver(Color.White), c)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .border(if (on) 2.dp else 0.dp, if (on) Ink else Color.Transparent, RoundedCornerShape(13.dp))
                     .clickable { onSelect(i) }
                     .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center,
@@ -1275,21 +1311,21 @@ private fun AchievementRow(a: Achievement, done: Boolean) {
 @Composable
 private fun BuyAmountRow(vm: GameViewModel, modifier: Modifier = Modifier) {
     Row(
-        modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
+        Text("Buy", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Muted)
         listOf(1 to "x1", 10 to "x10", 100 to "x100", 0 to "MAX").forEach { (amount, label) ->
             val on = vm.buyAmount == amount
             Box(
                 Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (on) Color(0xFF9FC5EA) else Panel)
-                    .border(2.dp, Ink, RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (on) Brush.verticalGradient(listOf(Color(0xFFD3E9FA), Color(0xFF9FC5EA))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.6f), Color.White.copy(alpha = 0.6f))))
+                    .border(2.dp, if (on) Ink else Ink.copy(alpha = 0.35f), RoundedCornerShape(11.dp))
                     .clickable { vm.buyAmount = amount }
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (on) Ink else Muted)
@@ -1315,73 +1351,76 @@ private fun UpgradeRow(
     onInfo: (() -> Unit)? = null,
     priceIcon: Int = 0, // 0 coin, 1 frost core, 2 gem, 3 none (real-money price)
     icon: (@Composable () -> Unit)? = null,
+    tint: Color? = null,
+    progress: Float? = null,
+    sprite: androidx.compose.ui.graphics.ImageBitmap? = null,
 ) {
-    val buyNow = androidx.compose.runtime.rememberUpdatedState(onBuy)
-    val accent = if (locked) Muted else upgradeColor(type)
+    val accent = if (locked) Muted else tint ?: upgradeColor(type)
+    val shape = RoundedCornerShape(18.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .border(if (highlight) 3.dp else 2.dp, if (highlight) Ember else Ink.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.55f))
-            .padding(8.dp),
+            .clip(shape)
+            .background(if (locked) PanelHi.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.72f))
+            .border(if (highlight) 3.dp else 2.dp, if (highlight) Ember else if (locked) Ink.copy(alpha = 0.35f) else Ink, shape)
+            .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        // the device on a round coloured plate
         Box(
             Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(accent.copy(alpha = 0.18f))
+                .size(50.dp)
+                .clip(CircleShape)
+                .background(Brush.radialGradient(listOf(Color.White, accent.copy(alpha = 0.35f).compositeOver(Panel))))
+                .border(2.dp, if (locked) Ink.copy(alpha = 0.4f) else Ink, CircleShape)
                 .then(if (onInfo != null) Modifier.clickable { onInfo() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            if (locked) LockIcon(Muted, Modifier.size(20.dp)) else if (icon != null) icon() else UpgradeIcon(type, accent, Modifier.size(22.dp))
+            when {
+                locked -> LockIcon(Muted, Modifier.size(22.dp))
+                sprite != null -> Image(sprite, null, Modifier.size(42.dp))
+                icon != null -> icon()
+                else -> UpgradeIcon(type, accent, Modifier.size(26.dp))
+            }
         }
         Column(Modifier.weight(1f).then(if (onInfo != null) Modifier.clickable { onInfo() } else Modifier)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Spacer(Modifier.width(6.dp))
-                Text(level, fontSize = 10.sp, color = accent, fontWeight = FontWeight.SemiBold)
-            }
-            Text(effect, fontSize = 11.sp, color = Muted)
-            if (note != null) Text(note, fontSize = 10.sp, color = GoldText)
-        }
-        Column(
-            Modifier
-                .width(70.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (enabled) accent else PanelHi)
-                .border(2.dp, Ink, RoundedCornerShape(12.dp))
-                // Tap to buy once; hold to keep buying, faster the longer you hold.
-                .pointerInput(enabled) {
-                    if (!enabled) return@pointerInput
-                    awaitEachGesture {
-                        awaitFirstDown()
-                        buyNow.value()
-                        var wait = 450L
-                        while (true) {
-                            val released = withTimeoutOrNull(wait) { waitForUpOrCancellation(); true } ?: false
-                            if (released) break
-                            buyNow.value()
-                            wait = (wait * 0.82f).toLong().coerceAtLeast(90L)
-                        }
-                    }
+                Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = if (locked) Muted else Ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (level.isNotEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        level, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = if (locked) Muted else Ink, maxLines = 1, softWrap = false,
+                        modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(accent.copy(alpha = 0.25f)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
                 }
-                .padding(vertical = 5.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            }
+            Text(effect, fontSize = 11.sp, color = Muted, lineHeight = 13.sp)
+            if (progress != null && !locked) {
+                Box(
+                    Modifier.padding(top = 3.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(Track).border(1.dp, Ink.copy(alpha = 0.5f), RoundedCornerShape(3.dp)),
+                ) { Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).background(accent)) }
+            }
+            if (note != null) Text(note, fontSize = 10.sp, color = GoldText, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
+        }
+        ChunkyButton(
+            enabled,
+            listOf(accent.copy(alpha = 0.55f).compositeOver(Color.White), accent),
+            onBuy,
+            Modifier.width(78.dp),
+            repeat = true,
         ) {
-            Text(buttonTop, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Color.White else Muted)
+            Text(buttonTop, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Ink else Muted, maxLines = 1, softWrap = false)
             if (buttonBottom != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     when {
-                        priceIcon == 2 -> GemIcon(Modifier.size(10.dp))
+                        priceIcon == 2 -> GemIcon(Modifier.size(11.dp))
                         priceIcon == 3 -> {}
-                        core || priceIcon == 1 -> CoreIcon(if (enabled) Color.White else Muted, Modifier.size(9.dp))
-                        else -> CoinIcon(Modifier.size(9.dp))
+                        core || priceIcon == 1 -> CoreIcon(if (enabled) Ice else Muted, Modifier.size(10.dp))
+                        else -> CoinIcon(Modifier.size(10.dp))
                     }
                     Spacer(Modifier.width(3.dp))
-                    Text(buttonBottom, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (enabled) Color.White else Muted)
+                    Text(buttonBottom, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Ink else Muted, maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -1735,23 +1774,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                     .border(3.dp, Ink, RoundedCornerShape(18.dp))
                     .padding(horizontal = 20.dp, vertical = 6.dp),
             )
-            // close button
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 8.dp, end = 0.dp)
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFF7A3A3))
-                    .border(2.5.dp, Ink, CircleShape)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.Center,
-            ) {
-                Canvas(Modifier.size(12.dp)) {
-                    drawLine(Ink, Offset.Zero, Offset(size.width, size.height), 3.dp.toPx(), StrokeCap.Round)
-                    drawLine(Ink, Offset(size.width, 0f), Offset(0f, size.height), 3.dp.toPx(), StrokeCap.Round)
-                }
-            }
+            CloseButton(onClose, Modifier.align(Alignment.TopEnd).padding(top = 6.dp))
         }
     }
 }
@@ -1809,64 +1832,89 @@ private fun ShopIcon(color: Color, modifier: Modifier = Modifier) {
 
 @Composable
 private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit, onGetGems: () -> Unit) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Panel)
-            .border(1.5.dp, Ember.copy(alpha = 0.55f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    val sp = rememberGameSprites()
+    SheetFrame(
+        "Shop", sp.iconShop, Color(0xFFFFD9B8), onClose, modifier,
+        right = { CurrencyPill({ GemIcon(Modifier.size(16.dp)) }, "${vm.gems}", GemPink, onClick = onGetGems, plus = true) },
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(Color(0xFFFFE3C2), Color(0xFFFFF1DC))))
-                .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            rememberGameSprites().iconShop?.let { Image(it, null, Modifier.size(22.dp)) }
-            Spacer(Modifier.width(6.dp))
-            Text("Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            GemIcon(Modifier.size(16.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("${vm.gems}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
-            Spacer(Modifier.width(8.dp))
-            PillButton("Get gems", GemPink, Color.White, onClick = onGetGems)
-            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
-        }
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item {
-                Text("Buy boosters with gems. They go to your bag, use them whenever you like.", fontSize = 11.sp, color = Muted)
+            item { SectionTitle("Boosters", Ember, "Go to your bag. Up to ${Balance.MAX_ACTIVE_BOOSTERS} run at once.") }
+            items(ShopItem.values().toList().chunked(2)) { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (item in pair) ShopCard(vm, item, Modifier.weight(1f))
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
             if (Balance.ADS_ENABLED) {
+                item { SectionTitle("Free rewards", Mint, "Watch a short ad") }
                 items(listOf(AdReward.BOOSTER, AdReward.COINS)) { r -> AdRow(vm, r) }
             }
-            items(ShopItem.values().toList()) { item ->
-                val cost = vm.shopCost(item)
-                val owned = vm.owned(item)
-                UpgradeRow(
-                    type = when (item) {
-                        ShopItem.COCOA -> UpgradeType.FOOD
-                        ShopItem.TURBO -> UpgradeType.ENGINE
-                        ShopItem.TICKET -> UpgradeType.CONDUCTOR
-                        ShopItem.TANK -> UpgradeType.BOOSTER
-                        ShopItem.CLEAR -> UpgradeType.PLOW
-                    },
-                    title = item.title,
-                    level = if (owned > 0) "In bag: $owned" else "",
-                    effect = item.desc,
-                    note = null,
-                    buttonTop = "Buy",
-                    buttonBottom = "$cost",
-                    enabled = vm.gems >= cost,
-                    onBuy = { vm.buyShop(item) },
-                    icon = { ItemIcon(item, Modifier.size(34.dp)) },
-                    priceIcon = 2,
-                )
+            item {
+                ChunkyButton(true, listOf(Color(0xFFFFC2DA), Color(0xFFF08DB5)), onGetGems, Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GemIcon(Modifier.size(20.dp)); Spacer(Modifier.width(6.dp))
+                        Text("Need more gems? Open the Gem Shop", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun itemColor(item: ShopItem): Color = when (item) {
+    ShopItem.COCOA -> Color(0xFFF7A3A3)
+    ShopItem.TURBO -> Color(0xFFFFC98A)
+    ShopItem.TICKET -> Color(0xFFFFE49A)
+    ShopItem.TANK -> Color(0xFFBFE0D2)
+    ShopItem.CLEAR -> Color(0xFFB8D8F2)
+}
+
+/** A shop booster as a card: the item on a sunburst, what it does, how many are in the bag and the gem price. */
+@Composable
+private fun ShopCard(vm: GameViewModel, item: ShopItem, modifier: Modifier = Modifier) {
+    val cost = vm.shopCost(item)
+    val owned = vm.owned(item)
+    val c = itemColor(item)
+    Column(
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.7f))
+            .border(2.dp, Ink, RoundedCornerShape(18.dp))
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.fillMaxWidth().height(74.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(70.dp)) {
+                val r = size.minDimension / 2f
+                drawCircle(c.copy(alpha = 0.45f), r)
+                for (i in 0 until 10) {
+                    val a = (i * PI / 5).toFloat()
+                    val p = Path().apply {
+                        moveTo(center.x, center.y)
+                        lineTo(center.x + cos(a - 0.14f) * r, center.y + sin(a - 0.14f) * r)
+                        lineTo(center.x + cos(a + 0.14f) * r, center.y + sin(a + 0.14f) * r); close()
+                    }
+                    drawPath(p, Color.White.copy(alpha = 0.45f))
+                }
+                drawCircle(Ink, r - 1.dp.toPx(), style = Stroke(2.dp.toPx()))
+            }
+            ItemIcon(item, Modifier.size(52.dp))
+            if (owned > 0) Text(
+                "x$owned", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(8.dp)).background(Color(0xFFFFE49A)).border(1.5.dp, Ink, RoundedCornerShape(8.dp)).padding(horizontal = 5.dp),
+            )
+        }
+        Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        Text(item.desc, fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center, minLines = 2, maxLines = 2, lineHeight = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        ChunkyButton(vm.gems >= cost, listOf(Color(0xFFFFC2DA), Color(0xFFF08DB5)), { vm.buyShop(item) }, Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GemIcon(Modifier.size(14.dp)); Spacer(Modifier.width(4.dp))
+                Text("$cost", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (vm.gems >= cost) Ink else Muted)
             }
         }
     }
@@ -1893,81 +1941,100 @@ private fun GemIcon(modifier: Modifier = Modifier) {
     }
 }
 
+/** A little pile of gems: bigger packs show more gems. */
+@Composable
+private fun GemPile(count: Int, modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        val spots = listOf(Triple(0f, 0f, 1f), Triple(-0.32f, 0.18f, 0.8f), Triple(0.32f, 0.18f, 0.8f), Triple(-0.16f, -0.22f, 0.7f), Triple(0.18f, -0.24f, 0.7f), Triple(0f, 0.32f, 0.75f))
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val w = maxWidth
+            for (k in (0 until count.coerceIn(1, spots.size)).reversed()) {
+                val (dx, dy, sc) = spots[k]
+                GemIcon(Modifier.align(Alignment.Center).offset(x = w * dx, y = w * dy).size(w * 0.5f * sc))
+            }
+        }
+    }
+}
+
 @Composable
 private fun GemShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit, onBack: () -> Unit) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Panel)
-            .border(1.5.dp, GemPink.copy(alpha = 0.55f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    val sp = rememberGameSprites()
+    SheetFrame(
+        "Gem Shop", sp.iconGems, Color(0xFFFFC9DE), onClose, modifier, onBack = onBack,
+        right = { CurrencyPill({ GemIcon(Modifier.size(16.dp)) }, "${vm.gems}", GemPink) },
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(Color(0xFFFFD6E5), Color(0xFFF3E3FF))))
-                .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = { UiSound.click(); onBack() }) { Text("< Shop", fontSize = 12.sp) }
-            Text("Gem Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            GemIcon(Modifier.size(16.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("${vm.gems}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
-            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
-        }
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (Balance.ADS_ENABLED) {
-                item { Text("FREE WITH ADS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink) }
+                item { SectionTitle("Free with ads", Mint) }
                 item { AdRow(vm, AdReward.GEMS) }
             }
-            item { Text("GEM PACKS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink) }
-            items(GemPack.values().toList()) { pack ->
-                val price = vm.gemPackPrice(pack)
-                UpgradeRow(
-                    type = UpgradeType.BOOSTER,
-                    title = pack.title,
-                    level = "",
-                    effect = "+${pack.gems} gems",
-                    note = if (!Balance.IAP_ENABLED) "Opens after launch on Google Play" else null,
-                    buttonTop = if (Balance.IAP_ENABLED) "Buy" else "Soon",
-                    buttonBottom = price,
-                    enabled = Balance.IAP_ENABLED,
-                    onBuy = { vm.buyGemPack(pack) },
-                    priceIcon = 3,
-                    icon = { GemIcon(Modifier.size(24.dp)) },
-                )
+            item { SectionTitle("Gem packs", GemPink, if (!Balance.IAP_ENABLED) "Open after launch on Google Play" else null) }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GemPack.values().forEachIndexed { i, pack ->
+                        val price = vm.gemPackPrice(pack)
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Brush.verticalGradient(listOf(Color(0xFFFFF0F6), Color.White)))
+                                .border(2.dp, Ink, RoundedCornerShape(18.dp))
+                                .padding(6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (i == GemPack.values().lastIndex) Text(
+                                "BEST VALUE", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, letterSpacing = 1.sp,
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Ember).padding(horizontal = 5.dp, vertical = 1.dp),
+                            ) else Spacer(Modifier.height(13.dp))
+                            GemPile(2 + i * 2, Modifier.size(58.dp))
+                            Text("${pack.gems}", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = GemPink)
+                            Text(pack.title, fontSize = 9.sp, color = Muted, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(4.dp))
+                            ChunkyButton(Balance.IAP_ENABLED, listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)), { vm.buyGemPack(pack) }, Modifier.fillMaxWidth()) {
+                                Text(if (Balance.IAP_ENABLED) price ?: "..." else "Soon", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (Balance.IAP_ENABLED) Ink else Muted, maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
+                }
+            }
+            item { SectionTitle("Trade coins", GoldText, "${vm.gemTradeLeft} of ${Balance.GEM_TRADE_PER_DAY} left today") }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GemTrade.values().forEachIndexed { i, trade ->
+                        val cost = vm.gemTradeCost(trade)
+                        val can = vm.coins >= cost && vm.gemTradeLeft >= trade.gems
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.7f))
+                                .border(2.dp, Ink, RoundedCornerShape(16.dp))
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            GemPile(1 + i * 2, Modifier.size(38.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("+${trade.gems}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = GemPink)
+                                ChunkyButton(can, listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)), { vm.tradeForGems(trade) }, Modifier.fillMaxWidth()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CoinIcon(Modifier.size(11.dp)); Spacer(Modifier.width(3.dp))
+                                        Text(fmt(cost), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (can) Ink else Muted, maxLines = 1, softWrap = false)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             item {
-                Spacer(Modifier.height(4.dp))
-                Text("TRADE COINS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink)
-                Text("Up to ${Balance.GEM_TRADE_PER_DAY} gems a day. ${vm.gemTradeLeft} left today.", fontSize = 11.sp, color = Muted)
-            }
-            items(GemTrade.values().toList()) { trade ->
-                val cost = vm.gemTradeCost(trade)
-                UpgradeRow(
-                    type = UpgradeType.BOOSTER,
-                    title = "${trade.gems} gems",
-                    level = "",
-                    effect = "Pay with coins",
-                    note = if (vm.gemTradeLeft < trade.gems) "Daily limit reached" else null,
-                    buttonTop = "Trade",
-                    buttonBottom = fmt(cost),
-                    enabled = vm.coins >= cost && vm.gemTradeLeft >= trade.gems,
-                    onBuy = { vm.tradeForGems(trade) },
-                    icon = { GemIcon(Modifier.size(22.dp)) },
-                )
-            }
-            item {
-                Spacer(Modifier.height(4.dp))
-                Text("FREE GEMS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink)
+                SectionTitle("Free gems", XpPurple)
                 Text(
-                    "The daily reward gives ${Balance.DAILY_GEMS} gems, and ${Balance.DAILY_GEMS * 5} on every 7th day in a row.",
+                    "Daily gift: ${Balance.DAILY_GEMS} gems, ${Balance.DAILY_GEMS * 5} on every 7th day in a row. Level ups, quests and awards give gems too.",
                     fontSize = 11.sp, color = Muted,
                 )
             }
@@ -2025,36 +2092,20 @@ private fun fmtClock(sec: Double): String {
 
 @Composable
 private fun InventorySheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit, onShop: () -> Unit) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Panel)
-            .border(OutlineW, Wood, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    val sp = rememberGameSprites()
+    SheetFrame(
+        "My Bag", sp.iconBag, Color(0xFFCFE6F8), onClose, modifier,
+        right = { PillButton("Shop", Color(0xFFFFE1C8), Ink, onClick = onShop) },
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(Color(0xFFDDEEFB), Color(0xFFEAF6F0))))
-                .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            rememberGameSprites().iconBag?.let { Image(it, null, Modifier.size(22.dp)) }
-            Spacer(Modifier.width(6.dp))
-            Text("My Bag", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            PillButton("Shop", Color(0xFFFFE1C8), Ink, onClick = onShop)
-            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
-        }
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
-                Text(
-                    if (vm.inventoryCount == 0) "Your bag is empty. Buy boosters in the shop with gems." else "Tap Use to switch a booster on. Timed boosters stack up to 30 minutes.",
-                    fontSize = 11.sp, color = Muted,
+                SectionTitle(
+                    "Running ${vm.activeBoosters.size} / ${Balance.MAX_ACTIVE_BOOSTERS}", Ice,
+                    if (vm.inventoryCount == 0) "Your bag is empty. Buy boosters in the shop." else "Tap a running booster on the right to stop it.",
                 )
             }
             items(ShopItem.values().toList()) { item ->
@@ -2065,18 +2116,13 @@ private fun InventorySheet(vm: GameViewModel, modifier: Modifier = Modifier, onC
                     title = item.title,
                     level = "x$owned",
                     effect = item.desc,
-                    note = when {
-                        left > 0.0 -> "Active · ${fmtClock(left)} left"
-                        owned > 0 && item == ShopItem.CLEAR && !vm.shopAvailable(item) -> "Use it during a snow storm"
-                        owned > 0 && item == ShopItem.TANK && !vm.shopAvailable(item) -> "Your boost meter is already full"
-                        owned > 0 && !vm.shopAvailable(item) -> "Already stacked to 30 minutes"
-                        else -> null
-                    },
+                    note = if (left > 0.0) "Running · ${fmtClock(left)} left" else vm.whyNotUse(item),
                     buttonTop = "Use",
                     buttonBottom = null,
                     enabled = vm.canUse(item),
                     onBuy = { vm.useItem(item) },
-                    icon = { ItemIcon(item, Modifier.size(34.dp)) },
+                    icon = { ItemIcon(item, Modifier.size(38.dp)) },
+                    tint = itemColor(item),
                 )
             }
         }
@@ -2086,7 +2132,7 @@ private fun InventorySheet(vm: GameViewModel, modifier: Modifier = Modifier, onC
 /** Round badges for every booster that is running, with a ring that empties as time runs out. */
 @Composable
 private fun ActiveBoosters(vm: GameViewModel, modifier: Modifier = Modifier) {
-    val running = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET).filter { vm.shopLeft(it) > 0.0 }
+    val running = vm.activeBoosters
     if (running.isEmpty()) return
     val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "boostBadge").animateFloat(
         0.94f, 1.06f,
@@ -2094,16 +2140,16 @@ private fun ActiveBoosters(vm: GameViewModel, modifier: Modifier = Modifier) {
         label = "boostBadgePulse",
     )
     var open by remember { mutableStateOf<ShopItem?>(null) }
-    LaunchedEffect(open) { if (open != null) { kotlinx.coroutines.delay(4000); open = null } }
+    LaunchedEffect(open) { if (open != null) { kotlinx.coroutines.delay(6000); open = null } }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
         for (item in running) Row(verticalAlignment = Alignment.Top) {
             if (open == item) {
-                BoosterInfo(item, vm.shopLeft(item), Modifier.padding(end = 6.dp, top = 2.dp).clickable { open = null })
+                BoosterInfo(item, vm.shopLeft(item), Modifier.padding(end = 6.dp, top = 2.dp), onStop = { vm.cancelBooster(item); open = null })
             }
             val left = vm.shopLeft(item)
             val chunk = item.durationSec * kotlin.math.ceil(left / item.durationSec)
             val frac = (left / chunk).toFloat().coerceIn(0f, 1f)
-            val ring = when (item) { ShopItem.COCOA -> Color(0xFFF28C8C); ShopItem.TURBO -> Color(0xFFFFB86B); else -> Color(0xFFFFC85C) }
+            val ring = when (item) { ShopItem.COCOA -> Color(0xFFF28C8C); ShopItem.TURBO -> Color(0xFFFFB86B); ShopItem.TANK -> Color(0xFF8FC2AE); else -> Color(0xFFFFC85C) }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     Modifier
@@ -2291,10 +2337,11 @@ private fun AdRow(vm: GameViewModel, r: AdReward) {
 }
 
 @Composable
-private fun BoosterInfo(item: ShopItem, left: Double, modifier: Modifier = Modifier) {
+private fun BoosterInfo(item: ShopItem, left: Double, modifier: Modifier = Modifier, onStop: () -> Unit) {
+    var confirm by remember { mutableStateOf(false) }
     Column(
         modifier
-            .widthIn(max = 190.dp)
+            .widthIn(max = 200.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(Panel)
             .border(2.dp, Ink, RoundedCornerShape(14.dp))
@@ -2303,6 +2350,10 @@ private fun BoosterInfo(item: ShopItem, left: Double, modifier: Modifier = Modif
         Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
         Text(item.desc, fontSize = 11.sp, color = Muted)
         Text("Time left: ${fmtClock(left)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GoldText)
+        Spacer(Modifier.height(5.dp))
+        ChunkyButton(true, listOf(Color(0xFFFFB9B0), Color(0xFFEF7B72)), { if (confirm) onStop() else confirm = true }, Modifier.fillMaxWidth()) {
+            Text(if (confirm) "Tap again to stop" else "Stop booster", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        }
     }
 }
 
@@ -2469,12 +2520,12 @@ private fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: St
 }
 
 @Composable
-private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, modifier: Modifier = Modifier) {
+private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, onGift: () -> Unit, modifier: Modifier = Modifier) {
     val sp = rememberGameSprites()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = vm.questsReady, glow = vm.questsReady > 0, onClick = onQuests)
         RailButton(sp.iconTrophy, "Awards", Color(0xFFFFF0C8), onClick = onAwards)
-        RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = vm::giftHint)
+        RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
     }
 }
 
@@ -2566,7 +2617,7 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) 
 private fun TrainMapCard(vm: GameViewModel, onPick: (Int) -> Unit, onClose: () -> Unit) {
     val sp = rememberGameSprites()
     val cars = vm.carsNow
-    CozyCard("Train map", Color(0xFFCDE7F8), onDismiss = onClose) {
+    CozyCard("Train map", Color(0xFFCDE7F8), onDismiss = onClose, closable = true) {
         Text("Tap a car to go there", fontSize = 12.sp, color = Muted)
         Spacer(Modifier.height(8.dp))
         Column(
@@ -2610,8 +2661,7 @@ private fun TrainMapCard(vm: GameViewModel, onPick: (Int) -> Unit, onClose: () -
                 }
             }
         }
-        Spacer(Modifier.height(10.dp))
-        BigButton("Close", onClose, Modifier.fillMaxWidth(0.6f))
+
     }
 }
 
@@ -2620,26 +2670,7 @@ private fun TrainMapCard(vm: GameViewModel, onPick: (Int) -> Unit, onClose: () -
 @Composable
 private fun QuestSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
     val sp = rememberGameSprites()
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Panel)
-            .border(OutlineW, Wood, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Brush.horizontalGradient(listOf(Color(0xFFE2F3EA), Color(0xFFF1EAFF))))
-                .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            sp.iconQuest?.let { Image(it, null, Modifier.size(22.dp)) }
-            Spacer(Modifier.width(6.dp))
-            Text("Quests", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
-        }
+    SheetFrame("Quests", sp.iconQuest, Color(0xFFCDEBDC), onClose, modifier) {
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -3008,7 +3039,7 @@ fun LoadingScreen(progress: Float) {
 // ---------- cozy cards: daily gift and welcome back ----------
 
 @Composable
-private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, closable: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     val enter = remember { Animatable(0.85f) }
     LaunchedEffect(Unit) { enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 400f)) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -3033,6 +3064,7 @@ private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, conten
                     .border(3.dp, Ink, RoundedCornerShape(18.dp))
                     .padding(horizontal = 22.dp, vertical = 6.dp),
             )
+            if (closable) CloseButton(onDismiss, Modifier.align(Alignment.TopEnd).padding(top = 6.dp))
         }
     }
 }
@@ -3051,8 +3083,9 @@ private fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
 }
 
 @Composable
-private fun DailyGiftCard(vm: GameViewModel) {
-    val next = vm.dailyNextStreak
+private fun DailyGiftCard(vm: GameViewModel, onClose: (() -> Unit)? = null) {
+    val ready = vm.dailyReady
+    val next = if (ready) vm.dailyNextStreak else vm.dailyStreak + 1
     val weekStart = ((next - 1) / 7) * 7 + 1
     val sp = rememberGameSprites()
     val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "daily").animateFloat(
@@ -3060,8 +3093,8 @@ private fun DailyGiftCard(vm: GameViewModel) {
         androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "dailyPulse",
     )
-    CozyCard("Daily Gift", Color(0xFFFFC9D6), onDismiss = {}) {
-        Text("Day $next in a row", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Muted)
+    CozyCard("Daily Gift", Color(0xFFFFC9D6), onDismiss = onClose ?: {}, closable = onClose != null) {
+        Text(if (ready) "Day $next in a row" else "${vm.dailyStreak} days in a row", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Muted)
         Spacer(Modifier.height(10.dp))
         // a week of gifts: claimed days are ticked, today glows, the 7th day has a Frost Core
         for (row in 0..1) {
@@ -3070,7 +3103,7 @@ private fun DailyGiftCard(vm: GameViewModel) {
                 for (k in days) {
                     val day = weekStart + k
                     val claimed = day < next
-                    val today = day == next
+                    val today = day == next && ready
                     val big = k == 6
                     Column(
                         Modifier
@@ -3104,7 +3137,7 @@ private fun DailyGiftCard(vm: GameViewModel) {
             }
         }
         Spacer(Modifier.height(10.dp))
-        Text("Today", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold)
+        Text(if (ready) "Today" else "Tomorrow", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             CoinIcon(Modifier.size(18.dp)); Spacer(Modifier.width(4.dp))
             Text(fmt(vm.dailyCoins(next)), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
@@ -3118,8 +3151,38 @@ private fun DailyGiftCard(vm: GameViewModel) {
         }
         Text("+20 XP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = XpPurple)
         Spacer(Modifier.height(12.dp))
-        BigButton("Claim my gift", vm::claimDaily, Modifier.fillMaxWidth(0.8f))
-        Text("Come back tomorrow to keep your streak going.", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 8.dp))
+        if (ready) {
+            BigButton("Claim my gift", vm::claimDaily, Modifier.fillMaxWidth(0.8f))
+            Text("Come back tomorrow to keep your streak going.", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 8.dp))
+        } else {
+            BigButton("Next gift in ${vm.nextGiftIn}", onClose ?: {}, Modifier.fillMaxWidth(0.8f), listOf(Color(0xFFE6EEF5), Color(0xFFC9D8E6)))
+            Text("Today's gift is already in your pocket.", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+private fun fmtHours(sec: Long): String {
+    val h = sec / 3600
+    val m = (sec % 3600) / 60
+    return if (h > 0) "${h}h ${m}m" else "${m}m"
+}
+
+/** Back pressed on the main screen: stay or leave. */
+@Composable
+private fun QuitCard(vm: GameViewModel, onStay: () -> Unit) {
+    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+    val sp = rememberGameSprites()
+    CozyCard("Leave the train?", Color(0xFFCDE7F8), onDismiss = onStay, closable = true) {
+        sp.npcSleep?.let { Image(it, null, Modifier.size(64.dp, 80.dp)) }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Your train keeps rolling while you are away and earns coins for up to ${fmtHours(vm.offlineCapSec)}.",
+            fontSize = 13.sp, color = Muted, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(14.dp))
+        BigButton("Keep playing", onStay, Modifier.fillMaxWidth(0.8f))
+        Spacer(Modifier.height(8.dp))
+        BigButton("Quit game", { vm.save(); activity?.finish() }, Modifier.fillMaxWidth(0.8f), listOf(Color(0xFFFFB9B0), Color(0xFFEF7B72)))
     }
 }
 
@@ -3146,6 +3209,10 @@ private fun WelcomeBackCard(vm: GameViewModel) {
         Text("While you were away, your train kept rolling", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
         Text(fmtDistance(vm.offlineMeters), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ice)
+        Text(
+            "Away ${fmtHours(vm.offlineAwaySec)}" + (if (vm.offlineAwaySec > vm.offlineCountedSec) " · earnings count up to ${fmtHours(vm.offlineCapSec)}" else ""),
+            fontSize = 11.sp, color = Muted, textAlign = TextAlign.Center,
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             CoinIcon(Modifier.size(26.dp)); Spacer(Modifier.width(6.dp))
             Text("+${fmt(vm.offlineCoins)}", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
@@ -3156,5 +3223,254 @@ private fun WelcomeBackCard(vm: GameViewModel) {
             Spacer(Modifier.height(8.dp))
         }
         BigButton("Collect", vm::dismissOffline, Modifier.fillMaxWidth(0.85f))
+    }
+}
+
+// ---------- cozy frozen UI kit: close button, sheet frame, snow caps, chunky buttons ----------
+
+/** The round close button used everywhere: a soft red button with a chunky shadow and a white cross. */
+@Composable
+private fun CloseButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 34.dp) {
+    var pressed by remember { mutableStateOf(false) }
+    Box(modifier.size(size + 3.dp)) {
+        Box(Modifier.size(size).offset(y = 3.dp).background(Ink, CircleShape))
+        Box(
+            Modifier
+                .size(size)
+                .offset(y = if (pressed) 2.dp else 0.dp)
+                .clip(CircleShape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFB9B0), Color(0xFFEF7B72))))
+                .border(2.5.dp, Ink, CircleShape)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = { pressed = true; UiSound.click(); val ok = tryAwaitRelease(); pressed = false; if (ok) onClick() },
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(size * 0.38f)) {
+                val w = this.size.width
+                drawLine(Ink, Offset.Zero, Offset(w, w), 4.6.dp.toPx(), StrokeCap.Round)
+                drawLine(Ink, Offset(w, 0f), Offset(0f, w), 4.6.dp.toPx(), StrokeCap.Round)
+                drawLine(Color.White, Offset.Zero, Offset(w, w), 2.4.dp.toPx(), StrokeCap.Round)
+                drawLine(Color.White, Offset(w, 0f), Offset(0f, w), 2.4.dp.toPx(), StrokeCap.Round)
+            }
+            // a little shine on top
+            Canvas(Modifier.matchParentSize()) {
+                drawArc(Color.White.copy(alpha = 0.55f), 200f, 70f, false, Offset(this.size.width * 0.18f, this.size.height * 0.16f),
+                    Size(this.size.width * 0.64f, this.size.height * 0.64f), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+            }
+        }
+    }
+}
+
+/** A round back button (arrow), same style as [CloseButton] but blue. */
+@Composable
+private fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.size(37.dp)) {
+        Box(Modifier.size(34.dp).offset(y = 3.dp).background(Ink, CircleShape))
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFD3E9FA), Color(0xFF9FC5EA))))
+                .border(2.5.dp, Ink, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(14.dp)) {
+                val w = size.width
+                val p = Path().apply { moveTo(w * 0.62f, 0f); lineTo(w * 0.18f, w * 0.5f); lineTo(w * 0.62f, w) }
+                drawPath(p, Ink, style = Stroke(4.4.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                drawPath(p, Color.White, style = Stroke(2.2.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
+    }
+}
+
+/** Soft snow piled along the top edge of a panel. */
+@Composable
+private fun SnowCap(modifier: Modifier = Modifier, seed: Int = 0) {
+    Canvas(modifier.fillMaxWidth().height(12.dp)) {
+        val w = size.width
+        val h = size.height
+        val bumps = (w / 34.dp.toPx()).toInt().coerceAtLeast(4)
+        val p = Path().apply {
+            moveTo(0f, 0f); lineTo(0f, h * 0.45f)
+            for (i in 0 until bumps) {
+                val x0 = w * i / bumps
+                val x1 = w * (i + 1) / bumps
+                val dip = h * (0.45f + 0.35f * (((i * 7 + seed * 3) % 5) / 4f))
+                quadraticTo((x0 + x1) / 2f, dip + h * 0.45f, x1, h * 0.45f)
+            }
+            lineTo(w, 0f); close()
+        }
+        drawPath(p, Color.White)
+        val edge = Path().apply {
+            moveTo(0f, h * 0.45f)
+            for (i in 0 until bumps) {
+                val x0 = w * i / bumps
+                val x1 = w * (i + 1) / bumps
+                val dip = h * (0.45f + 0.35f * (((i * 7 + seed * 3) % 5) / 4f))
+                quadraticTo((x0 + x1) / 2f, dip + h * 0.45f, x1, h * 0.45f)
+            }
+        }
+        drawPath(edge, Color(0xFFBFD9EC), style = Stroke(1.6.dp.toPx()))
+    }
+}
+
+/** Little icicles hanging under a panel. */
+@Composable
+private fun Icicles(modifier: Modifier = Modifier) {
+    Canvas(modifier.fillMaxWidth().height(9.dp)) {
+        val w = size.width
+        val xs = listOf(0.07f, 0.11f, 0.24f, 0.31f, 0.47f, 0.62f, 0.66f, 0.81f, 0.9f, 0.94f)
+        xs.forEachIndexed { i, fx ->
+            val x = w * fx
+            val l = size.height * (0.55f + 0.45f * ((i * 5 % 3) / 2f))
+            val hw = 2.6.dp.toPx()
+            val p = Path().apply { moveTo(x - hw, 0f); lineTo(x + hw, 0f); lineTo(x, l); close() }
+            drawPath(p, Color(0xFFDDF3FF))
+            drawPath(p, Color(0xFF8EC3E3), style = Stroke(1.dp.toPx()))
+        }
+    }
+}
+
+/** A currency counter in a small recessed pill. */
+@Composable
+private fun CurrencyPill(icon: @Composable () -> Unit, text: String, color: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, plus: Boolean = false) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.75f))
+            .border(1.8.dp, Ink, RoundedCornerShape(14.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(start = 6.dp, end = if (plus) 3.dp else 9.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        icon()
+        Spacer(Modifier.width(5.dp))
+        Text(text, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = color, maxLines = 1, softWrap = false)
+        if (plus) {
+            Spacer(Modifier.width(5.dp))
+            Box(Modifier.size(18.dp).clip(CircleShape).background(color).border(1.5.dp, Ink, CircleShape), contentAlignment = Alignment.Center) {
+                Text("+", fontSize = 13.sp, lineHeight = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            }
+        }
+    }
+}
+
+/**
+ * Every bottom sheet uses this frame: a frosty header with snow on top, the title on a ribbon,
+ * optional back button, counters on the right and the round close button.
+ */
+@Composable
+private fun SheetFrame(
+    title: String,
+    icon: androidx.compose.ui.graphics.ImageBitmap?,
+    tint: Color,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    right: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Panel)
+            .border(OutlineW, Wood, shape)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.55f).compositeOver(Panel)))),
+        ) {
+            SnowCap(Modifier.align(Alignment.TopCenter), seed = title.length)
+            Row(
+                Modifier.fillMaxWidth().padding(start = 10.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onBack != null) { BackButton(onBack); Spacer(Modifier.width(6.dp)) }
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.85f)).border(2.dp, Ink, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { if (icon != null) Image(icon, null, Modifier.size(26.dp)) }
+                Spacer(Modifier.width(8.dp))
+                Text(title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
+                right()
+                Spacer(Modifier.width(6.dp))
+                CloseButton(onClose)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(Ink.copy(alpha = 0.8f)))
+        content()
+    }
+}
+
+/** A chunky 3D button: a dark base under a coloured face that sinks when pressed. Hold to repeat when [repeat]. */
+@Composable
+private fun ChunkyButton(
+    enabled: Boolean,
+    colors: List<Color>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    repeat: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val action = androidx.compose.runtime.rememberUpdatedState(onClick)
+    var pressed by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(14.dp)
+    Box(modifier.padding(bottom = 3.dp)) {
+        Box(Modifier.matchParentSize().offset(y = 3.dp).clip(shape).background(if (enabled) Ink else Ink.copy(alpha = 0.35f)))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .offset(y = if (pressed) 3.dp else 0.dp)
+                .clip(shape)
+                .background(if (enabled) Brush.verticalGradient(colors) else Brush.verticalGradient(listOf(PanelHi, PanelHi)))
+                .border(2.dp, if (enabled) Ink else Ink.copy(alpha = 0.4f), shape)
+                .pointerInput(enabled, repeat) {
+                    if (!enabled) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        pressed = true
+                        UiSound.click()
+                        action.value()
+                        if (repeat) {
+                            var wait = 450L
+                            while (true) {
+                                val released = withTimeoutOrNull(wait) { waitForUpOrCancellation(); true } ?: false
+                                if (released) break
+                                action.value()
+                                wait = (wait * 0.82f).toLong().coerceAtLeast(90L)
+                            }
+                        } else {
+                            waitForUpOrCancellation()
+                        }
+                        pressed = false
+                    }
+                }
+                .padding(vertical = 6.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            content = content,
+        )
+    }
+}
+
+/** A section title inside a sheet: a small ribbon with a line. */
+@Composable
+private fun SectionTitle(text: String, color: Color = Ink, note: String? = null) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text.uppercase(), fontSize = 11.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(color).padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        if (note != null) Text(note, fontSize = 10.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        else Box(Modifier.weight(1f).height(2.dp).background(color.copy(alpha = 0.35f)))
     }
 }

@@ -173,9 +173,12 @@ enum class ShopItem(val title: String, val desc: String, val gems: Int, val dura
     COCOA("Hot Cocoa Rush", "Coins x2 for 5 minutes", 10, 300.0),
     TURBO("Turbo Coal", "Train speed x1.5 for 5 minutes", 8, 300.0),
     TICKET("Golden Ticket", "Stations pay x3 for 10 minutes", 8, 600.0),
-    TANK("Full Boost Tank", "Refill the boost meter right now", 3, 0.0),
+    TANK("Endless Fuel", "BOOST never runs out of fuel for 2 minutes", 6, 120.0),
     CLEAR("Storm Breaker", "End the current snow storm", 4, 0.0),
 }
+
+/** Boosters that run for a while (the others act at once). */
+val TIMED_ITEMS = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET, ShopItem.TANK)
 
 /** Real-money gem packs (Google Play in-app products, consumable). Create these ids in Play Console. */
 enum class GemPack(val title: String, val gems: Int, val productId: String) {
@@ -383,7 +386,11 @@ object Balance {
     const val AD_BOOST_SEC = 120.0
 
     // Offline
-    const val OFFLINE_CAP_SEC = 8 * 3600L
+    /** Idle earnings count for at most this long (+1 hour per Hibernation level). */
+    const val OFFLINE_CAP_SEC = 2 * 3600L
+    const val OFFLINE_CAP_PER_PERM = 3600L
+    /** At most this many timed boosters can run at the same time. */
+    const val MAX_ACTIVE_BOOSTERS = 3
     const val OFFLINE_BASE = 0.25
     const val CONDUCTOR_BONUS = 0.05
 }

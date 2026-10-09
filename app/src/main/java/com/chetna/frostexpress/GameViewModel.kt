@@ -620,7 +620,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         unlocked.clear(); achievementPopup = null
         event = GameEvent.NONE; eventLeft = 0.0; adBoostLeft = 0.0; toast = null
         stormLeft = 0.0
-        shopIncomeLeft = 0.0; shopSpeedLeft = 0.0; shopTicketLeft = 0.0
+        shopIncomeLeft = 0.0; shopSpeedLeft = 0.0; shopTicketLeft = 0.0; shopFuelLeft = 0.0
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
         tutorialStage = 0
@@ -764,6 +764,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var shopIncomeLeft by mutableDoubleStateOf(prefs.getFloat("shopInc", 0f).toDouble()); private set
     var shopSpeedLeft by mutableDoubleStateOf(prefs.getFloat("shopSpd", 0f).toDouble()); private set
     var shopTicketLeft by mutableDoubleStateOf(prefs.getFloat("shopTix", 0f).toDouble()); private set
+    /** Endless Fuel: BOOST taps use no fuel while this runs. */
+    var shopFuelLeft by mutableDoubleStateOf(prefs.getFloat("shopFuel", 0f).toDouble()); private set
+    val endlessFuel: Boolean get() = shopFuelLeft > 0.0
+    /** Timed boosters that are running right now. */
+    val activeBoosters: List<ShopItem> get() = TIMED_ITEMS.filter { shopLeft(it) > 0.0 }
+    /** Stop a running booster early (what is left is lost). */
+    fun cancelBooster(item: ShopItem) {
+        when (item) {
+            ShopItem.COCOA -> shopIncomeLeft = 0.0
+            ShopItem.TURBO -> shopSpeedLeft = 0.0
+            ShopItem.TICKET -> shopTicketLeft = 0.0
+            ShopItem.TANK -> shopFuelLeft = 0.0
+            else -> return
+        }
+        showToast("${item.title} stopped")
+        save()
+    }
     val shopSpeedMult: Double get() = if (shopSpeedLeft > 0.0) 1.5 else 1.0
     private val shopIncomeMult: Double get() = if (shopIncomeLeft > 0.0) 2.0 else 1.0
     fun shopCost(item: ShopItem): Int = item.gems
@@ -771,12 +788,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         ShopItem.COCOA -> shopIncomeLeft
         ShopItem.TURBO -> shopSpeedLeft
         ShopItem.TICKET -> shopTicketLeft
+        ShopItem.TANK -> shopFuelLeft
         else -> 0.0
     }
     fun shopAvailable(item: ShopItem): Boolean = when (item) {
-        ShopItem.TANK -> boostMeter < 0.999
         ShopItem.CLEAR -> stormLeft > 0.0
-        else -> shopLeft(item) + item.durationSec <= Balance.SHOP_MAX_SEC
+        else -> shopLeft(item) + item.durationSec <= Balance.SHOP_MAX_SEC &&
+            (shopLeft(item) > 0.0 || activeBoosters.size < Balance.MAX_ACTIVE_BOOSTERS)
+    }
+    /** Why a booster cannot be used right now, or null. */
+    fun whyNotUse(item: ShopItem): String? = when {
+        owned(item) <= 0 -> null
+        item == ShopItem.CLEAR && stormLeft <= 0.0 -> "Use it during a snow storm"
+        item != ShopItem.CLEAR && shopLeft(item) <= 0.0 && activeBoosters.size >= Balance.MAX_ACTIVE_BOOSTERS -> "${Balance.MAX_ACTIVE_BOOSTERS} boosters are already running"
+        item != ShopItem.CLEAR && shopLeft(item) + item.durationSec > Balance.SHOP_MAX_SEC -> "Already stacked to 30 minutes"
+        else -> null
     }
     /** Boosters you own but have not used yet (bought in the shop with gems). */
     val inventory = mutableStateListOf<Int>().apply {
@@ -812,7 +838,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             ShopItem.COCOA -> shopIncomeLeft += item.durationSec
             ShopItem.TURBO -> shopSpeedLeft += item.durationSec
             ShopItem.TICKET -> shopTicketLeft += item.durationSec
-            ShopItem.TANK -> { boostMeter = 1.0; boostLocked = false }
+            ShopItem.TANK -> { shopFuelLeft += item.durationSec; boostMeter = 1.0; boostLocked = false }
             ShopItem.CLEAR -> { stormLeft = min(stormLeft, Balance.STORM_FADE_SEC) }
         }
         lastUsed = item
@@ -863,6 +889,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL)) * (1.0 + effSum(Eff.RECHARGE))
+    /** Idle earnings count for at most this many seconds. */
+    val offlineCapSec: Long get() = Balance.OFFLINE_CAP_SEC + Balance.OFFLINE_CAP_PER_PERM * permLevel(PermType.OFFLINE)
+    var offlineAwaySec = 0L; private set
+    var offlineCountedSec = 0L; private set
     private val offlineRate: Double
         get() = min(1.0, Balance.OFFLINE_BASE + Balance.CONDUCTOR_BONUS * level(UpgradeType.CONDUCTOR) +
             Balance.PERM_OFFLINE * permLevel(PermType.OFFLINE) + effSum(Eff.OFFLINE))
@@ -938,10 +968,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
         if (boostTimeLeft <= 0.0) audio.play(R.raw.sfx_boost, 0.55f) // only when a boost starts, not on every tap
         boostTaps++
-        boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
+        if (!endlessFuel) boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         val extraLen = effSum(Eff.BOOSTLEN)
         boostTimeLeft = min(Balance.BOOST_MAX_SEC + extraLen * 4.0, boostTimeLeft + Balance.BOOST_SEC_PER_TAP + extraLen)
-        if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
+        if (!endlessFuel && boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
     }
 
     /** Increases with every evolve. */
@@ -1049,6 +1079,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putFloat("shopInc", shopIncomeLeft.toFloat())
             .putFloat("shopSpd", shopSpeedLeft.toFloat())
             .putFloat("shopTix", shopTicketLeft.toFloat())
+            .putFloat("shopFuel", shopFuelLeft.toFloat())
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -1075,7 +1106,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
         val last = prefs.getLong("last", 0L)
         if (last > 0L) {
-            val secs = ((System.currentTimeMillis() - last) / 1000).coerceIn(0L, Balance.OFFLINE_CAP_SEC)
+            val away = ((System.currentTimeMillis() - last) / 1000).coerceAtLeast(0L)
+            val secs = away.coerceAtMost(offlineCapSec)
+            offlineAwaySec = away
+            offlineCountedSec = secs
             val meters = cruiseSpeed * secs * offlineRate
             val gain = meters * coinsPerMeter
             if (gain >= 1.0) {
@@ -1112,6 +1146,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (shopIncomeLeft > 0.0) shopIncomeLeft = max(0.0, shopIncomeLeft - dt)
         if (shopSpeedLeft > 0.0) shopSpeedLeft = max(0.0, shopSpeedLeft - dt)
         if (shopTicketLeft > 0.0) shopTicketLeft = max(0.0, shopTicketLeft - dt)
+        if (shopFuelLeft > 0.0) { shopFuelLeft = max(0.0, shopFuelLeft - dt); boostMeter = 1.0; boostLocked = false }
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)
         if (boostLocked && boostMeter >= 1.0) boostLocked = false

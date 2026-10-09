@@ -43,7 +43,7 @@ class GameAudio(private val ctx: Context) {
     var sfxVolume = 1f
         set(v) {
             field = v
-            ambience?.setVolume(ambVol, ambVol)
+            applyAmbienceVolume()
         }
     var musicVolume = 0.35f
         set(v) {
@@ -96,38 +96,67 @@ class GameAudio(private val ctx: Context) {
         music?.let { if (it.isPlaying) it.pause() }
     }
 
-    // ---- nature ambience: birds by day, crickets at night, wind in a storm ----
+    // ---- nature ambience: a breeze by day, crickets at night, wind in a storm ----
+    // A change cross-fades over a few seconds: the old loop fades out while the new one fades in.
     private var ambience: MediaPlayer? = null
     private var ambienceRes = 0
+    private var fadingOut: MediaPlayer? = null
+    private var mix = 1f           // 0 = all old loop, 1 = all new loop
     private val ambVol: Float get() = (sfxVolume * 0.55f).coerceIn(0f, 1f)
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val fadeStep = object : Runnable {
+        override fun run() {
+            mix = (mix + 0.05f / 3f).coerceAtMost(1f) // 3 second cross-fade
+            applyAmbienceVolume()
+            if (mix < 1f) handler.postDelayed(this, 50L)
+            else { fadingOut?.release(); fadingOut = null }
+        }
+    }
+
+    private fun applyAmbienceVolume() {
+        val v = ambVol
+        ambience?.setVolume(v * mix, v * mix)
+        fadingOut?.setVolume(v * (1f - mix), v * (1f - mix))
+    }
 
     /** Switches the looping ambience (0 = none). Called often; only does work when the choice changes. */
     fun setAmbience(res: Int) {
         if (!enabled || !foreground) { pauseAmbience(); return }
         if (res == ambienceRes && ambience != null) {
             ambience?.let { if (!it.isPlaying) it.start() }
+            fadingOut?.let { if (!it.isPlaying && mix < 1f) it.start() }
             return
         }
-        ambience?.release()
+        // the current loop becomes the one fading out
+        fadingOut?.release()
+        fadingOut = ambience
         ambience = null
         ambienceRes = res
-        if (res == 0) return
-        ambience = MediaPlayer.create(ctx, res)?.apply {
-            isLooping = true
-            setVolume(ambVol, ambVol)
-            start()
+        mix = 0f
+        if (res != 0) {
+            ambience = MediaPlayer.create(ctx, res)?.apply {
+                isLooping = true
+                setVolume(0f, 0f)
+                start()
+            }
         }
+        handler.removeCallbacks(fadeStep)
+        handler.post(fadeStep)
     }
 
     fun pauseAmbience() {
         ambience?.let { if (it.isPlaying) it.pause() }
+        fadingOut?.let { if (it.isPlaying) it.pause() }
     }
 
     fun release() {
         music?.release()
         music = null
+        handler.removeCallbacks(fadeStep)
         ambience?.release()
         ambience = null
+        fadingOut?.release()
+        fadingOut = null
         pool.release()
     }
 }
