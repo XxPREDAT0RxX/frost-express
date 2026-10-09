@@ -409,7 +409,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
                 drawCircle(Panel, .32f * s, Offset(.66f * s, .4f * s))
                 drawCircle(color, .05f * s, Offset(.78f * s, .22f * s))
             }
-            else -> drawGadget(UPGRADES.firstOrNull { it.type == type }?.gadget ?: Gadget.GEAR, color, 0f, 0, 0f)
+            else -> drawDevice(type, 0f, 0f, s, 0f, 3)
         }
     }
 }
@@ -1436,7 +1436,14 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                         .fillMaxSize()
                         .padding(10.dp)
                         .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
-                ) { drawGadget(spec.gadget, color, t, lvl, flash.value) }
+                ) {
+                    if (spec.eff != null) {
+                        val side = min(size.width, size.height) * 0.92f
+                        drawDevice(type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, maxOf(lvl, 1), flash.value, 0.6f)
+                    } else {
+                        drawGadget(spec.gadget, color, t, lvl, flash.value)
+                    }
+                }
             }
             Spacer(Modifier.height(8.dp))
             if (locked) {
