@@ -367,6 +367,9 @@ class SceneLink {
     var camCar by androidx.compose.runtime.mutableFloatStateOf(0f)
     var viewCars by androidx.compose.runtime.mutableFloatStateOf(3f)
     var jumpCar = -1
+    /** The car just picked on the map; it glows for a moment so it is easy to find. -1 = none. */
+    var flashCar by androidx.compose.runtime.mutableIntStateOf(-1)
+    var flashLeft = 0f
 }
 
 @Composable
@@ -449,8 +452,16 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                             val target = NOSE + link.jumpCar * PITCH + CAR_H / 2f - npc.viewH / 2f
                             npc.manualCam = target.coerceIn(npc.camLo, npc.camHi)
                             npc.manualLeft = 6f
+                            link.flashCar = link.jumpCar
+                            link.flashLeft = 1.8f
                             link.jumpCar = -1
                         }
+                        if (link.flashLeft > 0f) {
+                            link.flashLeft -= dt
+                            if (link.flashLeft <= 0f) link.flashCar = -1
+                        }
+                        sceneFlashCar = link.flashCar
+                        sceneFlash = link.flashLeft
                         val camCar = (npc.camY - NOSE) / PITCH
                         if (kotlin.math.abs(camCar - link.camCar) > 0.02f) link.camCar = camCar
                         val vc = npc.viewH / PITCH
@@ -526,10 +537,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneArt = art
         sceneMats = mats
         sceneSprites = sprites
+        sceneGfx = vm.gfx
         shopCocoa = vm.shopIncomeLeft > 0.0
         shopTurbo = vm.shopSpeedLeft > 0.0
         sceneSurvivors = survivors.take(min(vm.level(UpgradeType.SURVIVORS), survivors.size))
-        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
+        drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.gfx >= 1)
         if (crate[0] > 0f) {
             val u = density
             val trainPx = CAR_W * u * npc.zoom
@@ -625,6 +637,15 @@ private fun DrawScope.drawScene(
             if (npc2 != null) drawNpc(npc2, Color(0xFF5BBE7A), Color(0xFFF2C94C))
             sceneSprites?.survivors?.let { imgs -> sceneSurvivors.forEachIndexed { i, sv -> if (i < imgs.size) drawNpcCozy(sv, imgs[i]) } }
             drawNpc(npc)
+            // the car picked on the map glows for a moment
+            if (sceneFlashCar >= 0 && sceneFlash > 0f) {
+                val top = NOSE + sceneFlashCar * PITCH
+                val a = (sceneFlash / 1.8f).coerceIn(0f, 1f) * (0.6f + 0.4f * sin(time * 12f))
+                drawRoundRect(
+                    Color(0xFFFFE49A).copy(alpha = a), Offset(-4f * u, (top - 4f) * u), Size((CAR_W + 8f) * u, (CAR_H + 8f) * u),
+                    CornerRadius(14f * u, 14f * u), style = Stroke(5f * u),
+                )
+            }
         }
     }
     if (dark > 0.01f) {
@@ -639,7 +660,7 @@ private fun DrawScope.drawScene(
         }
         drawPath(beam, Brush.verticalGradient(listOf(Color.Transparent, Color(0xFFFFF3B0).copy(alpha = dark * 1.4f)), startY = ny - 190f * u * z, endY = ny))
     }
-    if (fx && w > 4f && h > 4f) safeFx { drawPostFx(w, h, dark, storm) }
+    if (fx && sceneGfx >= 2 && w > 4f && h > 4f) safeFx { drawPostFx(w, h, dark, storm) }
     if (npc.trainLen > npc.viewH + 1f) { // scroll bar: the train is taller than the screen
         val frac = npc.viewH / npc.trainLen
         val barH = h * frac
@@ -665,6 +686,10 @@ private fun DrawScope.drawScene(
 // ---- post-processing helpers (can be switched off in Settings) ----
 private var fxOn = true
 private var fxDark = 0f
+/** Graphics quality from Settings: 0 Low, 1 Medium, 2 High. */
+private var sceneGfx = 2
+private var sceneFlashCar = -1
+private var sceneFlash = 0f
 private var fxBroken = false // set if a post-processing effect ever throws, so it is skipped from then on
 
 private inline fun DrawScope.safeFx(block: () -> Unit) {
@@ -1242,7 +1267,7 @@ private fun DrawScope.drawWindowLight(cars: Int, dark: Float) {
 
 /** [storm] 0 = light snow, 1 = full snow storm (dense wind-driven flakes, streaks and a white-out). */
 private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float, storm: Float) {
-    val n = 26 + (150 * storm).toInt()
+    val n = (26 + (150 * storm).toInt()) / (if (sceneGfx == 0) 2 else 1)
     val wind = 10f + 50f * storm
     val fall = 26f + 110f * storm
     val drift = 120f * storm

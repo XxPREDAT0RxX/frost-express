@@ -81,6 +81,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -768,26 +771,50 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                     LabeledSlider("Effects", vm.sfxVolume, vm::changeSfxVolume)
                 }
                 SettingsCard("Graphics") {
-                    Text("Frame rate", fontSize = 12.sp, color = Muted)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(30, 60, 90, 120).forEach { fps ->
-                            val on = vm.fpsCap == fps
+                        listOf("Low", "Medium", "High").forEachIndexed { i, name ->
+                            val on = vm.gfx == i
                             Box(
                                 Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (on) Wood else Track)
-                                    .clickable { vm.changeFps(fps) }
-                                    .padding(vertical = 8.dp),
+                                    .clickable { vm.changeGfx(i) }
+                                    .padding(vertical = 9.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("$fps", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
+                                Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
                             }
                         }
                     }
-                    Text("Your phone may cap this at its screen refresh rate. Lower values save battery.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
-                    SettingToggle("Post-processing", vm.postFx) { vm.changePostFx(it) }
-                    Text("Light bloom, colour grading and vignette. Turn off on slow phones.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
+                    Text(
+                        when (vm.gfx) {
+                            0 -> "30 fps, light snowfall, no light effects. Best for battery and older phones."
+                            1 -> "60 fps with light effects and full snowfall."
+                            else -> "Everything on: light bloom, colour grading and vignette."
+                        },
+                        fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center,
+                    )
+                    if (vm.gfx == 2) {
+                        Text("Frame rate", fontSize = 12.sp, color = Muted)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(60, 90, 120).forEach { fps ->
+                                val on = vm.fpsCap == fps
+                                Box(
+                                    Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (on) Wood else Track)
+                                        .clickable { vm.changeHighFps(fps) }
+                                        .padding(vertical = 7.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("$fps", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
+                                }
+                            }
+                        }
+                        Text("Your phone may cap this at its screen refresh rate.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
+                    }
                 }
                 SettingsCard("Train paint") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -915,8 +942,8 @@ private fun BottomBar(
         vm.isBoosting -> "x${fmt(vm.boostMultiplier, 1)} active · ${vm.boostTimeLeft.toInt() + 1}s"
         else -> "Tap BOOST · x${fmt(vm.boostMultiplier, 1)} income"
     }
-    val canBuySomething = UPGRADES.any { spec ->
-        vm.level(spec.type) < spec.maxLevel && vm.coins >= vm.upgradeCost(spec)
+    val affordable = UPGRADES.count { spec ->
+        vm.isUnlocked(spec) && vm.level(spec.type) < spec.maxLevel && vm.coins >= vm.upgradeCost(spec)
     }
     Column(
         modifier
@@ -951,27 +978,20 @@ private fun BottomBar(
         }
         Spacer(Modifier.height(6.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(38.dp)
-                .border(if (pulseGear) 3.dp else 0.dp, Ember.copy(alpha = pulse), CircleShape)
-                .clip(CircleShape)
-                .background(if (sheetOpen) Color(0xFF9FC5EA) else Color(0xFFCDE7F8))
-                .border(2.dp, Ink, CircleShape)
-                .clickable(onClick = onToggleUpgrades),
-            contentAlignment = Alignment.Center,
-        ) {
-            GearIcon(Ink, Modifier.size(22.dp))
-            if (canBuySomething && !sheetOpen) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(3.dp)
-                        .size(10.dp)
-                        .background(Ember, CircleShape)
-                        .border(1.5.dp, Panel, CircleShape)
-                )
+        Box(Modifier.size(38.dp)) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .border(if (pulseGear) 3.dp else 0.dp, Ember.copy(alpha = pulse), CircleShape)
+                    .clip(CircleShape)
+                    .background(if (sheetOpen) Color(0xFF9FC5EA) else Color(0xFFCDE7F8))
+                    .border(2.dp, Ink, CircleShape)
+                    .clickable(onClick = onToggleUpgrades),
+                contentAlignment = Alignment.Center,
+            ) {
+                GearIcon(Ink, Modifier.size(22.dp))
             }
+            if (affordable > 0 && !sheetOpen) NotifyBadge(affordable, Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
         }
         val sprites = rememberGameSprites()
         Spacer(Modifier.width(6.dp))
@@ -1134,7 +1154,7 @@ private fun UpgradesSheet(
                 UpgradeRow(
                     type = spec.type,
                     title = spec.title,
-                    level = if (locked) "Locked" else "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
+                    level = if (locked) "Locked" else if (lvl == 0) "Not installed" else "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
                     effect = if (locked && vm.blockedByTier(spec)) "Evolve your train to add the next car" else if (locked) "Reach ${req?.title} Lv ${spec.unlockLevel} (now Lv ${if (req != null) vm.level(req.type) else 0})" else spec.effect,
                     note = if (locked) null else when {
                         mult > 1.0 && next != null -> "Bonus x${fmt(mult)} · next x2 at Lv $next"
@@ -1142,7 +1162,7 @@ private fun UpgradesSheet(
                         next != null -> "Next x2 bonus at Lv $next"
                         else -> null
                     },
-                    buttonTop = if (locked) "Locked" else if (maxed) "MAX" else "+$n",
+                    buttonTop = if (locked) "Locked" else if (maxed) "MAX" else if (lvl == 0) "Buy" else "+$n",
                     buttonBottom = if (maxed || locked) null else fmt(cost),
                     enabled = !locked && !maxed && vm.coins >= cost,
                     onBuy = { vm.buy(spec) },
@@ -1555,7 +1575,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                         Modifier
                             .fillMaxSize()
                             .padding(18.dp)
-                            .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
+                            .graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = if (lvl == 0 && !locked) 0.45f else 1f },
                     ) {
                         val side = min(size.width, size.height)
                         if (!drawDeviceSprite(sprites, type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, 0.3f)) {
@@ -1592,12 +1612,12 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                     }
                     // level badge at the bottom of the stage
                     Text(
-                        if (locked) "Locked" else if (spec.maxLevel != Int.MAX_VALUE) "Lv $lvl / ${spec.maxLevel}" else "Lv $lvl",
+                        if (locked) "Locked" else if (lvl == 0) "Not installed yet" else if (spec.maxLevel != Int.MAX_VALUE) "Lv $lvl / ${spec.maxLevel}" else "Lv $lvl",
                         fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (locked) PanelHi else Color(0xFFFFE49A))
+                            .background(if (locked || lvl == 0) PanelHi else Color(0xFFFFE49A))
                             .border(2.dp, Ink, RoundedCornerShape(14.dp))
                             .padding(horizontal = 12.dp, vertical = 3.dp),
                     )
@@ -1645,8 +1665,8 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                 } else {
                     val eff = spec.eff
                     val nowText = when {
-                        eff != null -> if (lvl == 0) "Nothing yet" else effText(eff, spec.per * lvl)
-                        else -> if (lvl == 0) "Nothing yet" else "Level $lvl"
+                        eff != null -> if (lvl == 0) "Not installed" else effText(eff, spec.per * lvl)
+                        else -> if (lvl == 0) "Not installed" else "Level $lvl"
                     }
                     val nextText = when {
                         maxed -> "Fully upgraded"
@@ -1656,11 +1676,11 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         StatBubble("Now", nowText, PanelHi, Modifier.weight(1f))
                         Text("  >  ", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                        StatBubble(if (maxed) "Max" else "Next", nextText, accent.copy(alpha = 0.3f), Modifier.weight(1f))
+                        StatBubble(if (maxed) "Max" else if (lvl == 0) "After buying" else "Next", nextText, accent.copy(alpha = 0.3f), Modifier.weight(1f))
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                if (!locked && !maxed) {
+                if (!locked && !maxed && lvl > 0) {
                     BuyAmountRow(vm, Modifier.fillMaxWidth(0.9f))
                     Spacer(Modifier.height(8.dp))
                 }
@@ -1689,7 +1709,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        if (locked) "Locked" else if (maxed) "All done!" else "Upgrade +$n",
+                        if (locked) "Locked" else if (maxed) "All done!" else if (lvl == 0) "Buy & install" else "Upgrade +$n",
                         fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = if (canBuy) Ink else Muted,
                     )
                     if (!locked && !maxed) {
@@ -1957,29 +1977,35 @@ private fun GemShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClo
 
 @Composable
 private fun FooterIcon(img: androidx.compose.ui.graphics.ImageBitmap?, open: Boolean, bg: Color, onClick: () -> Unit, badge: Int = 0) {
+    Box(Modifier.size(38.dp)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(if (open) bg.copy(red = bg.red * 0.92f, green = bg.green * 0.88f, blue = bg.blue * 0.86f) else bg)
+                .border(if (open) 3.dp else 2.dp, Ink, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (img != null) Image(img, null, Modifier.size(26.dp))
+        }
+        if (badge > 0) NotifyBadge(badge, Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
+    }
+}
+
+/** The red notification dot with a number. Drawn outside the round button so it is never cut off. */
+@Composable
+private fun NotifyBadge(count: Int, modifier: Modifier = Modifier) {
     Box(
-        Modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(if (open) bg.copy(red = bg.red * 0.92f, green = bg.green * 0.88f, blue = bg.blue * 0.86f) else bg)
-            .border(if (open) 3.dp else 2.dp, Ink, CircleShape)
-            .clickable(onClick = onClick),
+        modifier
+            .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(Ember)
+            .border(1.5.dp, Panel, RoundedCornerShape(9.dp))
+            .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        if (img != null) Image(img, null, Modifier.size(26.dp))
-        if (badge > 0) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(Ember)
-                    .border(1.5.dp, Ink, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(if (badge > 9) "9+" else "$badge", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-            }
-        }
+        Text(if (count > 9) "9+" else "$count", fontSize = 9.sp, lineHeight = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
     }
 }
 
@@ -2358,25 +2384,20 @@ private fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: St
         Box(
             Modifier
                 .size(46.dp)
-                .graphicsLayer { if (glow) { scaleX = pulse; scaleY = pulse } }
-                .clip(CircleShape)
-                .background(bg)
-                .border(2.5.dp, Ink, CircleShape)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
+                .graphicsLayer { if (glow) { scaleX = pulse; scaleY = pulse } },
         ) {
-            if (img != null) Image(img, label, Modifier.size(30.dp))
-            if (badge > 0) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .size(17.dp)
-                        .clip(CircleShape)
-                        .background(Ember)
-                        .border(1.5.dp, Ink, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) { Text("$badge", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(bg)
+                    .border(2.5.dp, Ink, CircleShape)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (img != null) Image(img, label, Modifier.size(30.dp))
             }
+            if (badge > 0) NotifyBadge(badge, Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp))
         }
         Text(
             label, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
@@ -2425,31 +2446,46 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) 
                 modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(6.dp)).background(Panel.copy(alpha = 0.9f)).padding(horizontal = 4.dp),
             )
         }
-        // mini-map of the train: tap a car to look at it
+        // mini-map of the train: tap a car to fly the camera to it, tap MAP for the full train map
         val cars = vm.carsNow
-        val cell = 13.dp
+        val cell = if (cars > 8) 16.dp else 20.dp
+        var showMap by remember { mutableStateOf(false) }
         Column(
             Modifier
-                .width(34.dp)
+                .width(42.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Panel.copy(alpha = 0.92f))
+                .background(Panel.copy(alpha = 0.94f))
                 .border(2.dp, Ink, RoundedCornerShape(12.dp))
-                .padding(5.dp),
+                .padding(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("MAP", fontSize = 7.sp, fontWeight = FontWeight.ExtraBold, color = Muted)
-            Box(Modifier.width(24.dp).height(cell * cars + 2.dp)) {
+            Text(
+                "MAP", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(Color(0xFFCDE7F8))
+                    .border(1.5.dp, Ink, RoundedCornerShape(7.dp))
+                    .clickable { showMap = true }
+                    .padding(vertical = 3.dp),
+            )
+            Spacer(Modifier.height(3.dp))
+            Box(Modifier.width(32.dp).height(cell * cars)) {
                 Column {
                     for (i in 0 until cars) {
+                        val sel = link.flashCar == i
                         Box(
                             Modifier
                                 .padding(vertical = 1.dp)
-                                .size(24.dp, cell - 2.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (i == 0) Color(0xFFF4A7A0) else Color(0xFFFFD9C2))
-                                .border(1.2.dp, Ink, RoundedCornerShape(4.dp))
+                                .size(32.dp, cell - 2.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(if (sel) Color(0xFFFFE49A) else if (i == 0) Color(0xFFF4A7A0) else Color(0xFFFFD9C2))
+                                .border(1.2.dp, Ink, RoundedCornerShape(5.dp))
                                 .clickable { link.jumpCar = i },
-                        )
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("${i + 1}", fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
                     }
                 }
                 // what is on screen right now
@@ -2458,11 +2494,66 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) 
                 Box(
                     Modifier
                         .padding(top = (cell * top.coerceAtLeast(0f)))
-                        .size(24.dp, (cell * (span + kotlin.math.min(0f, top))).coerceAtLeast(6.dp).coerceAtMost(cell * cars + 2.dp))
-                        .border(2.dp, Ice, RoundedCornerShape(5.dp)),
+                        .size(32.dp, (cell * (span + kotlin.math.min(0f, top))).coerceAtLeast(6.dp).coerceAtMost(cell * cars))
+                        .border(2.dp, Ice, RoundedCornerShape(6.dp)),
                 )
             }
         }
+        if (showMap) TrainMapCard(vm, onPick = { link.jumpCar = it; showMap = false }, onClose = { showMap = false })
+    }
+}
+
+/** The whole train at a glance: every car with its devices; tap a car to look at it. */
+@Composable
+private fun TrainMapCard(vm: GameViewModel, onPick: (Int) -> Unit, onClose: () -> Unit) {
+    val sp = rememberGameSprites()
+    val cars = vm.carsNow
+    CozyCard("Train map", Color(0xFFCDE7F8), onDismiss = onClose) {
+        Text("Tap a car to go there", fontSize = 12.sp, color = Muted)
+        Spacer(Modifier.height(8.dp))
+        Column(
+            Modifier.heightIn(max = 420.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            for (i in 0 until cars) {
+                val devices = CAR_LAYOUT.getOrNull(i) ?: emptyList()
+                val installed = devices.count { vm.level(it) > 0 }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (i == 0) Color(0xFFFDE2DF) else PanelHi)
+                        .border(2.dp, Ink, RoundedCornerShape(14.dp))
+                        .clickable { onPick(i) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFFFE49A)).border(1.5.dp, Ink, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("${i + 1}", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            when (i) { 0 -> "Engine car"; 1 -> "Utility car"; else -> "Car ${i + 1}" },
+                            fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                        )
+                        Text("$installed / ${devices.size} devices", fontSize = 10.sp, color = Muted)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        devices.forEach { t ->
+                            val img = sp.device[t]
+                            val on = vm.level(t) > 0
+                            Box(Modifier.size(22.dp).graphicsLayer { alpha = if (on) 1f else 0.25f }) {
+                                if (img != null) Image(img, null, Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        BigButton("Close", onClose, Modifier.fillMaxWidth(0.6f))
     }
 }
 

@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("frost_express", MODE_PRIVATE)
         val crashFile = File(filesDir, FrostApp.CRASH_FILE)
         if (crashFile.exists() || prefs.getBoolean("running", false)) {
-            prefs.edit().putBoolean("postfx", false).putInt("fps", 60).putBoolean("running", false).apply()
+            prefs.edit().putBoolean("postfx", false).putInt("gfx", 1).putInt("fps", 60).putBoolean("running", false).apply()
         }
         if (crashFile.exists()) {
             val report = try { crashFile.readText() } catch (e: Exception) { "Could not read the crash report." }
@@ -102,14 +102,14 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         if (crashMode) return
         getSharedPreferences("frost_express", MODE_PRIVATE).edit().putBoolean("running", true).apply()
-        vm.audio.startMusic()
+        vm.setForeground(true)
     }
 
     override fun onStop() {
         super.onStop()
         if (crashMode) return
         getSharedPreferences("frost_express", MODE_PRIVATE).edit().putBoolean("running", false).apply()
-        vm.audio.pauseMusic()
+        vm.setForeground(false)
         vm.save()
         vm.cloudSaveNow()
     }

@@ -319,7 +319,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         coins += gain
         stationsVisited++
         if (shelter) stormsSheltered++
-        audio.play(R.raw.sfx_coin, 0.35f)
+        // stopping at a shelter: brakes hiss and a soft station bell; passing a station: a crossing bell going by
+        if (shelter) audio.play(R.raw.sfx_brake, 0.85f) else audio.play(R.raw.sfx_pass, 0.6f)
         showToast(
             if (shelter) "Storm shelter: the train waits at the station. +${fmt(gain)} coins"
             else "Station: passengers paid +${fmt(gain)} coins"
@@ -363,9 +364,22 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     // Display settings
     var fpsCap by mutableIntStateOf(prefs.getInt("fps", 60)); private set
-    var postFx by mutableStateOf(prefs.getBoolean("postfx", true)); private set
+    /** Graphics quality: 0 Low (30 fps, no effects, light snow), 1 Medium (60 fps, effects, no post-processing), 2 High (everything). */
+    var gfx by mutableIntStateOf(prefs.getInt("gfx", if (prefs.getBoolean("postfx", true)) 2 else 1)); private set
+    /** Light bloom, colour grading and vignette: only on High. */
+    val postFx: Boolean get() = gfx >= 2
     fun changeFps(v: Int) { fpsCap = v; prefs.edit().putInt("fps", v).apply() }
-    fun changePostFx(on: Boolean) { postFx = on; prefs.edit().putBoolean("postfx", on).apply() }
+    fun changeGfx(v: Int) {
+        gfx = v.coerceIn(0, 2)
+        val fps = when (gfx) { 0 -> 30; 1 -> 60; else -> max(60, prefs.getInt("hifps", 60)) }
+        fpsCap = fps
+        prefs.edit().putInt("gfx", gfx).putInt("fps", fps).apply()
+    }
+    /** Frame rate on High (60, 90 or 120). */
+    fun changeHighFps(v: Int) {
+        prefs.edit().putInt("hifps", v).apply()
+        if (gfx == 2) changeFps(v)
+    }
 
     var liveryIndex by mutableIntStateOf(prefs.getInt("livery", 0)); private set
     fun liveryUnlocked(i: Int): Boolean = i <= evolutions
@@ -560,7 +574,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Wipes all progress (settings stay). */
     fun resetAll() {
         liveryIndex = 0
-        prefs.edit().clear().putInt("gems", gems).putString("inv", inventory.joinToString(",")).putInt("fps", fpsCap).putBoolean("postfx", postFx).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
+        prefs.edit().clear().putInt("gems", gems).putString("inv", inventory.joinToString(",")).putInt("fps", fpsCap).putInt("gfx", gfx).putInt("hifps", prefs.getInt("hifps", 60)).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
         coins = 0.0; runDistance = 0.0; cores = 0; evolutions = 0; coresSpent = 0
         for (i in levels.indices) levels[i] = 0
         for (i in permLevels.indices) permLevels[i] = 0
@@ -580,12 +594,43 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
     private var hornIn = 40.0
+    private var wolfIn = 25.0
+    private var ambienceIn = 0.0
+
+    /** Nature sounds: wind in a storm, crickets (and now and then a far-away wolf) at night, birds by day. */
+    private fun tickAmbience(dt: Double) {
+        ambienceIn -= dt
+        if (ambienceIn > 0.0) return
+        ambienceIn = 1.0
+        val phase = dayPhase().first
+        val night = phase == "Night" || phase == "Dusk"
+        audio.setAmbience(
+            when {
+                stormLevel > 0.15f -> R.raw.amb_storm
+                night -> R.raw.amb_night
+                else -> R.raw.amb_day
+            }
+        )
+        if (phase == "Night" && stormLevel <= 0.15f) {
+            wolfIn -= 1.0
+            if (wolfIn <= 0.0) {
+                wolfIn = 35.0 + Math.random() * 50.0
+                audio.play(R.raw.sfx_wolf, 0.5f)
+            }
+        }
+    }
 
     fun toggleSound() {
         soundOn = !soundOn
         audio.enabled = soundOn
         prefs.edit().putBoolean("sound", soundOn).apply()
-        if (soundOn) audio.startMusic() else audio.pauseMusic()
+        if (soundOn) { audio.startMusic(); ambienceIn = 0.0 } else { audio.pauseMusic(); audio.pauseAmbience() }
+    }
+
+    /** The app went to the background or came back: no sound at all while it is in the background. */
+    fun setForeground(on: Boolean) {
+        audio.foreground = on
+        if (on) { audio.startMusic(); ambienceIn = 0.0 }
     }
 
     override fun onCleared() {
@@ -792,6 +837,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun buyCount(spec: UpgradeSpec): Int {
         val room = spec.maxLevel - level(spec.type)
         if (room <= 0) return 0
+        if (level(spec.type) == 0) return 1 // a device is bought (installed) first, then upgraded
         val want = if (buyAmount == 0) Int.MAX_VALUE else buyAmount
         var n = min(want, room)
         if (buyAmount == 0) {
@@ -992,8 +1038,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         hornIn -= dt
         if (hornIn <= 0.0) {
             hornIn = 70.0 + Math.random() * 90.0
-            audio.play(R.raw.sfx_horn, 0.22f)
+            audio.play(R.raw.sfx_horn, 0.85f)
         }
+        tickAmbience(dt)
         if (shopIncomeLeft > 0.0) shopIncomeLeft = max(0.0, shopIncomeLeft - dt)
         if (shopSpeedLeft > 0.0) shopSpeedLeft = max(0.0, shopSpeedLeft - dt)
         if (shopTicketLeft > 0.0) shopTicketLeft = max(0.0, shopTicketLeft - dt)
