@@ -20,7 +20,8 @@ android {
         applicationId = "com.chetna.frostexpress" // Use your own unique ID for the Play Store
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        // CI build number, so every uploaded build has a higher version code than the last one
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = "1.0.0"
     }
 

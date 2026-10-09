@@ -46,6 +46,30 @@ jobs:
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
 
+      # Play Store bundle (release, shrunk with R8). It is built unsigned here and signed with the
+      # upload key offline, so the key never has to be stored on GitHub.
+      - name: Build release bundle (AAB)
+        id: aab
+        continue-on-error: true
+        shell: bash
+        run: gradle bundleRelease --no-daemon 2>&1 | tee release.log
+
+      - name: Publish release bundle
+        if: steps.aab.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: |
+            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/mapping/release/mapping.txt
+
+      - name: Publish release build log
+        if: steps.aab.outcome != 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: release.log
+
       # Screenshots of the game on several phone sizes (does not block the APK above).
       - name: Render screenshots on several screen sizes
         id: shots
