@@ -32,7 +32,7 @@ class GameAudio(private val ctx: Context) {
     init {
         listOf(
             R.raw.sfx_buy, R.raw.sfx_coin, R.raw.sfx_click,
-            R.raw.sfx_evolve, R.raw.sfx_boost, R.raw.sfx_deny,
+            R.raw.sfx_evolve, R.raw.sfx_boost, R.raw.sfx_deny, R.raw.sfx_horn,
         ).forEach { ids[it] = pool.load(ctx, it, 1) }
     }
 
@@ -41,15 +41,25 @@ class GameAudio(private val ctx: Context) {
         ids[res]?.let { pool.play(it, volume * sfxVolume, volume * sfxVolume, 1, 0, 1f) }
     }
 
+    // Five tracks played in random order, one after another (never the same one twice in a row).
+    private val tracks = listOf(R.raw.music_1, R.raw.music_2, R.raw.music_3, R.raw.music_4, R.raw.music_5)
+    private var current = -1
+
+    private fun playNext() {
+        music?.release()
+        var next = (tracks.indices).random()
+        if (next == current && tracks.size > 1) next = (next + 1) % tracks.size
+        current = next
+        music = MediaPlayer.create(ctx, tracks[next])?.apply {
+            setVolume(musicVolume, musicVolume)
+            setOnCompletionListener { if (enabled) playNext() }
+            start()
+        }
+    }
+
     fun startMusic() {
         if (!enabled) return
-        if (music == null) {
-            music = MediaPlayer.create(ctx, R.raw.music_cozy)?.apply {
-                isLooping = true
-                setVolume(musicVolume, musicVolume)
-            }
-        }
-        music?.start()
+        if (music == null) playNext() else music?.start()
     }
 
     fun pauseMusic() {
@@ -61,4 +71,10 @@ class GameAudio(private val ctx: Context) {
         music = null
         pool.release()
     }
+}
+
+/** The soft click for buttons and other UI elements (not for taps on the game scene). */
+object UiSound {
+    var audio: GameAudio? = null
+    fun click() { audio?.play(R.raw.sfx_click, 0.45f) }
 }

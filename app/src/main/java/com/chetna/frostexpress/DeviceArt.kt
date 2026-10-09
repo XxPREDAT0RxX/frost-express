@@ -63,6 +63,7 @@ internal val DEVICE_FX: Map<UpgradeType, List<DevFx>> = mapOf(
     UpgradeType.COOLING_FAN to listOf(DevFx(11, 32f, 54f, 18f, 0xFFDFF6FF)),
     UpgradeType.TURBO_VALVE to listOf(DevFx(0, 8f, 36f, 0f, 0x00000000)),
     UpgradeType.CARGO_CRANE to listOf(DevFx(8, 49f, 44f, 10f, 0xFFFFF3B0)),
+    UpgradeType.SURVIVORS to listOf(DevFx(8, 32f, 22f, 22f, 0xFFFFF3B0)),
 )
 
 /** Spinning parts: pivot x, pivot y (sprite units), degrees per second, swing (+- degrees, 0 = full turns). */

@@ -73,6 +73,7 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.google.android.gms:play-services-games-v2:21.0.0") // Google Play sign-in and cloud save
+    implementation("com.google.android.gms:play-services-ads:23.6.0") // rewarded ads
     implementation("com.android.billingclient:billing-ktx:7.1.1") // gem packs (used when Balance.IAP_ENABLED)
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")

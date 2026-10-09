@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         vm.attachCloud(if (Balance.PLAY_GAMES_ENABLED) PlayGamesCloud(this) else NoCloud)
+        if (Balance.ADS_ENABLED) game.ads = AdMobRewarded(this, game::onAdReady)
         if (Balance.IAP_ENABLED) game.store = PlayBilling(this, game::onStorePrices, game::grantProduct)
         setContent {
             FrostTheme {
@@ -87,7 +88,6 @@ class MainActivity : ComponentActivity() {
 
     // A crisp click on every touch, anywhere on the screen.
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (!crashMode && ev.actionMasked == MotionEvent.ACTION_DOWN) vm.audio.play(R.raw.sfx_click, 0.7f)
         return super.dispatchTouchEvent(ev)
     }
 

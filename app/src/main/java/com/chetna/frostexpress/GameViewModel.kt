@@ -444,6 +444,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         save()
     }
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
+    private var hornIn = 40.0
 
     fun toggleSound() {
         soundOn = !soundOn
@@ -498,7 +499,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             (1.0 + Balance.CORE_BONUS * cores) *
             (1.0 + Balance.PERM_INCOME * permLevel(PermType.INCOME)) *
             (1.0 + Balance.PERM_CREW * permLevel(PermType.CREW)) *
-            (1.0 + effSum(Eff.INCOME))
+            (1.0 + effSum(Eff.INCOME)) *
+            (1.0 + Balance.SURVIVOR_BONUS * level(UpgradeType.SURVIVORS))
 
     val boostMultiplier: Double
         get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER) +
@@ -668,6 +670,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.enabled = soundOn
         audio.musicVolume = musicVolume
         audio.sfxVolume = sfxVolume
+        UiSound.audio = audio
         load()
         dailyReady = lastDailyDay != today()
         startLoop()
@@ -714,11 +717,41 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         save()
     }
 
-    /** Watch a rewarded ad for a timed income multiplier. */
-    fun watchAdBoost() {
-        if (!Balance.ADS_ENABLED) return
-        ads.showRewarded { adBoostLeft = Balance.AD_BOOST_SEC }
+    // ---- rewarded ads: free gems, a mystery booster or a short coin rush (limited per day) ----
+    var adReady by mutableStateOf(false); private set
+    fun onAdReady(ready: Boolean) { adReady = ready }
+    private var adDay = prefs.getLong("adDay", -1L)
+    val adCounts = mutableStateListOf<Int>().apply {
+        val saved = if (adDay == java.time.LocalDate.now().toEpochDay()) prefs.getString("adCnt", "")?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList() else emptyList()
+        AdReward.values().indices.forEach { add(saved.getOrElse(it) { 0 }) }
     }
+    fun adsLeft(r: AdReward): Int {
+        if (adDay != today()) return r.perDay
+        return (r.perDay - adCounts[r.ordinal]).coerceAtLeast(0)
+    }
+    fun watchAd(r: AdReward) {
+        if (!Balance.ADS_ENABLED || adsLeft(r) <= 0) return
+        if (!adReady) { showToast("The ad is still loading, try again in a moment"); return }
+        ads.showRewarded { grantAd(r) }
+    }
+    private fun grantAd(r: AdReward) {
+        if (adDay != today()) { adDay = today(); for (i in adCounts.indices) adCounts[i] = 0 }
+        adCounts[r.ordinal] = adCounts[r.ordinal] + 1
+        when (r) {
+            AdReward.GEMS -> { gems += Balance.AD_GEMS; showToast("+${Balance.AD_GEMS} gems. Thanks for watching!") }
+            AdReward.BOOSTER -> {
+                val item = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET, ShopItem.TANK).random()
+                inventory[item.ordinal] = owned(item) + 1
+                showToast("${item.title} added to your bag!")
+            }
+            AdReward.COINS -> { adBoostLeft += Balance.AD_BOOST_SEC; showToast("Coin rush! Coins x2 for 2 minutes") }
+        }
+        audio.play(R.raw.sfx_buy)
+        save()
+    }
+
+    /** Old name kept for the footer button. */
+    fun watchAdBoost() = watchAd(AdReward.COINS)
 
     fun dismissOffline() {
         offlineCoins = 0.0
@@ -743,6 +776,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("unl", unlockedUpgrades.joinToString(","))
             .putInt("gems", gems)
             .putString("inv", inventory.joinToString(","))
+            .putLong("adDay", adDay)
+            .putString("adCnt", adCounts.joinToString(","))
             .putLong("gemDay", gemTradeDay)
             .putInt("gemTraded", gemsTradedToday)
             .putFloat("shopInc", shopIncomeLeft.toFloat())
@@ -800,6 +835,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         checkUnlocks()
         tickEvents(dt)
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
+        // a soft train horn now and then
+        hornIn -= dt
+        if (hornIn <= 0.0) {
+            hornIn = 70.0 + Math.random() * 90.0
+            audio.play(R.raw.sfx_horn, 0.22f)
+        }
         if (shopIncomeLeft > 0.0) shopIncomeLeft = max(0.0, shopIncomeLeft - dt)
         if (shopSpeedLeft > 0.0) shopSpeedLeft = max(0.0, shopSpeedLeft - dt)
         if (shopTicketLeft > 0.0) shopTicketLeft = max(0.0, shopTicketLeft - dt)

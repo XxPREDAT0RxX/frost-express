@@ -514,11 +514,77 @@ icon('icon_bag', f'''<path d="M10,20 C10,13 38,13 38,20 L38,38 C38,42 10,42 10,3
 
 
 # ---------------- tiles (textures) ----------------
+
 TILES = {}
 
 
 def tile(name, w, h, body, scale):
     TILES[name] = (w, h, body, scale)
+
+
+# ---------------- survivors: rescued travellers who join the crew (same size as the worker) ----------------
+def chibi(coat, coat_dark, hat_svg, hair_svg='', extra='', skin='#FFE2C6', beard=''):
+    return f'''<ellipse cx="16" cy="38" rx="11" ry="3" fill="#000" opacity=".12"/>
+{hair_svg}
+<path d="M6,36 C5,26 9,21 16,21 C23,21 27,26 26,36 Z" fill="{coat}" {o(1.7)}/>
+<path d="M16,22 L16,35" stroke="{coat_dark}" stroke-width="1.4"/><circle cx="16" cy="27" r=".9" fill="{OL}"/><circle cx="16" cy="31" r=".9" fill="{OL}"/>
+<circle cx="16" cy="13" r="10.5" fill="{skin}" {o(1.7)}/>
+{beard}
+<ellipse cx="12.4" cy="16.4" rx="1.2" ry="1.6" fill="#4A3A34"/><ellipse cx="19.6" cy="16.4" rx="1.2" ry="1.6" fill="#4A3A34"/>
+<circle cx="12.8" cy="15.8" r=".5" fill="#fff"/><circle cx="20" cy="15.8" r=".5" fill="#fff"/>
+<ellipse cx="9.6" cy="19.2" rx="2" ry="1.2" fill="#F7A1A1" opacity=".85"/><ellipse cx="22.4" cy="19.2" rx="2" ry="1.2" fill="#F7A1A1" opacity=".85"/>
+<path d="M14.4,19.6 C15.2,20.8 16.8,20.8 17.6,19.6" fill="none" stroke="{OL}" stroke-width="1" stroke-linecap="round"/>
+{hat_svg}{extra}'''
+
+
+SURV = [
+    # Mira: pink earmuffs, lavender coat, brown pigtails
+    chibi('#C9B6F2', '#A893E0',
+          f'<path d="M6,10 C6,1 26,1 26,10 C22,6 10,6 6,10 Z" fill="#8B5E3C" {o(1.5)}/><circle cx="5.6" cy="13" r="3.4" fill="#F49AB2" {o(1.4)}/><circle cx="26.4" cy="13" r="3.4" fill="#F49AB2" {o(1.4)}/><path d="M5.6,10 C6,0 26,0 26.4,10" fill="none" stroke="{OL}" stroke-width="1.4"/>',
+          f'<path d="M4,16 C0,20 1,27 4,29 C6,25 6,20 6,17 Z M28,16 C32,20 31,27 28,29 C26,25 26,20 26,17 Z" fill="#8B5E3C" {o(1.3)}/>'),
+    # Grandpa: green flat cap, white beard, brown coat
+    chibi('#B98A68', '#9A6C4C', f'<path d="M5,10 C5,2 27,2 27,10 Z" fill="#7FC29A" {o(1.5)}/><path d="M17,9.6 C22,9 29,10 30,11.6 C26,12.4 20,12 17,11.4 Z" fill="#6FB08B" {o(1.3)}/>',
+          beard=f'<path d="M8,17 C9,26 23,26 24,17 C21,21 11,21 8,17 Z" fill="#FFFFFF" {o(1.2)}/><path d="M12.6,19.6 C14,18.6 18,18.6 19.4,19.6" fill="none" stroke="{OL}" stroke-width="1"/>'),
+    # Pip: yellow raincoat with a hood
+    chibi('#FFD66B', '#F2B84B', f'<path d="M4.6,15 C3,2 29,2 27.4,15 C25,9 7,9 4.6,15 Z" fill="#FFD66B" {o(1.6)}/>',
+          f'<path d="M3.4,14 C2,26 6,26 7,20" fill="#FFD66B" {o(1.4)}/><path d="M28.6,14 C30,26 26,26 25,20" fill="#FFD66B" {o(1.4)}/>'),
+    # Nadia: striped red beanie, teal coat, long dark hair
+    chibi('#8FC2AE', '#6FAF96', f'<path d="M5.4,11 C5,1 27,1 26.6,11 Z" fill="#E46A6A" {o(1.5)}/><path d="M6,7.4 L26,7.4" stroke="#fff" stroke-width="1.6"/><circle cx="16" cy="1.6" r="2.4" fill="#fff" {o(1.2)}/>',
+          f'<path d="M5,12 C2,22 3,32 7,34 L9,22 Z M27,12 C30,22 29,32 25,34 L23,22 Z" fill="#4A3A34" {o(1.2)}/>'),
+]
+for _i, _svg in enumerate(SURV):
+    misc(f'npc_surv{_i + 1}', 32, 40, _svg, 6)
+# the group, used as the upgrade icon
+device('SURVIVORS', shadow(26) + f'<g transform="translate(2 18) scale(.9)">{SURV[1]}</g><g transform="translate(32 18) scale(.9)">{SURV[3]}</g><g transform="translate(16 22) scale(.9)">{SURV[0]}</g>',
+       fx=[(SPARKLE, 32, 22, 22, 0xFFFFF3B0)])
+
+# ---------------- floors: a different one in every car (tiles, 4 px per dp) ----------------
+FLOORS = [
+    # 0 engine car: light steel tread plate
+    (32, 32, '<rect width="32" height="32" fill="#DCE3EA"/>' + ''.join(f'<path d="M{x},{y + 4} l4,-4" stroke="#B9C6D2" stroke-width="1.6" stroke-linecap="round"/>' for x in (2, 18) for y in (2, 18)) + ''.join(f'<path d="M{x},{y + 4} l4,-4" stroke="#B9C6D2" stroke-width="1.6" stroke-linecap="round"/>' for x in (10, 26) for y in (10, 26))),
+    # 1 kitchen car: peach and cream checker
+    (40, 40, '<rect width="40" height="40" fill="#FFF1DE"/><rect width="20" height="20" fill="#F8D7C0"/><rect x="20" y="20" width="20" height="20" fill="#F8D7C0"/>'),
+    # 2 light wood planks
+    (64, 60, '<rect width="64" height="60" fill="#F2D4A9"/><g fill="#ECCB9C"><rect y="12" width="64" height="12"/><rect y="36" width="64" height="12"/></g><g stroke="#D9B384" stroke-width="1.2"><line x1="0" y1="12" x2="64" y2="12"/><line x1="0" y1="24" x2="64" y2="24"/><line x1="0" y1="36" x2="64" y2="36"/><line x1="0" y1="48" x2="64" y2="48"/><line x1="0" y1="0" x2="64" y2="0"/><line x1="22" y1="0" x2="22" y2="12"/><line x1="50" y1="12" x2="50" y2="24"/><line x1="12" y1="24" x2="12" y2="36"/><line x1="40" y1="36" x2="40" y2="48"/><line x1="28" y1="48" x2="28" y2="60"/></g>'),
+    # 3 walnut herringbone
+    (32, 32, '<rect width="32" height="32" fill="#C99B74"/>' + ''.join(f'<path d="M{x},{y} l8,8 l-4,4 l-8,-8 Z" fill="{c}" stroke="#A97D58" stroke-width=".8"/>' for (x, y, c) in [(4, 0, "#D6AB84"), (20, 0, "#D3A57D"), (4, 16, "#D3A57D"), (20, 16, "#D6AB84")]) + ''.join(f'<path d="M{x},{y} l-8,8 l4,4 l8,-8 Z" fill="{c}" stroke="#A97D58" stroke-width=".8"/>' for (x, y, c) in [(12, 4, "#CDA07A"), (28, 4, "#D8AE88"), (12, 20, "#D8AE88"), (28, 20, "#CDA07A")])),
+    # 4 mint hex tiles
+    (36, 31.2, '<rect width="36" height="31.2" fill="#D6EFE4"/>' + ''.join(f'<path d="M{cx - 6},{cy} L{cx - 3},{cy - 5.2} L{cx + 3},{cy - 5.2} L{cx + 6},{cy} L{cx + 3},{cy + 5.2} L{cx - 3},{cy + 5.2} Z" fill="#BFE0D2" stroke="#A9D3C1" stroke-width="1"/>' for cx, cy in [(9, 5.2), (27, 5.2), (0, 15.6), (18, 15.6), (36, 15.6), (9, 26), (27, 26)])),
+    # 5 pink carpet with little flowers
+    (32, 32, '<rect width="32" height="32" fill="#F9D3DD"/>' + ''.join(f'<g transform="translate({x} {y})"><circle r="1.6" fill="#fff"/><circle cx="2.6" r="1.4" fill="#F49AB2"/><circle cx="-2.6" r="1.4" fill="#F49AB2"/><circle cy="2.6" r="1.4" fill="#F49AB2"/><circle cy="-2.6" r="1.4" fill="#F49AB2"/></g>' for x, y in [(8, 8), (24, 24)])),
+    # 6 blue and white tiles
+    (32, 32, '<rect width="32" height="32" fill="#F4FAFF"/><g fill="none" stroke="#9FC5EA" stroke-width="1.2"><rect x=".6" y=".6" width="14.8" height="14.8" rx="2"/><rect x="16.6" y=".6" width="14.8" height="14.8" rx="2"/><rect x=".6" y="16.6" width="14.8" height="14.8" rx="2"/><rect x="16.6" y="16.6" width="14.8" height="14.8" rx="2"/></g><g fill="#B8D8F2"><circle cx="8" cy="8" r="2.4"/><circle cx="24" cy="24" r="2.4"/><path d="M24,4 l4,4 l-4,4 l-4,-4 Z"/><path d="M8,20 l4,4 l-4,4 l-4,-4 Z"/></g>'),
+    # 7 lavender striped rug
+    (32, 24, '<rect width="32" height="24" fill="#E6DBFB"/><rect y="4" width="32" height="4" fill="#D5C4F6"/><rect y="16" width="32" height="4" fill="#D5C4F6"/><g fill="#fff" opacity=".7"><circle cx="8" cy="12" r="1"/><circle cx="24" cy="12" r="1"/></g>'),
+    # 8 honey parquet squares
+    (32, 32, '<rect width="32" height="32" fill="#EFC98F"/>' + ''.join(f'<line x1="{x}" y1="{y0}" x2="{x}" y2="{y0 + 16}" stroke="#D9AE70" stroke-width="1"/>' for y0 in (0,) for x in (4, 8, 12)) + ''.join(f'<line x1="{x0}" y1="{y}" x2="{x0 + 16}" y2="{y}" stroke="#D9AE70" stroke-width="1"/>' for x0 in (16,) for y in (4, 8, 12)) + ''.join(f'<line x1="{x0}" y1="{y}" x2="{x0 + 16}" y2="{y}" stroke="#D9AE70" stroke-width="1"/>' for x0 in (0,) for y in (20, 24, 28)) + ''.join(f'<line x1="{x}" y1="16" x2="{x}" y2="32" stroke="#D9AE70" stroke-width="1"/>' for x in (20, 24, 28)) + '<rect width="32" height="32" fill="none" stroke="#C99A5C" stroke-width="1"/><line x1="16" y1="0" x2="16" y2="32" stroke="#C99A5C"/><line x1="0" y1="16" x2="32" y2="16" stroke="#C99A5C"/>'),
+    # 9 stone pavers
+    (40, 40, '<rect width="40" height="40" fill="#D9D6CF"/><g fill="#E7E4DD" stroke="#C4BFB5" stroke-width="1.2"><rect x="1" y="1" width="22" height="16" rx="4"/><rect x="25" y="1" width="14" height="16" rx="4"/><rect x="1" y="19" width="12" height="20" rx="4"/><rect x="15" y="19" width="24" height="20" rx="4"/></g>'),
+    # 10 green mats
+    (32, 32, '<rect width="32" height="32" fill="#D8ECCB"/><rect x="1" y="1" width="30" height="14" rx="2" fill="#CDE6BE" stroke="#A9CF95" stroke-width="1"/><rect x="1" y="17" width="14" height="14" rx="2" fill="#CDE6BE" stroke="#A9CF95" stroke-width="1"/><rect x="17" y="17" width="14" height="14" rx="2" fill="#CDE6BE" stroke="#A9CF95" stroke-width="1"/>'),
+]
+for _i, (_w, _h, _body) in enumerate(FLOORS):
+    tile(f'floor_{_i}', _w, _h, _body, 4)
 
 
 tile('tex_snow', 128, 128, '''<rect width="128" height="128" fill="#EEF5FB"/>
@@ -568,7 +634,7 @@ async def render_all(only):
             await pg.set_content(svg(w, h, body, pw, ph))
             png = await pg.screenshot(omit_background=True, clip={'x': 0, 'y': 0, 'width': pw, 'height': ph})
             img = Image.open(io.BytesIO(png)).convert('RGBA')
-            opaque = name.startswith('tex_') and name not in ('tex_track',)
+            opaque = (name.startswith('tex_') and name not in ('tex_track',)) or name.startswith('floor_')
             if opaque:
                 img = img.convert('RGB')
             img.save(os.path.join(OUT, name + '.webp'), 'WEBP', quality=92, method=6)

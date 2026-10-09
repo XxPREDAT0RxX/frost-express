@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -137,7 +138,7 @@ fun FrostTheme(content: @Composable () -> Unit) {
             onBackground = Ink,
             secondary = Muted,
         ),
-        content = { CompositionLocalProvider(LocalContentColor provides Ink) { content() } },
+        content = { CompositionLocalProvider(LocalContentColor provides Ink, androidx.compose.foundation.LocalIndication provides CozyIndication) { content() } },
     )
 }
 
@@ -297,8 +298,8 @@ fun GameScreen(vm: GameViewModel) {
             text = {
                 Text("Your train earns coins from the distance it travels, even when the app is closed. Let's buy your first upgrade and try the boost. It takes about a minute.")
             },
-            confirmButton = { TextButton(onClick = { vm.tutorialAdvance(0) }) { Text("Start") } },
-            dismissButton = { TextButton(onClick = vm::finishTutorial) { Text("Skip") } },
+            confirmButton = { TextButton(onClick = { UiSound.click();  vm.tutorialAdvance(0) }) { Text("Start") } },
+            dismissButton = { TextButton(onClick = { UiSound.click(); vm.finishTutorial() }) { Text("Skip") } },
         )
     } else if (vm.tutorialDone && vm.dailyReady) {
         val streak = vm.dailyNextStreak
@@ -312,7 +313,7 @@ fun GameScreen(vm: GameViewModel) {
                         "\nCome back every day to grow your streak. Every 7th day gives a Frost Core."
                 )
             },
-            confirmButton = { TextButton(onClick = vm::claimDaily) { Text("Claim") } },
+            confirmButton = { TextButton(onClick = { UiSound.click(); vm.claimDaily() }) { Text("Claim") } },
         )
     } else if (vm.tutorialDone && vm.offlineCoins > 0.0) {
         FrostAlert(
@@ -321,7 +322,7 @@ fun GameScreen(vm: GameViewModel) {
             text = {
                 Text("Your train travelled ${fmtDistance(vm.offlineMeters)} while you were away and earned ${fmt(vm.offlineCoins)} coins.")
             },
-            confirmButton = { TextButton(onClick = vm::dismissOffline) { Text("Collect") } },
+            confirmButton = { TextButton(onClick = { UiSound.click(); vm.dismissOffline() }) { Text("Collect") } },
         )
     }
 
@@ -332,8 +333,8 @@ fun GameScreen(vm: GameViewModel) {
             text = {
                 Text("Cloud: ${vm.describeCloud(cloudJson)}\nThis device: ${vm.describeLocal()}\n\nWhich progress do you want to keep?")
             },
-            confirmButton = { TextButton(onClick = vm::useCloudSave) { Text("Use cloud save") } },
-            dismissButton = { TextButton(onClick = vm::keepLocalSave) { Text("Keep this device") } },
+            confirmButton = { TextButton(onClick = { UiSound.click(); vm.useCloudSave() }) { Text("Use cloud save") } },
+            dismissButton = { TextButton(onClick = { UiSound.click(); vm.keepLocalSave() }) { Text("Keep this device") } },
         )
     }
 
@@ -821,9 +822,9 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
             title = { Text("Reset everything?") },
             text = { Text("All coins, upgrades, cores and achievements will be deleted. This cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = { vm.resetAll(); confirmReset = false; onClose() }) { Text("Reset", color = Color(0xFFB03A2E)) }
+                TextButton(onClick = { UiSound.click();  vm.resetAll(); confirmReset = false; onClose() }) { Text("Reset", color = Color(0xFFB03A2E)) }
             },
-            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { UiSound.click();  confirmReset = false }) { Text("Cancel") } },
         )
     }
 }
@@ -959,13 +960,6 @@ private fun BottomBar(
             }
             Text(status, fontSize = 10.sp, color = Muted)
         }
-        if (Balance.ADS_ENABLED) {
-            Spacer(Modifier.width(8.dp))
-            Pill(
-                label = if (vm.adBoostLeft > 0.0) "x2 ${vm.adBoostLeft.toInt()}s" else "AD x2",
-                bg = Mint, fg = Ink, enabled = vm.adBoostLeft <= 0.0, onClick = vm::watchAdBoost,
-            )
-        }
         Spacer(Modifier.width(10.dp))
         Row(
             Modifier
@@ -1052,7 +1046,7 @@ private fun UpgradesSheet(
                 Spacer(Modifier.width(5.dp))
                 Text("${vm.coresAvailable}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ice)
             }
-            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
         }
         TabRow(tab, { tab = it }, Modifier.padding(horizontal = 12.dp))
         if (tab == 0) BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
@@ -1098,9 +1092,11 @@ private fun UpgradesSheet(
                 item {
                     Text("Reset when you evolve. Hold a buy button to keep buying.", fontSize = 11.sp, color = Muted)
                 }
+            item { SurvivorsCard(vm, onInfo = { onOpenDetail(UpgradeType.SURVIVORS) }) }
             // Show every unlocked upgrade plus the next locked one; the rest stay a surprise.
-            val firstLocked = UPGRADES.indexOfFirst { !vm.isUnlocked(it) }
-            val visibleUpgrades = if (firstLocked < 0) UPGRADES else UPGRADES.take(firstLocked + 1)
+            val chain = UPGRADES.filter { it.type != UpgradeType.SURVIVORS }
+            val firstLocked = chain.indexOfFirst { !vm.isUnlocked(it) }
+            val visibleUpgrades = if (firstLocked < 0) chain else chain.take(firstLocked + 1)
             items(visibleUpgrades) { spec ->
                 val lvl = vm.level(spec.type)
                 val maxed = lvl >= spec.maxLevel
@@ -1130,8 +1126,8 @@ private fun UpgradesSheet(
                     onInfo = if (locked) null else ({ onOpenDetail(spec.type) }),
                 )
             }
-            if (firstLocked >= 0 && firstLocked + 1 < UPGRADES.size) item {
-                Text("${UPGRADES.size - firstLocked - 1} more upgrades to discover...", fontSize = 11.sp, color = Muted)
+            if (firstLocked >= 0 && firstLocked + 1 < chain.size) item {
+                Text("${chain.size - firstLocked - 1} more upgrades to discover...", fontSize = 11.sp, color = Muted)
             }
         }
             if (tab == 0) item { EvolveCard(vm, onEvolve = { confirmEvolve = true }) }
@@ -1146,10 +1142,10 @@ private fun UpgradesSheet(
                 Text("Coins and run upgrades will reset (permanent upgrades stay). You will get ${vm.coreGain} Frost Core(s) (permanent bonus) and unlock the next train.")
             },
             confirmButton = {
-                TextButton(onClick = { vm.evolve(); confirmEvolve = false }) { Text("Evolve") }
+                TextButton(onClick = { UiSound.click();  vm.evolve(); confirmEvolve = false }) { Text("Evolve") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmEvolve = false }) { Text("Cancel") }
+                TextButton(onClick = { UiSound.click();  confirmEvolve = false }) { Text("Cancel") }
             },
         )
     }
@@ -1556,7 +1552,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Close") }
+                TextButton(onClick = { UiSound.click(); onClose() }, modifier = Modifier.weight(1f)) { Text("Close") }
                 Column(
                     Modifier
                         .weight(1.4f)
@@ -1635,7 +1631,7 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
             Text("${vm.gems}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
             Spacer(Modifier.width(8.dp))
             PillButton("Get gems", GemPink, Color.White, onClick = onGetGems)
-            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -1644,6 +1640,9 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
         ) {
             item {
                 Text("Buy boosters with gems. They go to your bag, use them whenever you like.", fontSize = 11.sp, color = Muted)
+            }
+            if (Balance.ADS_ENABLED) {
+                items(listOf(AdReward.BOOSTER, AdReward.COINS)) { r -> AdRow(vm, r) }
             }
             items(ShopItem.values().toList()) { item ->
                 val cost = vm.shopCost(item)
@@ -1710,18 +1709,22 @@ private fun GemShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClo
                 .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("< Shop", fontSize = 12.sp) }
+            TextButton(onClick = { UiSound.click(); onBack() }) { Text("< Shop", fontSize = 12.sp) }
             Text("Gem Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             GemIcon(Modifier.size(16.dp))
             Spacer(Modifier.width(5.dp))
             Text("${vm.gems}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
-            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            if (Balance.ADS_ENABLED) {
+                item { Text("FREE WITH ADS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink) }
+                item { AdRow(vm, AdReward.GEMS) }
+            }
             item { Text("GEM PACKS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink) }
             items(GemPack.values().toList()) { pack ->
                 val price = vm.gemPackPrice(pack)
@@ -1834,7 +1837,7 @@ private fun InventorySheet(vm: GameViewModel, modifier: Modifier = Modifier, onC
             Spacer(Modifier.width(6.dp))
             Text("My Bag", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             PillButton("Shop", Color(0xFFFFE1C8), Ink, onClick = onShop)
-            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -1883,8 +1886,13 @@ private fun ActiveBoosters(vm: GameViewModel, modifier: Modifier = Modifier) {
         androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse),
         label = "boostBadgePulse",
     )
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        for (item in running) {
+    var open by remember { mutableStateOf<ShopItem?>(null) }
+    LaunchedEffect(open) { if (open != null) { kotlinx.coroutines.delay(4000); open = null } }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+        for (item in running) Row(verticalAlignment = Alignment.Top) {
+            if (open == item) {
+                BoosterInfo(item, vm.shopLeft(item), Modifier.padding(end = 6.dp, top = 2.dp).clickable { open = null })
+            }
             val left = vm.shopLeft(item)
             val chunk = item.durationSec * kotlin.math.ceil(left / item.durationSec)
             val frac = (left / chunk).toFloat().coerceIn(0f, 1f)
@@ -1893,7 +1901,9 @@ private fun ActiveBoosters(vm: GameViewModel, modifier: Modifier = Modifier) {
                 Box(
                     Modifier
                         .size(46.dp)
-                        .graphicsLayer { scaleX = pulse; scaleY = pulse },
+                        .graphicsLayer { scaleX = pulse; scaleY = pulse }
+                        .clip(CircleShape)
+                        .clickable { open = if (open == item) null else item },
                     contentAlignment = Alignment.Center,
                 ) {
                     Canvas(Modifier.fillMaxSize()) {
@@ -1954,5 +1964,137 @@ private fun BoosterPopup(vm: GameViewModel, modifier: Modifier = Modifier) {
                 .border(2.dp, Ink, RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp, vertical = 4.dp),
         )
+    }
+}
+
+
+// ---------- cozy press feedback, survivors, ads, booster info ----------
+
+/** Every clickable gets a soft press shade and the cozy click sound (taps on the game scene stay silent). */
+private object CozyIndication : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
+        CozyPressNode(interactionSource)
+    override fun hashCode(): Int = -77
+    override fun equals(other: Any?): Boolean = other === this
+}
+
+private class CozyPressNode(
+    private val source: androidx.compose.foundation.interaction.InteractionSource,
+) : Modifier.Node(), androidx.compose.ui.node.DrawModifierNode {
+    private var pressed = false
+    override fun onAttach() {
+        coroutineScope.launch {
+            source.interactions.collect { i ->
+                when (i) {
+                    is androidx.compose.foundation.interaction.PressInteraction.Press -> { pressed = true; UiSound.click() }
+                    is androidx.compose.foundation.interaction.PressInteraction.Release,
+                    is androidx.compose.foundation.interaction.PressInteraction.Cancel -> pressed = false
+                }
+                invalidateDraw()
+            }
+        }
+    }
+    override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
+        drawContent()
+        if (pressed) drawRect(Color(0xFF6B4A3A).copy(alpha = 0.10f))
+    }
+}
+
+@Composable
+private fun SurvivorsCard(vm: GameViewModel, onInfo: () -> Unit) {
+    val spec = SURVIVOR_SPEC
+    val lvl = vm.level(UpgradeType.SURVIVORS)
+    val maxed = lvl >= spec.maxLevel
+    val cost = vm.upgradeCost(spec)
+    val can = !maxed && vm.coins >= cost
+    val sprites = rememberGameSprites()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFFFFE9C7), Color(0xFFFFF4E0))))
+            .border(2.5.dp, Ink, RoundedCornerShape(16.dp))
+            .padding(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp).clickable(onClick = onInfo), contentAlignment = Alignment.Center) { UpgradeIcon(UpgradeType.SURVIVORS, Ink, Modifier.size(40.dp)) }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f).clickable(onClick = onInfo)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Survivors", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.width(6.dp))
+                    Text("$lvl/${spec.maxLevel}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ember)
+                }
+                Text("Rescue a traveller from the snow. Each one joins the crew and adds +40% coins.", fontSize = 11.sp, color = Muted)
+                if (lvl > 0) Text("Crew bonus now: +${lvl * 40}% coins", fontSize = 10.sp, color = GoldText, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(
+                Modifier
+                    .width(78.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (can) Color(0xFFFFB86B) else PanelHi)
+                    .border(2.dp, Ink, RoundedCornerShape(12.dp))
+                    .clickable(enabled = can) { vm.buy(spec) }
+                    .padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(if (maxed) "FULL" else "Rescue", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (can) Ink else Muted)
+                if (!maxed) Row(verticalAlignment = Alignment.CenterVertically) {
+                    CoinIcon(Modifier.size(10.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text(fmt(cost), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (can) Ink else Muted)
+                }
+            }
+        }
+        if (sprites.survivors.isNotEmpty()) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            sprites.survivors.forEachIndexed { i, img ->
+                Image(img, null, Modifier.size(28.dp, 35.dp).graphicsLayer { alpha = if (i < lvl) 1f else 0.25f })
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdRow(vm: GameViewModel, r: AdReward) {
+    val left = vm.adsLeft(r)
+    val icon: @Composable () -> Unit = when (r) {
+        AdReward.GEMS -> { { GemIcon(Modifier.size(26.dp)) } }
+        AdReward.BOOSTER -> { { ItemIcon(ShopItem.TURBO, Modifier.size(32.dp)) } }
+        AdReward.COINS -> { { CoinIcon(Modifier.size(24.dp)) } }
+    }
+    UpgradeRow(
+        type = UpgradeType.BOOSTER,
+        title = r.title,
+        level = "$left/${r.perDay} today",
+        effect = r.desc,
+        note = when {
+            left <= 0 -> "Come back tomorrow for more"
+            !vm.adReady -> "Loading the ad..."
+            r == AdReward.COINS && vm.adBoostLeft > 0.0 -> "Active · ${fmtClock(vm.adBoostLeft)} left"
+            else -> null
+        },
+        buttonTop = "Watch",
+        buttonBottom = "Ad",
+        enabled = left > 0 && vm.adReady,
+        onBuy = { vm.watchAd(r) },
+        priceIcon = 3,
+        icon = icon,
+    )
+}
+
+@Composable
+private fun BoosterInfo(item: ShopItem, left: Double, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .widthIn(max = 190.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Panel)
+            .border(2.dp, Ink, RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+    ) {
+        Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        Text(item.desc, fontSize = 11.sp, color = Muted)
+        Text("Time left: ${fmtClock(left)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GoldText)
     }
 }

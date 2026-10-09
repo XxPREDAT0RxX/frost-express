@@ -81,7 +81,8 @@ enum class UpgradeType { ENGINE, WAGON, HEAT, FOOD, PLOW, COAL, BOOSTER, CONDUCT
     BOILER_RIVETS, WOOL_BLANKETS, TEA_BREWER, TIMETABLE, GOLD_COUPLER, AURORA_PRISM, FROST_RADAR, NIGHT_WATCH,
     TURBO_VALVE, ICE_CUTTER, GREASE_PUMP, FUEL_INJECTOR, CABIN_HEATER, CARGO_CRANE, LOUNGE, BANK_SAFE,
     COMPASS, GOVERNOR, MAGNET_COUPLER, POLAR_BEACON,
-    TRACTION_SAND, CHEFS_OVEN, BOGIE_SPRINGS }
+    TRACTION_SAND, CHEFS_OVEN, BOGIE_SPRINGS,
+    SURVIVORS }
 
 data class UpgradeSpec(
     val type: UpgradeType,
@@ -140,7 +141,20 @@ private val EXTRA_UPGRADES: List<UpgradeSpec> by lazy {
     }
 }
 
-val UPGRADES: List<UpgradeSpec> = CORE_UPGRADES + EXTRA_UPGRADES
+/** Rescued travellers who join the crew: very expensive, each one adds a lot of income and walks around the train. */
+val SURVIVOR_SPEC = UpgradeSpec(
+    UpgradeType.SURVIVORS, "Survivors", "+40% coins for every rescued traveller in your crew",
+    100_000.0, 12.0, 4, null, 0, gadget = Gadget.BED,
+)
+
+val UPGRADES: List<UpgradeSpec> = CORE_UPGRADES + EXTRA_UPGRADES + SURVIVOR_SPEC
+
+/** Rewards for watching a rewarded ad (limited per day). */
+enum class AdReward(val title: String, val desc: String, val perDay: Int) {
+    GEMS("Free gems", "+5 gems", 5),
+    BOOSTER("Mystery booster", "A random booster for your bag", 3),
+    COINS("Coin rush", "Coins x2 for 2 minutes", 6),
+}
 
 /** Five upgrades per car: car 0 is the engine car, car 1 the utility car, every later car holds five more devices. */
 val CAR_LAYOUT: List<List<UpgradeType>> by lazy {
@@ -297,7 +311,12 @@ object Balance {
     const val PLAY_GAMES_ENABLED = false  // set to true after the Play Games setup in the README
 
     // Rewarded ad boost (hidden while ADS_ENABLED is false)
-    const val ADS_ENABLED = false
+    const val ADS_ENABLED = true
+    const val AD_GEMS = 5
+    const val SURVIVOR_BONUS = 0.40
+    // Google's official TEST ad unit. Replace with your own rewarded ad unit id from AdMob before release
+    // (and the APPLICATION_ID in AndroidManifest.xml).
+    const val AD_UNIT_REWARDED = "ca-app-pub-3940256099942544/5224354917"
     const val AD_BOOST_MULT = 2.0
     const val AD_BOOST_SEC = 120.0
 

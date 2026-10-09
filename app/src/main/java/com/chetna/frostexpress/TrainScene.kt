@@ -97,6 +97,7 @@ private var sceneMats: Materials? = null
 private var sceneSprites: GameSprites? = null
 private var shopCocoa = false
 private var shopTurbo = false
+private var sceneSurvivors: List<Npc> = emptyList()
 
 /**
  * Fills a rectangle (dp, train or screen space) with a tiled texture of [pxPerDp] texture pixels per dp.
@@ -281,6 +282,27 @@ private class Npc {
         plan()
     }
 
+    /** Survivors wander from car to car and stop for a while at different spots. */
+    fun syncWander(cars: Int, seed: Int) {
+        val s = 1_000_000 + cars * 10 + seed
+        if (s == sig) return
+        sig = s
+        val steps = ArrayList<Step>()
+        for (c in 0 until cars) {
+            val k = (c * 7 + seed * 13)
+            val x = AISLE_X + ((k * 37) % 40 - 20).toFloat()
+            val y = carY(c, 34f + (k * 29) % 46)
+            steps.add(Step(x, y, if (k % 2 == 0) 1f else -1f, 0.2f, Act.EAT, 2.5f + (k % 4)))
+        }
+        if (seed % 2 == 1) steps.reverse()
+        cycle = steps
+        this.cars = cars
+        trainLen = NOSE + cars * PITCH - GAP + 10f
+        idx = seed % max(1, steps.size)
+        cycle.getOrNull(idx)?.let { x = it.x; y = it.y }
+        plan()
+    }
+
     private fun plan() {
         path.clear()
         working = false
@@ -344,6 +366,7 @@ private class Npc {
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}) {
     val npc = remember { Npc() }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
+    val survivors = remember { List(4) { Npc() } }
     val stations = remember { ArrayList<Station>() }
     val halfH = remember { floatArrayOf(300f) }
     val stopFactor = remember { floatArrayOf(1f) }
@@ -400,6 +423,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                         cars = carCount(vm),
                     )
                     npc.update(dt, if (boosting) 1.8f else 1f)
+                    val survivorCount = min(vm.level(UpgradeType.SURVIVORS), survivors.size)
+                    for (i in 0 until survivorCount) {
+                        survivors[i].syncWander(carCount(vm), i)
+                        survivors[i].update(dt, 0.8f)
+                    }
                     if (vm.permLevel(PermType.CREW) > 0) {
                         npc2.sync(
                             heat = vm.level(UpgradeType.HEAT) > 0,
@@ -462,6 +490,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneSprites = sprites
         shopCocoa = vm.shopIncomeLeft > 0.0
         shopTurbo = vm.shopSpeedLeft > 0.0
+        sceneSurvivors = survivors.take(min(vm.level(UpgradeType.SURVIVORS), survivors.size))
         drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
     }
 }
@@ -544,6 +573,7 @@ private fun DrawScope.drawScene(
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
             drawTrain(tier, look, npc, time, boosting)
             if (npc2 != null) drawNpc(npc2, Color(0xFF5BBE7A), Color(0xFFF2C94C))
+            sceneSprites?.survivors?.let { imgs -> sceneSurvivors.forEachIndexed { i, sv -> if (i < imgs.size) drawNpcCozy(sv, imgs[i]) } }
             drawNpc(npc)
         }
     }
@@ -861,7 +891,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
                 else -> { floor = Color(0xFFC49A6C); plank = Color(0xFFAF8559) } // cargo hold
             }
         }
-        drawCarShell(top, body, accent, floor, plank, metal = i == 0)
+        drawCarShell(top, body, accent, floor, plank, metal = i == 0, floorIdx = i)
         when (i) {
             0 -> drawEngineCar(top, look, npc, time, boosting)
             1 -> drawUtilityCar(top, look, npc, time)
@@ -905,13 +935,14 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     if (plow > 0) box(Color(0xFF9FD8F0), 38f, 0f, 114f, 6f, 3f)
 }
 
-private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor: Color, plank: Color, metal: Boolean = false) {
+private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor: Color, plank: Color, metal: Boolean = false, floorIdx: Int = 2) {
     val walls = sceneSprites?.carFill
     val tex = sceneArt
     if (walls != null && tex != null) {
         // textured floor, then the 3D-shaded walls (tinted with the train colour) with glass windows
-        texRect(if (metal) tex.metal else tex.wood, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f, ax = 7f, ay = top + 7f, r = 4f)
-        box(floor.copy(alpha = 0.12f), 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f)
+        val floors = sceneSprites?.floors
+        val floorBrush = if (!floors.isNullOrEmpty()) floors[floorIdx % floors.size] else if (metal) tex.metal else tex.wood
+        texRect(floorBrush, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f, ax = 7f, ay = top + 7f, r = 4f)
         val u = density
         drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
         sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
@@ -1436,7 +1467,7 @@ private fun DrawScope.drawUtilityCarSprites(sp: GameSprites, top: Float, look: L
 
 
 /** The cozy worker: a front-facing sprite that hops while walking and shows what it is busy with. */
-private fun DrawScope.drawNpcCozy(npc: Npc) {
+private fun DrawScope.drawNpcCozy(npc: Npc, look: ImageBitmap? = null) {
     val sp = sceneSprites ?: return
     val u = density
     val cx = npc.x * u
@@ -1444,7 +1475,7 @@ private fun DrawScope.drawNpcCozy(npc: Npc) {
     val walking = !npc.working
     val act = npc.act
     val hop = if (walking) kotlin.math.abs(sin(npc.phase)) * 2.2f else if (npc.working && act != Act.SLEEP) kotlin.math.abs(sin(npc.phase * 0.8f)) * 1.2f else 0f
-    val img = if (npc.working && act == Act.SLEEP) sp.npcSleep ?: sp.npc!! else sp.npc!!
+    val img = look ?: if (npc.working && act == Act.SLEEP) sp.npcSleep ?: sp.npc!! else sp.npc!!
     val w = 26f
     val h = 32.5f
     // facing: mirror the sprite when heading to the left

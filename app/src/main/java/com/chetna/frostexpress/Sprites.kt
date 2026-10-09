@@ -64,6 +64,12 @@ class GameSprites(ctx: Context) {
     val iconShop = load("icon_shop")
     val iconGems = load("icon_gems")
     val iconBag = load("icon_bag")
+    /** Rescued travellers (Survivors upgrade), each with their own look. */
+    val survivors: List<ImageBitmap> = (1..4).mapNotNull { load("npc_surv$it") }
+    /** A different floor in every car (tiled, 4 px per dp). */
+    val floors: List<androidx.compose.ui.graphics.ShaderBrush> = (0 until 11).mapNotNull { i ->
+        load("floor_$i")?.let { androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(it, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated)) }
+    }
 }
 
 /** Loads the sprites once (can be warmed up on a background thread at start). */

@@ -10,6 +10,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FrostExpress">
 
+        <!-- AdMob app id. This is Google's TEST id: replace it with your own from AdMob before release. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <!-- Replace the id in strings.xml with your Play Games Services project id (see README). -->
         <meta-data
             android:name="com.google.android.gms.games.APP_ID"
