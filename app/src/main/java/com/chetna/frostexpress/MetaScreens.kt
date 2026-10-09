@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -570,7 +571,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.StyleTab(vm: GameView
             }
         }
         item { SectionTitle("Cosy decor", Mint, "Shows in every car") }
-        items(Decor.values().toList()) { d ->
+        items(CarDecor.values().toList()) { d ->
             val owned = d.name in vm.meta.decor
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.7f)).border(1.5.dp, Ink, RoundedCornerShape(14.dp)).padding(8.dp),

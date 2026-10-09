@@ -199,7 +199,7 @@ val HORNS = listOf(
 )
 
 /** Decorations inside the cars, bought once and shown in every car. */
-enum class Decor(val title: String, val desc: String, val gems: Int) {
+enum class CarDecor(val title: String, val desc: String, val gems: Int) {
     LIGHTS("String Lights", "Warm bulbs along the walls, lovely at night", 25),
     RUG("Aisle Rug", "A cosy runner down the middle of each car", 20),
     LANTERNS("Window Lanterns", "Little lanterns that glow in every window", 30),
@@ -219,7 +219,7 @@ object GiftCodes {
         val mac = javax.crypto.Mac.getInstance("HmacSHA256")
         mac.init(javax.crypto.spec.SecretKeySpec(KEY.toByteArray(), "HmacSHA256"))
         val b = mac.doFinal(s.toByteArray())
-        return (0 until 4).map { ALPHA[(b[it].toInt() and 0xFF) % ALPHA.size] }.joinToString("")
+        return (0 until 4).map { ALPHA[(b[it].toInt() and 0xFF) % ALPHA.length] }.joinToString("")
     }
 
     /** A code like FROST-7KQ2-1844-ABCD: player id, day number, signature. */
@@ -337,7 +337,7 @@ class MetaState(private val prefs: SharedPreferences) {
     fun buyHorn(i: Int) { if (i !in horns) horns.add(i); horn = i; prefs.edit().putString("m_horns", horns.joinToString(",")).putInt("m_horn", i).apply() }
     fun chooseHorn(i: Int) { if (i in horns) { horn = i; prefs.edit().putInt("m_horn", i).apply() } }
     val decor = mutableStateListOf<String>().apply { addAll(strs("m_decor")) }
-    fun addDecor(d: Decor) { if (d.name !in decor) { decor.add(d.name); prefs.edit().putString("m_decor", decor.joinToString(",")).apply() } }
+    fun addDecor(d: CarDecor) { if (d.name !in decor) { decor.add(d.name); prefs.edit().putString("m_decor", decor.joinToString(",")).apply() } }
 
     // records
     var bestRun by mutableStateOf(prefs.getFloat("m_best_run", 0f).toDouble()); private set

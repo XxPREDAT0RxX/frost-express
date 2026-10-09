@@ -520,7 +520,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.play(h.res, 0.8f)
         save()
     }
-    fun buyDecor(d: Decor) {
+    fun buyDecor(d: CarDecor) {
         if (d.name in meta.decor || gems < d.gems) return
         gems -= d.gems
         meta.addDecor(d)
