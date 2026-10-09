@@ -54,10 +54,16 @@ jobs:
         shell: bash
         run: |
           gradle testDebugUnitTest --tests "com.chetna.frostexpress.ScreenshotTest" --no-daemon 2>&1 | tee test.log
-          cd app/build/screens && zip -q ../../../screens.zip *.png
+
+      - name: Pack screenshots
+        id: pack
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: cd app/build/screens && zip -q ../../../screens.zip *.png
 
       - name: Publish screenshots
-        if: steps.shots.outcome == 'success'
+        if: always() && steps.pack.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}

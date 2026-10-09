@@ -3,10 +3,10 @@ package com.chetna.frostexpress
 import android.app.Application
 import android.content.Context
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,6 +17,7 @@ import org.robolectric.annotation.GraphicsMode
  * Renders the main screens on four phone sizes. CI runs this and publishes the pictures with each build,
  * so the layout can be checked on screens we do not own. Output: app/build/screens/<size>_<screen>.png
  */
+@OptIn(ExperimentalRoborazziApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScreenshotTest {
@@ -45,7 +46,8 @@ class ScreenshotTest {
         compose.mainClock.autoAdvance = false
         compose.setContent { FrostTheme { content() } }
         compose.mainClock.advanceTimeBy(900)
-        compose.onRoot().captureRoboImage("build/screens/$name.png")
+        compose.waitForIdle()
+        captureScreenRoboImage("build/screens/$name.png") // the whole screen, dialogs included
     }
 
     private fun vm() = GameViewModel(ApplicationProvider.getApplicationContext<Application>())
