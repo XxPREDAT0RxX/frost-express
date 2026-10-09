@@ -1267,7 +1267,7 @@ private fun DrawScope.drawNpc(npc: Npc, jacket: Color = Color(0xFFFF9F43), hat: 
             drawLine(Color(0xFF8B5E3C), Offset(cx, cy - 3f * u), Offset(cx, cy + tipY * u), 2.4f * u)
         }
         // body
-        val bodyImg = sceneSprites?.npcBody
+        val bodyImg: ImageBitmap? = null
         if (bodyImg != null) {
             drawSprite(bodyImg, cx - 14f * u, cy - 10f * u, 28f * u, 20f * u, tint = jacket)
         } else {
@@ -1279,7 +1279,7 @@ private fun DrawScope.drawNpc(npc: Npc, jacket: Color = Color(0xFFFF9F43), hat: 
         drawCircle(skin, 3f * u, Offset(cx + lx * u, cy + ly * u))
         drawCircle(skin, 3f * u, Offset(cx + rx * u, cy + ry * u))
         // head: hat with a pompom, face peeking out at the front
-        val hatImg = sceneSprites?.npcHat
+        val hatImg: ImageBitmap? = null
         if (hatImg != null) {
             drawCircle(skin, 3.2f * u, Offset(cx, cy - 6f * u))
             drawSprite(hatImg, cx - 9f * u, cy - 10f * u, 18f * u, 18f * u, tint = hat)
