@@ -154,13 +154,26 @@ val CAR_LAYOUT: List<List<UpgradeType>> by lazy {
 /** Which car an upgrade's device sits in. */
 fun carOf(t: UpgradeType): Int = CAR_LAYOUT.indexOfFirst { t in it }.coerceAtLeast(0)
 
-/** Shop boosters, bought with coins. Prices scale with your steady income ([costSec] seconds of it). */
-enum class ShopItem(val title: String, val desc: String, val costSec: Double, val durationSec: Double) {
-    COCOA("Hot Cocoa Rush", "Coins x2 for 5 minutes", 120.0, 300.0),
-    TURBO("Turbo Coal", "Train speed x1.5 for 5 minutes", 100.0, 300.0),
-    TICKET("Golden Ticket", "Stations pay x3 for 10 minutes", 90.0, 600.0),
-    TANK("Full Boost Tank", "Refill the boost meter right now", 25.0, 0.0),
-    CLEAR("Storm Breaker", "End the current snow storm", 40.0, 0.0),
+/** Shop boosters, bought with gems. */
+enum class ShopItem(val title: String, val desc: String, val gems: Int, val durationSec: Double) {
+    COCOA("Hot Cocoa Rush", "Coins x2 for 5 minutes", 10, 300.0),
+    TURBO("Turbo Coal", "Train speed x1.5 for 5 minutes", 8, 300.0),
+    TICKET("Golden Ticket", "Stations pay x3 for 10 minutes", 8, 600.0),
+    TANK("Full Boost Tank", "Refill the boost meter right now", 3, 0.0),
+    CLEAR("Storm Breaker", "End the current snow storm", 4, 0.0),
+}
+
+/** Real-money gem packs (Google Play in-app products, consumable). Create these ids in Play Console. */
+enum class GemPack(val title: String, val gems: Int, val productId: String) {
+    POUCH("Pouch of Gems", 60, "gems_pouch"),
+    CHEST("Chest of Gems", 330, "gems_chest"),
+    VAULT("Vault of Gems", 1400, "gems_vault"),
+}
+
+/** Gems traded for coins (limited per day, so they stay valuable). */
+enum class GemTrade(val gems: Int, val incomeSec: Double) {
+    SMALL(5, 300.0),
+    LARGE(25, 1350.0),
 }
 
 /** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
@@ -233,6 +246,8 @@ object Balance {
     fun evolveLevels(evolutions: Int): Int = 100 + 120 * evolutions + 10 * evolutions * (evolutions - 1)
     /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
     fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
+    const val GEM_TRADE_PER_DAY = 30         // gems you can buy with coins each day
+    const val DAILY_GEMS = 3                 // daily reward gems (x5 on every 7th day)
     const val SHOP_MAX_SEC = 1800.0       // timed shop boosters stack up to 30 minutes
     const val STATION_STOP_SEC = 8.0      // storm shelter: the train waits this long at the station
 

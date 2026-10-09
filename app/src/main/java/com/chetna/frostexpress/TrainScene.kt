@@ -92,6 +92,7 @@ private fun rememberSceneArt(): SceneArt {
 
 /** Set before each frame is drawn; null falls back to the plain vector look. */
 private var sceneArt: SceneArt? = null
+private var sceneMats: Materials? = null
 
 /**
  * Fills a rectangle (dp, train or screen space) with a tiled texture of [pxPerDp] texture pixels per dp.
@@ -412,6 +413,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     }
 
     val art = rememberSceneArt()
+    val mats = rememberMaterials()
     val base = TIERS[vm.tierIndex]
     val lv = LIVERIES[vm.liveryIndex.coerceIn(0, LIVERIES.lastIndex)]
     val tier = if (vm.liveryIndex > 0 && vm.liveryUnlocked(vm.liveryIndex)) TrainTier(base.name, lv.body, lv.accent) else base
@@ -451,6 +453,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         )
         halfH[0] = size.height / density / 2f
         sceneArt = art
+        sceneMats = mats
         drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
     }
 }
@@ -818,6 +821,8 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
     drawNose(body, accent, look.plow)
     for (i in 0 until cars) {
         val top = NOSE + i * PITCH
+        // skip cars that are off screen (each car draws several layers)
+        if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
         val floor: Color
         val plank: Color
         when (i) {
@@ -832,8 +837,12 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         }
         drawCarShell(top, body, accent, floor, plank, metal = i == 0)
         when (i) {
-            0 -> drawEngineCar(top, look, npc, time, boosting)
-            1 -> drawUtilityCar(top, look, npc, time)
+            0 -> withMaterial(sceneMats?.paint, 0f, top * density, CAR_W * density, CAR_H * density, density / 4f) {
+                drawEngineCar(top, look, npc, time, boosting)
+            }
+            1 -> withMaterial(sceneMats?.paint, 0f, top * density, CAR_W * density, CAR_H * density, density / 4f) {
+                drawUtilityCar(top, look, npc, time)
+            }
             else -> drawModuleCar(top, i, look, time)
         }
         glow(AISLE_X, top + CAR_H / 2f, 90f, Color(0xFFFFD9A0), fxDark * 1.1f) // warm ceiling lamp at night
@@ -1059,7 +1068,10 @@ private fun DrawScope.overheadDevice(type: UpgradeType, y: Float, look: Look, ti
     val lv = look.lv[type.ordinal]
     if (lv > 0) {
         dot(Color(0x26000000), AISLE_X, y + 18f, 17f)
-        drawDevice(type, (AISLE_X - 17f) * density, y * density, 34f * density, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
+        val u = density
+        withMaterial(sceneMats?.forType(type), (AISLE_X - 27f) * u, (y - 10f) * u, 54f * u, 54f * u, u / 4f) {
+            drawDevice(type, (AISLE_X - 17f) * u, y * u, 34f * u, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
+        }
     } else {
         slot(AISLE_X - 17f, y, 34f, 34f)
     }
@@ -1069,7 +1081,10 @@ private fun DrawScope.floorDevice(type: UpgradeType, x: Float, y: Float, look: L
     val lv = look.lv[type.ordinal]
     if (lv > 0) {
         box(Color(0x1F000000), x + 1f, y + 2f, 66f, 44f, 8f)
-        drawDevice(type, (x + 13f) * density, (y + 2f) * density, 42f * density, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
+        val u = density
+        withMaterial(sceneMats?.forType(type), (x - 2f) * u, (y - 8f) * u, 72f * u, 62f * u, u / 4f) {
+            drawDevice(type, (x + 13f) * u, (y + 2f) * u, 42f * u, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
+        }
     } else {
         slot(x, y, 68f, 46f)
     }

@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         vm.attachCloud(if (Balance.PLAY_GAMES_ENABLED) PlayGamesCloud(this) else NoCloud)
+        if (Balance.IAP_ENABLED) game.store = PlayBilling(this, game::onStorePrices, game::grantProduct)
         setContent {
             FrostTheme {
                 GameScreen(vm)
@@ -91,6 +92,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private var crashMode = false
+
+    override fun onDestroy() {
+        if (!crashMode) vm.store.release()
+        super.onDestroy()
+    }
 
     override fun onStart() {
         super.onStart()

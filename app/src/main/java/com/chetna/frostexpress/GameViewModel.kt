@@ -173,7 +173,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         put("totalDist", totalDistance.toString()); put("taps", boostTaps); put("purch", purchases)
         put("streak", dailyStreak); put("dailyDay", lastDailyDay)
         put("ach", unlocked.joinToString(",")); put("unl", unlockedUpgrades.joinToString(","))
-        put("livery", liveryIndex); put("tstage", tutorialStage)
+        put("livery", liveryIndex); put("tstage", tutorialStage); put("gems", gems)
     }.toString()
 
     private fun importProgress(json: String) {
@@ -191,6 +191,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             unlocked.clear(); unlocked.addAll(o.optString("ach", "").split(",").filter { it.isNotEmpty() })
             unlockedUpgrades.clear(); unlockedUpgrades.addAll(o.optString("unl", "").split(",").filter { it.isNotEmpty() })
             liveryIndex = o.optInt("livery", 0)
+            gems = max(gems, o.optInt("gems", 0))
             tutorialStage = o.optInt("tstage", 4)
             dailyReady = lastDailyDay != today()
             save()
@@ -360,12 +361,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun dailyCoins(streak: Int): Double =
         max(200.0, baseCoinsPerSec * 900.0) * (1.0 + 0.25 * (min(streak, 7) - 1))
     fun dailyGivesCore(streak: Int): Boolean = streak % 7 == 0
+    fun dailyGems(streak: Int): Int = if (streak % 7 == 0) Balance.DAILY_GEMS * 5 else Balance.DAILY_GEMS
 
     fun claimDaily() {
         if (!dailyReady) return
         val streak = dailyNextStreak
         coins += dailyCoins(streak)
         if (dailyGivesCore(streak)) cores += 1
+        gems += dailyGems(streak)
         dailyStreak = streak
         lastDailyDay = today()
         dailyReady = false
@@ -421,7 +424,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Wipes all progress (settings stay). */
     fun resetAll() {
         liveryIndex = 0
-        prefs.edit().clear().putInt("fps", fpsCap).putBoolean("postfx", postFx).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
+        prefs.edit().clear().putInt("gems", gems).putInt("fps", fpsCap).putBoolean("postfx", postFx).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
         coins = 0.0; runDistance = 0.0; cores = 0; evolutions = 0; coresSpent = 0
         for (i in levels.indices) levels[i] = 0
         for (i in permLevels.indices) permLevels[i] = 0
@@ -529,7 +532,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var shopTicketLeft by mutableDoubleStateOf(prefs.getFloat("shopTix", 0f).toDouble()); private set
     val shopSpeedMult: Double get() = if (shopSpeedLeft > 0.0) 1.5 else 1.0
     private val shopIncomeMult: Double get() = if (shopIncomeLeft > 0.0) 2.0 else 1.0
-    fun shopCost(item: ShopItem): Double = floor(max(100.0, baseCoinsPerSec * item.costSec))
+    fun shopCost(item: ShopItem): Int = item.gems
     fun shopLeft(item: ShopItem): Double = when (item) {
         ShopItem.COCOA -> shopIncomeLeft
         ShopItem.TURBO -> shopSpeedLeft
@@ -543,8 +546,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun buyShop(item: ShopItem) {
         val cost = shopCost(item)
-        if (coins < cost || !shopAvailable(item)) return
-        coins -= cost
+        if (gems < cost || !shopAvailable(item)) return
+        gems -= cost
         when (item) {
             ShopItem.COCOA -> shopIncomeLeft += item.durationSec
             ShopItem.TURBO -> shopSpeedLeft += item.durationSec
@@ -554,6 +557,47 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         audio.play(R.raw.sfx_buy)
         showToast("${item.title} bought!")
+        save()
+    }
+
+    // ---- gems: premium currency for the shop ----
+    var gems by mutableIntStateOf(prefs.getInt("gems", 0)); private set
+    private var gemTradeDay = prefs.getLong("gemDay", -1L)
+    var gemsTradedToday by mutableIntStateOf(if (gemTradeDay == java.time.LocalDate.now().toEpochDay()) prefs.getInt("gemTraded", 0) else 0); private set
+    val gemTradeLeft: Int get() = Balance.GEM_TRADE_PER_DAY - (if (gemTradeDay == today()) gemsTradedToday else 0)
+    fun gemTradeCost(t: GemTrade): Double = floor(max(250.0 * t.gems, baseCoinsPerSec * t.incomeSec))
+    fun tradeForGems(t: GemTrade) {
+        val cost = gemTradeCost(t)
+        if (coins < cost || gemTradeLeft < t.gems) return
+        if (gemTradeDay != today()) { gemTradeDay = today(); gemsTradedToday = 0 }
+        coins -= cost
+        gemsTradedToday += t.gems
+        gems += t.gems
+        audio.play(R.raw.sfx_buy)
+        showToast("+${t.gems} gems")
+        save()
+    }
+
+    /** Google Play purchases; NoPurchases until Balance.IAP_ENABLED is switched on. */
+    var store: PurchaseProvider = NoPurchases
+    var storeVersion by mutableIntStateOf(0); private set
+    fun onStorePrices() { storeVersion++ }
+    fun gemPackPrice(p: GemPack): String? { storeVersion; return store.price(p.productId) }
+    fun buyGemPack(p: GemPack) {
+        if (!Balance.IAP_ENABLED) {
+            showToast("Gem packs open after the game launches on Google Play")
+            return
+        }
+        store.purchase(p.productId)
+    }
+    /** Called by the store once Google Play confirms a purchase. */
+    fun grantProduct(productId: String, quantity: Int) {
+        val pack = GemPack.values().firstOrNull { it.productId == productId } ?: return
+        gems += pack.gems * quantity.coerceAtLeast(1)
+        audio.play(R.raw.sfx_buy)
+        showToast("+${pack.gems * quantity.coerceAtLeast(1)} gems. Thank you!")
+        save()
+        cloudSaveNow()
     }
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL)) * (1.0 + effSum(Eff.RECHARGE))
@@ -669,6 +713,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putLong("dailyDay", lastDailyDay)
             .putString("ach", unlocked.joinToString(","))
             .putString("unl", unlockedUpgrades.joinToString(","))
+            .putInt("gems", gems)
+            .putLong("gemDay", gemTradeDay)
+            .putInt("gemTraded", gemsTradedToday)
             .putFloat("shopInc", shopIncomeLeft.toFloat())
             .putFloat("shopSpd", shopSpeedLeft.toFloat())
             .putFloat("shopTix", shopTicketLeft.toFloat())

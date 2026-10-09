@@ -263,7 +263,37 @@ def shrub(name, seed):
     save(arr[..., :3], name, alpha=arr[..., 3] / 255, q=88)
 
 
+# ---------------- device materials (greyscale, multiplied onto the device drawings) ----------------
+def material(name, kind):
+    N = 128
+    if kind == 'metal':      # brushed steel with scratches
+        v = 0.55 * gaussian_filter(rng.standard_normal((N, N)), (0.4, 18), mode='wrap') + 0.45 * noise(N, N, 3)
+        v = (v - v.min()) / (v.max() - v.min())
+        t = 0.78 + 0.22 * v
+    elif kind == 'wood':     # wood grain
+        g = gaussian_filter(rng.standard_normal((N, N)), (0.6, 20), mode='wrap')
+        g = (g - g.min()) / (g.max() - g.min())
+        rings = 0.5 + 0.5 * np.sin(np.linspace(0, 14, N)[None, :] * 0 + np.linspace(0, 22, N)[:, None] + g * 8)
+        t = 0.68 + 0.32 * (0.5 * g + 0.5 * rings)
+    elif kind == 'fabric':   # woven cloth
+        yy, xx = np.mgrid[0:N, 0:N]
+        weave = 0.5 + 0.25 * np.sin(xx * math.pi / 2) * np.sign(np.sin(yy * math.pi / 4)) + 0.25 * np.sin(yy * math.pi / 2)
+        t = 0.78 + 0.16 * weave + 0.06 * noise(N, N, 4)
+    elif kind == 'rough':    # cast iron / stone
+        t = 0.6 + 0.3 * noise(N, N, 2.5) + 0.1 * noise(N, N, 0.7)
+        pits = rng.random((N, N)) > 0.985
+        t[pits] *= 0.7
+    else:                    # worn paint: mostly clean with chips and grime
+        t = 0.9 + 0.1 * noise(N, N, 6)
+        chips = gaussian_filter(rng.random((N, N)), 1.2, mode='wrap') > 0.62
+        t[chips] *= 0.82
+    t = np.clip(t, 0, 1) * 255
+    save(np.stack([t, t, t], -1), 'mat_' + name)
+
+
 if __name__ == '__main__':
+    for m in ('metal', 'wood', 'fabric', 'rough', 'paint'):
+        material(m, m)
     snow(); track(); wood(); metal(); grime(); concrete()
     pine('spr_pine_a', 1); pine('spr_pine_b', 2); pine('spr_pine_c', 3)
     rock('spr_rock_a', 4); rock('spr_rock_b', 5)
