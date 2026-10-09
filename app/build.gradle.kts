@@ -55,6 +55,13 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+        // Exactly the Play Store build (R8 shrinking on), but signed with the debug key so it installs
+        // over the everyday debug builds on the test phone, without losing progress.
+        create("releaseTest") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     buildFeatures {

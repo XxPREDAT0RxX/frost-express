@@ -587,7 +587,7 @@ ICON_BG = f'''<defs><linearGradient id="isky" x1="0" y1="0" x2="0" y2="1"><stop 
 <path d="M22,40 L28,48 L24,47 L20,52 L16,47 Z M56,34 L63,44 L58,43 L55,48 L50,43 L47,45 Z M94,46 L99,53 L96,52 L93,56 L89,52 Z" fill="#FFFFFF"/>
 <path d="M-6,80 C20,72 50,76 70,73 C88,70 100,74 114,72 L114,114 L-6,114 Z" fill="#F4F9FD" stroke="{OL}" stroke-width="2"/>
 <g fill="#FFFFFF"><circle cx="14" cy="22" r="1.4"/><circle cx="44" cy="16" r="1.2"/><circle cx="96" cy="18" r="1.2"/><circle cx="34" cy="64" r="1"/></g>'''
-ICON_FG = f'''<g transform="translate(56 60) scale(.58) translate(-282 -432)">
+ICON_FG = f'''<g transform="translate(54 64) scale(.5) translate(-282 -432)">
   <rect x="196" y="476" width="166" height="8" rx="4" fill="#B98A68" {o(3)}/>
   <path d="M232,470 L232,420 C232,406 242,398 256,398 L300,398 C318,398 330,412 330,430 L330,470 Z" fill="#F4A7A0" {o(3.4)}/>
   <rect x="236" y="384" width="40" height="22" rx="6" fill="#E8897F" {o(3.4)}/>
@@ -598,7 +598,7 @@ ICON_FG = f'''<g transform="translate(56 60) scale(.58) translate(-282 -432)">
   <circle cx="250" cy="472" r="10" fill="#7C8FA8" {o(3.4)}/><circle cx="250" cy="472" r="3" fill="#FFF6E9"/>
   <circle cx="300" cy="472" r="10" fill="#7C8FA8" {o(3.4)}/><circle cx="300" cy="472" r="3" fill="#FFF6E9"/>
   <rect x="204" y="430" width="26" height="40" rx="8" fill="#9FD3C7" {o(3.4)}/>
-  <g fill="#FFFFFF" {o(2.4)}><circle cx="310" cy="364" r="9"/><circle cx="294" cy="344" r="12"/><circle cx="312" cy="318" r="15"/></g>
+  <g fill="#FFFFFF" {o(2.4)}><circle cx="310" cy="373" r="6"/><circle cx="300" cy="362" r="7.5"/><circle cx="313" cy="350" r="9"/></g>
 </g>'''
 misc('ic_launcher_bg', 108, 108, ICON_BG, 4)
 misc('ic_launcher_fg', 108, 108, ICON_FG, 4)
