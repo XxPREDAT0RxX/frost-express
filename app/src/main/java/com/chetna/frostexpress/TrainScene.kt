@@ -441,7 +441,7 @@ class SceneLink {
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}, link: SceneLink? = null) {
     val npc = remember { Npc() }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
-    val survivors = remember { List(4) { Npc() } }
+    val survivors = remember { List(10) { Npc() } }
     val stations = remember { ArrayList<Station>().apply { if (!vm.debugStationAt.isNaN()) add(Station(vm.debugStationAt)) } }
     val halfH = remember { floatArrayOf(300f) }
     val stopFactor = remember { floatArrayOf(1f) }

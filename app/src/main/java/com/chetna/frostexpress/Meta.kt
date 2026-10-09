@@ -175,6 +175,36 @@ val STORIES = listOf(
         Chapter("He marks safe routes as you pass each region of the frozen world.", "Travel 25 km", QuestStat.DISTANCE, 25_000, Reward.Item(ShopItem.RUSH10)),
         Chapter("Kai pins the last route: straight through to the Warm City. \"We can make it.\"", "Evolve your train once", QuestStat.EVOLVES, 1, Reward.Gems(40)),
     )),
+    Story("Ivo, the pilot", listOf(
+        Chapter("Ivo crash-landed his little plane in the snow. He still wears his goggles everywhere.", "Travel 15 km", QuestStat.DISTANCE, 15_000, Reward.Gems(15)),
+        Chapter("From the roof he spots crates the others miss.", "Catch 4 supply crates", QuestStat.CRATES, 4, Reward.Polish(1)),
+        Chapter("He swears he will fly everyone to the Warm City one day. For now, the train is faster.", "Stop at 20 stations", QuestStat.STATIONS, 20, Reward.Gems(35)),
+    )),
+    Story("Rosa, the cook", listOf(
+        Chapter("Rosa ran a soup kitchen in the Buried Town. The galley is hers now.", "Get 25 passengers aboard", QuestStat.PASSENGERS, 25, Reward.Item(ShopItem.COCOA, 2)),
+        Chapter("\"A full train is a happy train,\" she says, and asks for more seats.", "Buy 60 upgrade levels", QuestStat.UPGRADES, 60, Reward.Gems(20)),
+        Chapter("Her stew brings strangers to the platform just for the smell.", "Get 60 passengers aboard", QuestStat.PASSENGERS, 60, Reward.Gems(35)),
+    )),
+    Story("Ben, the teacher", listOf(
+        Chapter("Ben teaches the children letters on the frosted windows.", "Play 5 mini-games", QuestStat.MINIGAMES, 5, Reward.Gems(15)),
+        Chapter("He starts a little museum of the old world in the luggage rack.", "Find 6 keepsakes", QuestStat.COLLECTIBLES, 6, Reward.Polish(1)),
+        Chapter("The children's drawings now cover a whole car. They draw the Warm City in green.", "Find 12 keepsakes", QuestStat.COLLECTIBLES, 12, Reward.Gems(40)),
+    )),
+    Story("Lena, the skater", listOf(
+        Chapter("Lena skated across the Ice Fields to catch the train. Nobody knows how.", "Wait out 3 snow storms", QuestStat.STORMS, 3, Reward.Gems(15)),
+        Chapter("She races the wolves along the line and laughs about it.", "Chase off 20 wolves", QuestStat.WOLVES, 20, Reward.Item(ShopItem.RUSH5)),
+        Chapter("She teaches Pip to skate. Pip does not enjoy it.", "Tap BOOST 300 times", QuestStat.BOOST_TAPS, 300, Reward.Gems(35)),
+    )),
+    Story("Omar, the sailor", listOf(
+        Chapter("Omar's ship froze in the harbour years ago. He tells stories of warm seas.", "Travel 40 km", QuestStat.DISTANCE, 40_000, Reward.Gems(20)),
+        Chapter("He reads the stars at night and keeps the train on course.", "Stop at 40 stations", QuestStat.STATIONS, 40, Reward.Polish(1)),
+        Chapter("\"Land ho!\" he shouts at every station, just for fun.", "Evolve your train once", QuestStat.EVOLVES, 1, Reward.Gems(45)),
+    )),
+    Story("Little Yuki", listOf(
+        Chapter("Yuki was found asleep in the Survivor Camps, hugging a toy bear.", "Install 5 devices", QuestStat.DEVICES, 5, Reward.Gems(15)),
+        Chapter("She names every device on the train. The boiler is called Mr Toasty.", "Buy 100 upgrade levels", QuestStat.UPGRADES, 100, Reward.Item(ShopItem.RUSH10)),
+        Chapter("She asks if the Warm City has snow too. Just a little, everyone hopes.", "Travel 80 km", QuestStat.DISTANCE, 80_000, Reward.Gems(50)),
+    )),
 )
 
 // ---------------- the journey to the Warm City ----------------
@@ -186,7 +216,16 @@ val JOURNEY = listOf(
     Leg("Frostbite Junction", 1, 5), Leg("Pinewatch", 3, 5), Leg("Old Mill Halt", 8, 8), Leg("Icebridge", 20, 10),
     Leg("Lantern Town", 50, 12), Leg("Windmere", 100, 15), Leg("Harbour Light", 200, 20), Leg("Camp Ember", 400, 25),
     Leg("Glacier Gate", 700, 30), Leg("Southern Pass", 1000, 40), Leg("Thaw Valley", 1500, 50), Leg("The Warm City", 2000, 150),
+    // Chapter 2: the Warm City asks the train to go back north and bring everyone else home
+    Leg("Snowline Depot", 3000, 60), Leg("The Old Capital", 4500, 70), Leg("Frozen Sea Rim", 6500, 80),
+    Leg("Aurora Peak", 9000, 100), Leg("The Last Depot", 12000, 120), Leg("Home Station", 16000, 300),
 )
+/** Index of the Warm City in [JOURNEY]; reaching it ends chapter 1. */
+const val WARM_CITY = 11
+/** Coins bonus forever after reaching the Warm City. */
+const val WARM_CITY_BONUS = 0.25
+/** Google Play product for the premium Frost Pass (one month). */
+const val PASS_PRODUCT = "frost_pass_premium"
 
 // ---------------- customisation ----------------
 

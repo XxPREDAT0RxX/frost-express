@@ -234,7 +234,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 onOpenSettings = { showSettings = true },
                 onOpenGems = { sheet = 3 },
-                onOpenLevel = { sheetTab = 2; sheet = 1 },
+                onOpenLevel = { sheet = if (sheet == 9) 0 else 9 },
             )
             // side rails: they use the snowy space left and right of the train
             LeftRail(
@@ -337,6 +337,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     EventsSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else if (shownSheet[0] == 8) {
                     JourneySheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                } else if (shownSheet[0] == 9) {
+                    ProfileSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
@@ -530,7 +532,13 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    LevelBadge(vm, onOpenLevel)
+                    Box {
+                        LevelBadge(vm, onOpenLevel)
+                        Text(
+                            "${vm.playerLevel}", fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 3.dp).clip(RoundedCornerShape(6.dp)).background(XpPurple).border(1.2.dp, Ink, RoundedCornerShape(6.dp)).padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
                     Spacer(Modifier.width(6.dp))
                     Row(
                         Modifier
@@ -1088,7 +1096,7 @@ private fun BottomBar(
         Spacer(Modifier.width(6.dp))
         FooterIcon(sprites.iconGems, openSheet == 3, Color(0xFFFFE1EA), onToggleGems)
         Spacer(Modifier.width(6.dp))
-        FooterIcon(sprites.iconBag, openSheet == 4, Color(0xFFDDEEFB), onToggleBag, badge = vm.inventoryCount)
+        FooterIcon(sprites.iconBag, openSheet == 4, Color(0xFFDDEEFB), onToggleBag)
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.width(6.dp))
         Row(
@@ -1320,7 +1328,7 @@ private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        listOf("Upgrades", "Permanent", "Awards").forEachIndexed { i, label ->
+        listOf("Upgrades", "Permanent").forEachIndexed { i, label ->
             val on = selected == i
             val c = listOf(Color(0xFFFFC98A), Color(0xFFB8D8F2), Color(0xFFFFE49A))[i]
             Box(
@@ -1340,7 +1348,7 @@ private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
 }
 
 @Composable
-private fun AchievementRow(a: Achievement, done: Boolean) {
+internal fun AchievementRow(a: Achievement, done: Boolean) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -2357,7 +2365,7 @@ private fun SurvivorsCard(vm: GameViewModel, onInfo: () -> Unit) {
                     Spacer(Modifier.width(6.dp))
                     Text("$lvl/${spec.maxLevel}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ember)
                 }
-                Text("Rescue a traveller from the snow. Each one joins the crew and adds +40% coins.", fontSize = 11.sp, color = Muted)
+                Text("Rescue up to 10 travellers from the snow. Each one joins the crew, adds +40% coins and starts a story.", fontSize = 11.sp, color = Muted)
                 if (lvl > 0) Text("Crew bonus now: +${lvl * 40}% coins", fontSize = 10.sp, color = GoldText, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.width(8.dp))
@@ -2379,9 +2387,9 @@ private fun SurvivorsCard(vm: GameViewModel, onInfo: () -> Unit) {
                 }
             }
         }
-        if (sprites.survivors.isNotEmpty()) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (sprites.survivors.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             sprites.survivors.forEachIndexed { i, img ->
-                Image(img, null, Modifier.size(28.dp, 35.dp).graphicsLayer { alpha = if (i < lvl) 1f else 0.25f })
+                Image(img, null, Modifier.size(24.dp, 30.dp).graphicsLayer { alpha = if (i < lvl) 1f else 0.25f })
             }
         }
     }
@@ -2453,10 +2461,10 @@ private fun LevelBadge(vm: GameViewModel, onClick: () -> Unit) {
     ) {
         Canvas(Modifier.fillMaxSize()) {
             drawCircle(Color(0xFFEDE4FF))
-            drawArc(XpPurple, -90f, 360f * frac, false, topLeft = Offset(3.dp.toPx(), 3.dp.toPx()), size = Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx()), style = Stroke(4.dp.toPx(), cap = StrokeCap.Round))
-            drawCircle(Ink, style = Stroke(2.dp.toPx()))
+            drawArc(XpPurple, -90f, 360f * frac, false, topLeft = Offset(2.dp.toPx(), 2.dp.toPx()), size = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()), style = Stroke(3.5.dp.toPx(), cap = StrokeCap.Round))
+            drawCircle(Ink, style = Stroke(1.6.dp.toPx()))
         }
-        Text("${vm.playerLevel}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        Avatar(vm, Modifier.size(28.dp))
     }
 }
 
@@ -2791,6 +2799,11 @@ private fun QuestSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose
             val openJourney = JOURNEY_QUESTS.filter { it.id !in vm.journeyClaimed }
                 .sortedByDescending { vm.journeyProgress(it).toFloat() / it.goal }
             val doneJourney = JOURNEY_QUESTS.filter { it.id in vm.journeyClaimed }
+            if (vm.claimableCount > 1) item {
+                ChunkyButton(true, listOf(Color(0xFFFFC98A), Color(0xFFFFA65C)), vm::claimAll, Modifier.fillMaxWidth()) {
+                    Text("Claim all (${vm.claimableCount})", fontSize = 15.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
+                }
+            }
             item {
                 QuestHeader("Survivor stories", "${vm.storiesReady} ready")
                 Spacer(Modifier.height(6.dp))

@@ -144,7 +144,7 @@ private val EXTRA_UPGRADES: List<UpgradeSpec> by lazy {
 /** Rescued travellers who join the crew: very expensive, each one adds a lot of income and walks around the train. */
 val SURVIVOR_SPEC = UpgradeSpec(
     UpgradeType.SURVIVORS, "Survivors", "+40% coins for every rescued traveller in your crew",
-    100_000.0, 12.0, 4, null, 0, gadget = Gadget.BED,
+    100_000.0, 6.0, 10, null, 0, gadget = Gadget.BED,
 )
 
 val UPGRADES: List<UpgradeSpec> = CORE_UPGRADES + EXTRA_UPGRADES + SURVIVOR_SPEC
@@ -304,7 +304,8 @@ val JOURNEY_QUESTS: List<Quest> = buildList {
     listOf(1, 3, 6, 10).forEachIndexed { i, n -> q("j_evo$n", if (n == 1) "Evolve your train" else "Evolve your train $n times", QuestStat.EVOLVES, n, 120 + 80 * i, 8 + 6 * i) }
     listOf(5, 10, 20, 30).forEachIndexed { i, n -> q("j_lv$n", "Reach player level $n", QuestStat.LEVEL, n, 0, 5 + 5 * i) }
     q("j_sv1", "Rescue a survivor", QuestStat.SURVIVORS, 1, 80, 5)
-    q("j_sv4", "Rescue all 4 survivors", QuestStat.SURVIVORS, 4, 200, 15)
+    q("j_sv4", "Rescue 4 survivors", QuestStat.SURVIVORS, 4, 200, 15)
+    q("j_sv10", "Rescue all 10 survivors", QuestStat.SURVIVORS, 10, 400, 40)
 }
 
 /** Train liveries (paint jobs). Livery i unlocks after i evolutions. Index 0 uses the tier's own colors. */

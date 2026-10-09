@@ -249,12 +249,19 @@ private fun androidx.compose.foundation.layout.ColumnScope.PassTab(vm: GameViewM
                 }
                 if (!m.passPremium) {
                     Spacer(Modifier.height(8.dp))
-                    ChunkyButton(vm.gems >= PASS_PREMIUM_GEMS, listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)), vm::buyPremiumPass, Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Unlock Premium track · ", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                            GemIcon(Modifier.size(14.dp)); Text(" $PASS_PREMIUM_GEMS", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Text("Unlock the Premium track for this month", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ChunkyButton(Balance.IAP_ENABLED, listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)), vm::buyPassWithMoney, Modifier.weight(1f)) {
+                            Text(if (Balance.IAP_ENABLED) (vm.passPrice() ?: "Buy") else "Buy · soon", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = if (Balance.IAP_ENABLED) Ink else Muted, maxLines = 1, softWrap = false)
+                        }
+                        ChunkyButton(vm.gems >= PASS_PREMIUM_GEMS, listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)), vm::buyPremiumPass, Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                GemIcon(Modifier.size(14.dp)); Text(" $PASS_PREMIUM_GEMS", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                            }
                         }
                     }
+                    if (!Balance.IAP_ENABLED) Text("Paying with money opens after the game launches on Google Play.", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 3.dp))
                 }
             }
         }
@@ -396,11 +403,18 @@ private fun androidx.compose.foundation.layout.ColumnScope.RouteTab(vm: GameView
     LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
         item {
             Card(bg = Color(0xFFFFF0C8).copy(alpha = 0.7f)) {
-                Text("To the Warm City", fontSize = 18.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
-                Text("Rumours say the snow melts in the south. ${fmt(km, 1)} km travelled of ${JOURNEY.last().km} km.", fontSize = 12.sp, color = Muted)
+                val ch2 = km >= JOURNEY[WARM_CITY].km
+                val goal = if (ch2) JOURNEY.last() else JOURNEY[WARM_CITY]
+                Text(if (ch2) "Chapter 2: Bring them home" else "Chapter 1: To the Warm City", fontSize = 18.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
+                Text(
+                    if (ch2) "The Warm City sends you back north to find everyone still out in the cold. Warm City bonus: +${(WARM_CITY_BONUS * 100).toInt()}% coins forever."
+                    else "Rumours say the snow melts in the south. Reaching the Warm City gives +${(WARM_CITY_BONUS * 100).toInt()}% coins forever.",
+                    fontSize = 12.sp, color = Muted,
+                )
+                Text("${fmt(km, 1)} km of ${goal.km} km", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
                 Spacer(Modifier.height(4.dp))
                 Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(Track).border(1.2.dp, Ink, RoundedCornerShape(5.dp))) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth((km / JOURNEY.last().km).toFloat().coerceIn(0f, 1f)).background(Ember))
+                    Box(Modifier.fillMaxHeight().fillMaxWidth((km / goal.km).toFloat().coerceIn(0f, 1f)).background(Ember))
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -409,6 +423,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RouteTab(vm: GameView
             val leg = JOURNEY[i]
             val done = km >= leg.km
             val isNext = i == next
+            if (i == WARM_CITY + 1) SectionTitle("Chapter 2: Bring them home", XpPurple)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(58.dp)) {
                 Box(Modifier.width(34.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     Canvas(Modifier.fillMaxSize()) {
@@ -422,7 +437,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RouteTab(vm: GameView
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(leg.name, fontSize = if (i == JOURNEY.lastIndex) 16.sp else 14.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = if (done || isNext) Ink else Muted)
+                    Text(leg.name, fontSize = if (i == WARM_CITY || i == JOURNEY.lastIndex) 16.sp else 14.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = if (done || isNext) Ink else Muted)
                     Text(
                         if (done) "Arrived" else if (isNext) "${fmt(leg.km - km, 1)} km to go" else "${leg.km} km",
                         fontSize = 11.sp, color = if (isNext) GoldText else Muted, fontWeight = FontWeight.Bold,
@@ -748,11 +763,11 @@ fun MetaPopups(vm: GameViewModel) {
             PostcardArt(5, Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
             Text(
-                "After 2,000 km of snow, the tracks run into green fields. The passengers cheer, Pip barks, and Old Tomas plays his violin. You made it.\n\nThe train keeps rolling: more survivors are still out there.",
+                "After 2,000 km of snow, the tracks run into green fields. The passengers cheer, Pip barks, and Old Tomas plays his violin. You made it.\n\nThe Warm City thanks you: +${(WARM_CITY_BONUS * 100).toInt()}% coins forever.\n\nChapter 2 begins: the mayor asks you to head back north and bring everyone else home. Six new stops lead to Home Station.",
                 fontSize = 13.sp, fontFamily = CozyFont, color = Ink, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(10.dp))
-            BigButton("Keep the train rolling", vm::dismissWarmCity, Modifier.fillMaxWidth(0.85f))
+            BigButton("Start Chapter 2", vm::dismissWarmCity, Modifier.fillMaxWidth(0.85f))
         }
     }
     var card by remember { mutableIntStateOf(-1) }
@@ -985,6 +1000,110 @@ fun EvolveCutscene(fromTier: Int, toTier: Int, onDone: () -> Unit) {
                 fontSize = 30.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Color.White,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp),
             )
+        }
+    }
+}
+
+
+// ---------------- profile ----------------
+
+/** The player's picture: their own photo or one of the train's characters. */
+@Composable
+fun Avatar(vm: GameViewModel, modifier: Modifier = Modifier) {
+    val sp = rememberGameSprites()
+    Box(modifier.clip(CircleShape).background(Color(0xFFFFF0D2)), contentAlignment = Alignment.Center) {
+        val photo = vm.avatarPhoto
+        if (vm.avatar == -1 && photo != null) {
+            Image(photo, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        } else {
+            val img = if (vm.avatar <= 0) sp.npc else sp.survivors.getOrNull(vm.avatar - 1)
+            // show the head: the sprite is 32 x 40 with the head at the top
+            if (img != null) Image(img, null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f; translationY = size.height * 0.2f })
+        }
+    }
+}
+
+@Composable
+fun ProfileSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+    var picking by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf(vm.playerName) }
+    SheetFrame("Profile", rememberGameSprites().iconTrophy, Color(0xFFE3D6FB), onClose, modifier) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brush.verticalGradient(listOf(Color(0xFFF1EAFF), Color(0xFFDCEEF9)))).border(2.dp, Ink, RoundedCornerShape(20.dp)).padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box {
+                        Box(Modifier.size(96.dp).clip(CircleShape).border(3.dp, Ink, CircleShape).clickable { picking = true }) { Avatar(vm, Modifier.fillMaxSize()) }
+                        Text(
+                            "Edit", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+                            modifier = Modifier.align(Alignment.BottomEnd).clip(RoundedCornerShape(8.dp)).background(XpPurple).border(1.5.dp, Ink, RoundedCornerShape(8.dp)).clickable { picking = true }.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (editing) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.width(180.dp).clip(RoundedCornerShape(10.dp)).background(Color.White).border(2.dp, Ink, RoundedCornerShape(10.dp)).padding(8.dp)) {
+                                BasicTextField(name, { name = it.take(18) }, singleLine = true, textStyle = TextStyle(fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold))
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            ChunkyButton(true, listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)), { vm.rename(name); name = vm.playerName; editing = false }, Modifier.width(64.dp)) {
+                                Text("Save", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                            }
+                        }
+                    } else {
+                        Text(vm.playerName, fontSize = 22.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.clickable { editing = true })
+                        Text("Tap your name to change it", fontSize = 10.sp, color = Muted)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Level ${vm.playerLevel}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = XpPurple)
+                    Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Panel).border(1.5.dp, Ink, RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth((vm.xp.toFloat() / vm.xpNeeded).coerceIn(0f, 1f)).background(XpPurple))
+                        Text("${vm.xp} / ${vm.xpNeeded} XP", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    }
+                    Text("Next level: +${vm.levelGems(vm.playerLevel + 1)} gems · XP comes from awards, quests, stories, evolving and the daily gift", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+            item {
+                SectionTitle("Awards", GoldText, "${vm.unlocked.size} / ${ACHIEVEMENTS.size} earned")
+            }
+            items(ACHIEVEMENTS.sortedBy { if (it.id in vm.unlocked) 0 else 1 }) { a -> AchievementRow(a, a.id in vm.unlocked) }
+        }
+    }
+    if (picking) AvatarPicker(vm, onClose = { picking = false })
+}
+
+@Composable
+private fun AvatarPicker(vm: GameViewModel, onClose: () -> Unit) {
+    val sp = rememberGameSprites()
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) { vm.setAvatarPhoto(uri); onClose() }
+    }
+    CozyCard("Profile picture", Color(0xFFE3D6FB), onDismiss = onClose, closable = true) {
+        ChunkyButton(true, listOf(Color(0xFFFFC2DA), Color(0xFFF08DB5)), {
+            launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }, Modifier.fillMaxWidth(0.85f)) {
+            Text("Choose a photo", fontSize = 15.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("or pick a character", fontSize = 11.sp, color = Muted)
+        Spacer(Modifier.height(6.dp))
+        val all = listOf(0) + (1..sp.survivors.size).toList()
+        all.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                row.forEach { i ->
+                    val img = if (i == 0) sp.npc else sp.survivors[i - 1]
+                    Box(
+                        Modifier.size(56.dp).clip(CircleShape).background(Color(0xFFFFF0D2))
+                            .border(if (vm.avatar == i) 3.dp else 1.5.dp, if (vm.avatar == i) Ember else Ink, CircleShape)
+                            .clickable { vm.chooseAvatar(i); onClose() },
+                    ) {
+                        if (img != null) Image(img, null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f; translationY = size.height * 0.2f })
+                    }
+                }
+            }
         }
     }
 }

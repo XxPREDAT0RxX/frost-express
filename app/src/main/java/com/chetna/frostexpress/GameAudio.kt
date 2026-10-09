@@ -149,6 +149,19 @@ class GameAudio(private val ctx: Context) {
     fun pauseAmbience() {
         ambience?.let { if (it.isPlaying) it.pause() }
         fadingOut?.let { if (it.isPlaying) it.pause() }
+        rails?.let { if (it.isPlaying) it.pause() }
+    }
+
+    // ---- the soft clickety-clack of the wheels, quieter when the train slows and silent when it stops ----
+    private var rails: MediaPlayer? = null
+    private var railsLevel = -1f
+    /** [motion] 0 standing still .. 1 full speed. */
+    fun setRails(motion: Float) {
+        if (!enabled || !foreground) { rails?.let { if (it.isPlaying) it.pause() }; return }
+        if (rails == null) rails = MediaPlayer.create(ctx, R.raw.amb_rails)?.apply { isLooping = true; setVolume(0f, 0f) }
+        val v = (sfxVolume * 0.16f * motion.coerceIn(0f, 1f))
+        if (kotlin.math.abs(v - railsLevel) > 0.01f) { railsLevel = v; rails?.setVolume(v, v) }
+        rails?.let { if (v > 0.005f && !it.isPlaying) it.start() else if (v <= 0.005f && it.isPlaying) it.pause() }
     }
 
     fun release() {
@@ -159,6 +172,8 @@ class GameAudio(private val ctx: Context) {
         ambience = null
         fadingOut?.release()
         fadingOut = null
+        rails?.release()
+        rails = null
         pool.release()
     }
 }

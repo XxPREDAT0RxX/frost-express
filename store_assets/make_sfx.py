@@ -236,7 +236,33 @@ def horn_chorus():
     return out / np.max(np.abs(out)) * 0.55
 
 
-if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v3":
+def rails(seconds=8.8):
+    """Soft clickety-clack of wheels on rail joints over a low rumble, a seamless loop."""
+    n = int(SR * seconds)
+    out = np.zeros(n)
+    rumble = lowpass(rng.standard_normal(n), 0.006) * 2.2
+    rumble += np.sin(2 * np.pi * 46 * np.arange(n) / SR) * 0.08
+    def clack(vol):
+        t = tvec(0.09)
+        thump = np.sin(2 * np.pi * 95 * t) * np.exp(-t * 55)
+        tick = lowpass(rng.standard_normal(len(t)), 0.45) * np.exp(-t * 90) * 0.5
+        return (thump + tick) * vol
+    period = seconds / 8
+    for k in range(8):
+        base = k * period
+        place(out, clack(0.9), base)
+        place(out, clack(0.7), base + 0.14)
+        place(out, clack(0.55), base + period * 0.52)
+        place(out, clack(0.45), base + period * 0.52 + 0.14)
+    out = lowpass(out, 0.35) + rumble * 0.25
+    out = reverb(out, 0.25)
+    out = loopify(out, 0.6)
+    return out / np.max(np.abs(out)) * 0.5
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v4":
+    save("amb_rails", rails(), q=2)
+elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v3":
     save("sfx_horn2", horn_deep(), q=4)
     save("sfx_horn3", horn_chorus(), q=4)
 elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v2":

@@ -643,6 +643,24 @@ SURV = [
     chibi('#8FC2AE', '#6FAF96', f'<path d="M5.4,11 C5,1 27,1 26.6,11 Z" fill="#E46A6A" {o(1.5)}/><path d="M6,7.4 L26,7.4" stroke="#fff" stroke-width="1.6"/><circle cx="16" cy="1.6" r="2.4" fill="#fff" {o(1.2)}/>',
           f'<path d="M5,12 C2,22 3,32 7,34 L9,22 Z M27,12 C30,22 29,32 25,34 L23,22 Z" fill="#4A3A34" {o(1.2)}/>'),
 ]
+SURV += [
+    # Kai: blue scout hood with goggles, orange coat
+    chibi('#F4A261', '#D98457', f'<path d="M4.6,14 C3,1 29,1 27.4,14 C25,8 7,8 4.6,14 Z" fill="#5E9CCF" {o(1.6)}/><rect x="8" y="5.6" width="16" height="4" rx="2" fill="#4A4550" {o(1)}/><circle cx="12" cy="7.6" r="1.6" fill="#BEE6F7"/><circle cx="20" cy="7.6" r="1.6" fill="#BEE6F7"/>'),
+    # Rosa: chef hat, white coat
+    chibi('#F4F7FA', '#D7DEE6', f'<path d="M7,8 C4,6 6,0 11,2 C12,-1 20,-1 21,2 C26,0 28,6 25,8 Z" fill="#FFFFFF" {o(1.5)}/><rect x="7" y="7" width="18" height="4" rx="1.5" fill="#FFFFFF" {o(1.4)}/>',
+          f'<path d="M5,13 C3,18 4,22 6,23 L7,15 Z M27,13 C29,18 28,22 26,23 L25,15 Z" fill="#B56A3B" {o(1.1)}/>', skin='#E9B48F'),
+    # Ben: red bobble hat, green coat, glasses
+    chibi('#7FC29A', '#5FA67E', f'<path d="M5.4,11 C5,1 27,1 26.6,11 Z" fill="#E5484D" {o(1.5)}/><circle cx="16" cy="1.4" r="2.6" fill="#E5484D" {o(1.2)}/>',
+          extra=f'<circle cx="12.4" cy="16.4" r="3" fill="none" stroke="{OL}" stroke-width="1"/><circle cx="19.6" cy="16.4" r="3" fill="none" stroke="{OL}" stroke-width="1"/><path d="M15.4,16.4 L16.6,16.4" stroke="{OL}" stroke-width="1"/>'),
+    # Lena: white fur hat, purple coat, blonde braids
+    chibi('#B9A2EE', '#9A82D6', f'<path d="M5,11 C4,3 28,3 27,11 C22,8 10,8 5,11 Z" fill="#FFFFFF" {o(1.5)}/><path d="M5,11 C10,9 22,9 27,11" fill="none" stroke="#D7DEE6" stroke-width="1.6"/>',
+          f'<path d="M5,14 C3,22 4,30 7,31 L8,20 Z M27,14 C29,22 28,30 25,31 L24,20 Z" fill="#F2D27A" {o(1.2)}/>'),
+    # Omar: grey knit cap, navy coat, short beard
+    chibi('#4C6A86', '#3A5672', f'<path d="M5.6,10 C5,2 27,2 26.4,10 Z" fill="#A3ABB5" {o(1.5)}/><path d="M7,6.6 L25,6.6 M7,8.4 L25,8.4" stroke="#8F99A4" stroke-width="1"/>',
+          beard=f'<path d="M9,18 C10,24 22,24 23,18 C20,20.4 12,20.4 9,18 Z" fill="#4A3A34" opacity=".75"/>', skin='#D9A07A'),
+    # Yuki: little kid with a pink hood with bear ears
+    chibi('#F49AB2', '#E07A96', f'<path d="M4.6,14 C3,1 29,1 27.4,14 C25,8 7,8 4.6,14 Z" fill="#F49AB2" {o(1.6)}/><circle cx="7" cy="4" r="3" fill="#F49AB2" {o(1.3)}/><circle cx="25" cy="4" r="3" fill="#F49AB2" {o(1.3)}/>'),
+]
 for _i, _svg in enumerate(SURV):
     misc(f'npc_surv{_i + 1}', 32, 40, _svg, 6)
 # the group, used as the upgrade icon

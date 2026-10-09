@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
@@ -585,12 +586,58 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                     meta.markLeg(i)
                     gems += leg.gems
                     showToast("Arrived at ${leg.name}! +${leg.gems} gems")
-                    if (i == JOURNEY.lastIndex) warmCity = true
+                    if (i == WARM_CITY) warmCity = true
                 }
             }
         }
     }
     fun dismissWarmCity() { warmCity = false }
+
+    /** Premium Frost Pass for real money (Google Play). */
+    fun passPrice(): String? { storeVersion; return store.price(PASS_PRODUCT) }
+    fun buyPassWithMoney() {
+        if (meta.passPremium) return
+        if (!Balance.IAP_ENABLED) { showToast("Paying with money opens after the game launches on Google Play"); return }
+        store.purchase(PASS_PRODUCT)
+    }
+
+    /** Claim every finished quest and story chapter at once. */
+    val claimableCount: Int get() = questsReady + storiesReady
+    fun claimAll() {
+        todaysQuests.indices.forEach { i -> if (!questClaimed[i] && questProgress(todaysQuests[i]) >= todaysQuests[i].goal) claimQuest(i) }
+        JOURNEY_QUESTS.filter { it.id !in journeyClaimed && journeyProgress(it) >= it.goal }.forEach { claimJourney(it) }
+        STORIES.indices.forEach { i -> var guard = 0; while (guard++ < 3 && storyUnlocked(i) && storyChapter(i)?.let { storyProgress(i) >= it.amount } == true) claimStory(i) }
+    }
+
+    // ---------------- profile: name and picture ----------------
+    var playerName by mutableStateOf(prefs.getString("pname", "Conductor") ?: "Conductor"); private set
+    fun rename(n: String) { playerName = n.trim().take(18).ifEmpty { "Conductor" }; prefs.edit().putString("pname", playerName).apply() }
+    /** -1 = own photo, 0 = the worker, 1..10 = a survivor. */
+    var avatar by mutableIntStateOf(prefs.getInt("avatar", 0)); private set
+    var avatarPhoto by mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null); private set
+    private val avatarFile get() = java.io.File(getApplication<Application>().filesDir, "avatar.jpg")
+    fun chooseAvatar(i: Int) { avatar = i; prefs.edit().putInt("avatar", i).apply() }
+    fun setAvatarPhoto(uri: android.net.Uri) {
+        try {
+            val cr = getApplication<Application>().contentResolver
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (bounds.outWidth / (sample * 2) >= 320 && bounds.outHeight / (sample * 2) >= 320) sample *= 2
+            val bmp = cr.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) } ?: return
+            val side = min(bmp.width, bmp.height)
+            val sq = android.graphics.Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
+            val small = android.graphics.Bitmap.createScaledBitmap(sq, 256, 256, true)
+            avatarFile.outputStream().use { small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+            avatarPhoto = small.asImageBitmap()
+            chooseAvatar(-1)
+        } catch (e: Exception) {
+            showToast("Could not open that picture")
+        }
+    }
+    private fun loadAvatarPhoto() {
+        try { if (avatarFile.exists()) avatarPhoto = android.graphics.BitmapFactory.decodeFile(avatarFile.path)?.asImageBitmap() } catch (e: Exception) { }
+    }
 
     /** Increases when a supply crate appears beside the track (the scene then scrolls it past the train). */
     var crateSerial by mutableIntStateOf(0); private set
@@ -1072,7 +1119,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -1222,6 +1269,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     /** Called by the store once Google Play confirms a purchase. */
     fun grantProduct(productId: String, quantity: Int) {
+        if (productId == PASS_PRODUCT) {
+            meta.unlockPremium()
+            audio.play(R.raw.sfx_evolve, 0.7f)
+            showToast("Premium Frost Pass unlocked. Thank you!")
+            save()
+            return
+        }
         val pack = GemPack.values().firstOrNull { it.productId == productId } ?: return
         gems += pack.gems * quantity.coerceAtLeast(1)
         audio.play(R.raw.sfx_buy)
@@ -1276,6 +1330,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.sfxVolume = sfxVolume
         UiSound.audio = audio
         load()
+        loadAvatarPhoto()
         if (!prefs.contains("devinst")) devicesInstalled = levels.count { it > 0 } // older saves
         dailyReady = lastDailyDay != today()
         startLoop()
@@ -1484,6 +1539,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         refreshQuestDay()
         tickEvents(dt)
         tickMeta(dt)
+        audio.setRails(moveFactor.toFloat())
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         // a soft train horn now and then
         hornIn -= dt

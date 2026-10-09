@@ -63,9 +63,9 @@ class PlayBilling(
     }
 
     private fun loadProducts() {
-        val products = GemPack.values().map {
+        val products = (GemPack.values().map { it.productId } + PASS_PRODUCT).map {
             QueryProductDetailsParams.Product.newBuilder()
-                .setProductId(it.productId)
+                .setProductId(it)
                 .setProductType(BillingClient.ProductType.INAPP)
                 .build()
         }

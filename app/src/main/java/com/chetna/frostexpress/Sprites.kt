@@ -80,7 +80,7 @@ class GameSprites(ctx: Context) {
     val keepsakes: List<List<ImageBitmap?>> = (0 until 6).map { r -> (0 until 6).map { i -> load("col_${r}_$i") } }
     val wolf = load("spr_wolf")
     /** Rescued travellers (Survivors upgrade), each with their own look. */
-    val survivors: List<ImageBitmap> = (1..4).mapNotNull { load("npc_surv$it") }
+    val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** A different floor in every car (tiled, 4 px per dp). */
     val floors: List<androidx.compose.ui.graphics.ShaderBrush> = (0 until 11).mapNotNull { i ->
         load("floor_$i")?.let { androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(it, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated)) }
