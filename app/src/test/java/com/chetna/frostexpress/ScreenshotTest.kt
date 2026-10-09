@@ -8,6 +8,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import org.junit.Rule
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -59,6 +64,33 @@ class ScreenshotTest {
             "upgrades" -> { playing(); val v = vm(); shot("${size}_3_upgrades") { GameScreen(v, initialSheet = 1) } }
             "device" -> { playing(); val v = vm(); shot("${size}_4_device") { GameScreen(v, initialDetail = UpgradeType.ENGINE) } }
             "welcome" -> { prefs { }; val v = vm(); shot("${size}_5_welcome") { GameScreen(v) } }
+            "quests" -> { playing(); val v = vm(); shot("${size}_7_quests") { GameScreen(v, initialSheet = 5) } }
+            "evolved" -> {
+                playing()
+                prefs {
+                    putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay())
+                    putString("coins", "9000000"); putInt("evo", 3); putInt("cores", 6)
+                    putString("levels", "20,10,8,6,4,3,5,5,6,6,4,4,3,3,2,2,1,1")
+                    putString("unl", UPGRADES.take(18).joinToString(",") { it.type.name })
+                }
+                val v = vm()
+                v.debugScene(Balance.DAY_SEC + Balance.DUSK_SEC + 20.0, 330f)
+                shot("${size}_8_night_station") { GameScreen(v) }
+            }
+            "trains" -> shot("${size}_9_trains") {
+                androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFE8F0F7))) {
+                    for (row in 0 until 3) androidx.compose.foundation.layout.Row(androidx.compose.ui.Modifier.weight(1f)) {
+                        for (c in 0 until 2) TrainPicture(row * 2 + c, androidx.compose.ui.Modifier.weight(1f).fillMaxHeight().padding(8.dp))
+                    }
+                }
+            }
+            "newtrain" -> {
+                playing()
+                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "60,40,30,20,10,5,0,0,0,0") }
+                val v = vm()
+                v.evolve()
+                shot("${size}_10_newtrain") { GameScreen(v) }
+            }
             "daily" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putInt("streak", 2); putLong("dailyDay", java.time.LocalDate.now().toEpochDay() - 1) }; val v = vm(); shot("${size}_6_daily") { GameScreen(v) } }
         }
     }
@@ -78,6 +110,10 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_device() = runAll("normal", "device")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_welcome() = runAll("normal", "welcome")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_daily() = runAll("normal", "daily")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_quests() = runAll("normal", "quests")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_evolved() = runAll("normal", "evolved")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_trains() = runAll("normal", "trains")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_newtrain() = runAll("normal", "newtrain")
 
     // big phone
     @Test @Config(sdk = [34], qualifiers = "w412dp-h915dp-port-xxhdpi") fun big_game() = runAll("big", "game")

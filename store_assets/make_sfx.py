@@ -1,6 +1,9 @@
 """Nature ambience and train sounds (all synthesized). Needs numpy and ffmpeg.
 Run: python3 store_assets/make_sfx.py
-  amb_day    birds, a seamless loop
+  amb_day    a soft daytime breeze, a seamless loop (birds are separate one-shots)
+  sfx_bird1..3  single bird songs, played now and then at random during the day
+  sfx_install   buying a new device: a wooden clunk, two bolts tightened, a bright chime
+  sfx_upgrade   upgrading a device: a bubbly pop with a rising sparkle
   amb_night  crickets, a seamless loop
   amb_storm  wind with gusts, a seamless loop
   sfx_wolf   a far-away wolf howl (played now and then at night)
@@ -147,7 +150,75 @@ def passing():
     return out / np.max(np.abs(out)) * 0.5
 
 
-if __name__ == "__main__":
+def breeze(seconds=24.0):
+    n = rng.standard_normal(int(SR * seconds))
+    base = lowpass(n, 0.012)
+    air = lowpass(rng.standard_normal(len(n)), 0.08) * 0.12
+    t = np.arange(len(n)) / SR
+    swell = 0.6 + 0.4 * np.sin(2 * np.pi * t / 8.0) * np.sin(2 * np.pi * t / 3.0 + 0.7)
+    buf = (base * 3 + air) * swell
+    return loopify(buf / np.max(np.abs(buf)) * 0.35, 2.0)
+
+
+def bird_song(kind):
+    songs = {
+        1: [chirp(3200, 4200, 0.08, 0.5), chirp(4200, 3000, 0.1, 0.45), chirp(3400, 4400, 0.08, 0.45), chirp(4400, 3100, 0.12, 0.4)],
+        2: [chirp(2500, 2650, 0.12, 0.4)] * 3 + [chirp(2650, 2000, 0.25, 0.35)],
+        3: [chirp(1900, 2400, 0.25, 0.4), chirp(2400, 1800, 0.3, 0.35), chirp(1950, 2450, 0.22, 0.3)],
+    }[kind]
+    out = np.zeros(int(SR * 2.2))
+    tt = 0.05
+    for note in songs:
+        place(out, note, tt)
+        tt += len(note) / SR + 0.06
+    out = reverb(out, 0.5)
+    return out / np.max(np.abs(out)) * 0.5
+
+
+def install():
+    out = np.zeros(int(SR * 1.3))
+    t = tvec(0.25)
+    # wooden clunk: a low knock with a short noisy attack
+    knock = (np.sin(2 * np.pi * 150 * t) + 0.5 * np.sin(2 * np.pi * 310 * t)) * np.exp(-t * 28)
+    knock += lowpass(rng.standard_normal(len(t)), 0.3) * np.exp(-t * 60) * 0.6
+    place(out, knock * 0.9, 0.0)
+    # two quick ratchet turns (bolts being tightened)
+    for k, start in enumerate((0.16, 0.34)):
+        for j in range(5):
+            tc = tvec(0.018)
+            click = lowpass(rng.standard_normal(len(tc)), 0.5) * np.exp(-tc * 300) * (0.5 + 0.1 * j)
+            place(out, click, start + j * 0.026)
+    # bright "done" chime: two rising notes
+    for f, st in ((1047, 0.58), (1568, 0.68)):
+        tb = tvec(0.6)
+        place(out, (np.sin(2 * np.pi * f * tb) + 0.3 * np.sin(2 * np.pi * f * 3 * tb) * np.exp(-tb * 10)) * np.exp(-tb * 5) * 0.4, st)
+    out = reverb(out, 0.3)
+    return out / np.max(np.abs(out)) * 0.6
+
+
+def upgrade():
+    out = np.zeros(int(SR * 0.9))
+    t = tvec(0.16)
+    # bubbly pop: fast upward pitch bend
+    f = 300 + 900 * (t / 0.16) ** 0.6
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    place(out, np.sin(ph) * np.exp(-t * 18) * 0.8, 0.0)
+    # rising sparkle arpeggio
+    for i, m in enumerate((84, 88, 91, 96)):
+        tb = tvec(0.35)
+        fr = 440 * 2 ** ((m - 69) / 12)
+        place(out, np.sin(2 * np.pi * fr * tb) * np.exp(-tb * 12) * (0.25 + 0.04 * i), 0.07 + i * 0.045)
+    out = reverb(out, 0.35)
+    return out / np.max(np.abs(out)) * 0.55
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v2":
+    save("amb_day", breeze(), q=2)
+    for k in (1, 2, 3):
+        save(f"sfx_bird{k}", bird_song(k), q=3)
+    save("sfx_install", install(), q=4)
+    save("sfx_upgrade", upgrade(), q=4)
+elif __name__ == "__main__":
     save("amb_day", birds(), q=2)
     save("amb_night", crickets(), q=2)
     save("amb_storm", wind(), q=2)

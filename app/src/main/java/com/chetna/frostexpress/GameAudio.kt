@@ -56,13 +56,17 @@ class GameAudio(private val ctx: Context) {
             R.raw.sfx_buy, R.raw.sfx_coin, R.raw.sfx_click,
             R.raw.sfx_evolve, R.raw.sfx_boost, R.raw.sfx_deny, R.raw.sfx_horn,
             R.raw.sfx_wolf, R.raw.sfx_brake, R.raw.sfx_pass,
+            R.raw.sfx_install, R.raw.sfx_upgrade, R.raw.sfx_bird1, R.raw.sfx_bird2, R.raw.sfx_bird3,
         ).forEach { ids[it] = pool.load(ctx, it, 1) }
     }
 
-    fun play(res: Int, volume: Float = 1f) {
+    /** [rate] changes the pitch (0.5..2), used to give repeated sounds some variety. [pan] -1 left .. 1 right. */
+    fun play(res: Int, volume: Float = 1f, rate: Float = 1f, pan: Float = 0f) {
         if (!enabled || !foreground) return
         val v = (volume * sfxVolume).coerceIn(0f, 1f)
-        ids[res]?.let { pool.play(it, v, v, 1, 0, 1f) }
+        val l = v * (1f - pan.coerceIn(0f, 1f))
+        val r = v * (1f + pan.coerceIn(-1f, 0f))
+        ids[res]?.let { pool.play(it, l, r, 1, 0, rate.coerceIn(0.5f, 2f)) }
     }
 
     // Five tracks played in random order, one after another (never the same one twice in a row).

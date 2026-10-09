@@ -68,6 +68,9 @@ private class SceneArt(
     val pines: List<ImageBitmap>,
     val rocks: List<ImageBitmap>,
     val shrub: ImageBitmap,
+    val dead: List<ImageBitmap>,
+    val wrecks: List<ImageBitmap>,
+    val ice: ImageBitmap,
 )
 
 private fun tiled(img: ImageBitmap) = ShaderBrush(ImageShader(img, TileMode.Repeated, TileMode.Repeated))
@@ -80,14 +83,28 @@ private fun rememberSceneArt(): SceneArt {
     val metal = ImageBitmap.imageResource(R.drawable.tex_metal)
     val grime = ImageBitmap.imageResource(R.drawable.tex_grime)
     val concrete = ImageBitmap.imageResource(R.drawable.tex_concrete)
-    val pa = ImageBitmap.imageResource(R.drawable.spr_pine_a)
-    val pb = ImageBitmap.imageResource(R.drawable.spr_pine_b)
-    val pc = ImageBitmap.imageResource(R.drawable.spr_pine_c)
+    // the frozen world: frosted trees, dead trees and the ruins of towns buried in snow
+    val pa = ImageBitmap.imageResource(R.drawable.spr_frost_pine_a)
+    val pb = ImageBitmap.imageResource(R.drawable.spr_frost_pine_b)
+    val pc = ImageBitmap.imageResource(R.drawable.spr_frost_pine_c)
     val ra = ImageBitmap.imageResource(R.drawable.spr_rock_a)
     val rb = ImageBitmap.imageResource(R.drawable.spr_rock_b)
-    val sh = ImageBitmap.imageResource(R.drawable.spr_shrub)
+    val sh = ImageBitmap.imageResource(R.drawable.spr_frost_shrub)
+    val da = ImageBitmap.imageResource(R.drawable.spr_dead_a)
+    val db = ImageBitmap.imageResource(R.drawable.spr_dead_b)
+    val w1 = ImageBitmap.imageResource(R.drawable.spr_ruin_a)
+    val w2 = ImageBitmap.imageResource(R.drawable.spr_ruin_b)
+    val w3 = ImageBitmap.imageResource(R.drawable.spr_car)
+    val w4 = ImageBitmap.imageResource(R.drawable.spr_bus)
+    val w5 = ImageBitmap.imageResource(R.drawable.spr_pole)
+    val w6 = ImageBitmap.imageResource(R.drawable.spr_lamp)
+    val w7 = ImageBitmap.imageResource(R.drawable.spr_sign)
+    val ic = ImageBitmap.imageResource(R.drawable.spr_ice)
     return remember(snow, track, wood) {
-        SceneArt(tiled(snow), tiled(track), tiled(wood), tiled(metal), tiled(grime), tiled(concrete), listOf(pa, pb, pc), listOf(ra, rb), sh)
+        SceneArt(
+            tiled(snow), tiled(track), tiled(wood), tiled(metal), tiled(grime), tiled(concrete),
+            listOf(pa, pb, pc), listOf(ra, rb), sh, listOf(da, db, da), listOf(w1, w3, w2, w5, w4, w6, w7), ic,
+        )
     }
 }
 
@@ -160,13 +177,17 @@ private class Station(var y: Float, var paid: Boolean = false, val stop: Boolean
 
 private class Decor(val side: Int, val fx: Float, val y: Float, val r: Float, val kind: Int)
 
-// Roadside scenery that scrolls past. Kinds: 0 pine, 1 large pine, 2 rock, 3 shrub, 4 snow drift.
-// Sorted so ground details are drawn first and trees last (on top).
-private val DECOR = List(36) { i ->
-    val kind = when (i % 9) { 0, 1, 2 -> 0; 3 -> 1; 4 -> 2; 5 -> 3; 6, 7 -> 4; else -> 0 }
-    val r = when (kind) { 0 -> 9f + (i * 5) % 7; 1 -> 17f + (i * 3) % 6; 2 -> 6f + (i * 3) % 5; 3 -> 6f + (i * 7) % 4; else -> 14f + (i * 5) % 12 }
+// Roadside scenery that scrolls past: a world that froze over.
+// Kinds: 0 frosted pine, 1 ruin (houses, cars, a bus, poles, lamps, signs), 2 rock, 3 dead tree, 4 snow drift, 5 ice spikes, 6 frosted shrub.
+// Sorted so ground details are drawn first and tall things last (on top).
+private val DECOR = List(40) { i ->
+    val kind = when (i % 10) { 0, 6 -> 0; 1, 7 -> 1; 2 -> 2; 3, 8 -> 3; 4 -> 4; 5 -> 5; else -> 6 }
+    val r = when (kind) {
+        0 -> 9f + (i * 5) % 7; 1 -> 20f + (i * 3) % 6; 2 -> 6f + (i * 3) % 5; 3 -> 11f + (i * 7) % 5
+        5 -> 8f + (i * 3) % 5; 6 -> 6f + (i * 7) % 4; else -> 14f + (i * 5) % 12
+    }
     Decor(i % 2, (i * 0.381966f + 0.07f) % 1f, (i * 37.7f) % DECOR_PERIOD, r, kind)
-}.sortedBy { if (it.kind == 4) 0 else if (it.kind == 2 || it.kind == 3) 1 else 2 }
+}.sortedBy { if (it.kind == 4) 0 else if (it.kind == 2 || it.kind == 5 || it.kind == 6) 1 else 2 }
 
 private class Hotspot(val x: Float, val y: Float, val w: Float, val h: Float, val type: UpgradeType)
 
@@ -175,7 +196,7 @@ private fun hotspotAt(tx: Float, ty: Float, cars: Int): UpgradeType? {
     val list = ArrayList<Hotspot>()
     val e = NOSE                 // engine car top
     val u = NOSE + PITCH         // utility car top
-    list.add(Hotspot(14f, 0f, 162f, NOSE, UpgradeType.PLOW))
+    list.add(Hotspot(14f, -26f, 162f, NOSE + 26f, UpgradeType.PLOW))
     list.add(Hotspot(156f, e + 80f, 28f, 30f, UpgradeType.BOOSTER))
     list.add(Hotspot(8f, e + 8f, 66f, 58f, UpgradeType.ENGINE))
     list.add(Hotspot(118f, e + 80f, 38f, 30f, UpgradeType.ENGINE))
@@ -401,7 +422,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     acc = 0f
                     val boosting = vm.isBoosting
                     time += dt
-                    while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(-110f)) }
+                    while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(if (vm.debugStationAt.isNaN()) -160f else vm.debugStationAt)) }
                     while (seenStorms < vm.stormStationSerial) { seenStorms++; stations.add(Station(-260f, stop = true)) }
                     // Storm shelter: slow down, stand at the station for a while, then pull away.
                     var factor = 1f
@@ -538,6 +559,14 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneMats = mats
         sceneSprites = sprites
         sceneGfx = vm.gfx
+        sceneTier = vm.tierIndex
+        sceneWalkers = FloatArray(2 + 2 + survivors.size * 2).also { a ->
+            a[0] = npc.x; a[1] = npc.y
+            val crew = vm.permLevel(PermType.CREW) > 0
+            a[2] = if (crew) npc2.x else -999f; a[3] = if (crew) npc2.y else -999f
+            val ns = min(vm.level(UpgradeType.SURVIVORS), survivors.size)
+            for (k in survivors.indices) { a[4 + k * 2] = if (k < ns) survivors[k].x else -999f; a[5 + k * 2] = if (k < ns) survivors[k].y else -999f }
+        }
         shopCocoa = vm.shopIncomeLeft > 0.0
         shopTurbo = vm.shopSpeedLeft > 0.0
         sceneSurvivors = survivors.take(min(vm.level(UpgradeType.SURVIVORS), survivors.size))
@@ -599,6 +628,7 @@ private fun DrawScope.drawScene(
     npc.zoom = z
     fxOn = fx
     fxDark = dark
+    sceneStorm = storm
     val trainPx = CAR_W * u * z
     val originX = (w - trainPx) / 2f
     val centerOff = 0f
@@ -609,6 +639,8 @@ private fun DrawScope.drawScene(
         // painted snow that scrolls with the ground (256 dp tile)
         val tile = 256f
         texRect(art.snow, 0f, -tile, w / u, h / u + 2f * tile, 2f, ay = (scroll % tile) - tile)
+        // the cold has taken the colour out of the world: a pale, grey-blue frozen land
+        drawRect(Color(0xFF8DA2B8).copy(alpha = 0.16f), size = size)
     } else {
         drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
     }
@@ -621,6 +653,9 @@ private fun DrawScope.drawScene(
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) { drawTrack(scroll, npc.trainLen) }
     }
     if (dark > 0.01f) drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
+    // station lamps and windows glow at night and in storms
+    val lampOn = max((dark / 0.42f).coerceIn(0f, 1f), storm)
+    if (lampOn > 0.02f) for (st in stations) drawStationLights(st, originX, u, lampOn)
     // light spilling out of the windows onto the dark ground
     if (dark > 0.01f) {
         translate(left = originX, top = ny) {
@@ -689,6 +724,10 @@ private var fxDark = 0f
 /** Graphics quality from Settings: 0 Low, 1 Medium, 2 High. */
 private var sceneGfx = 2
 private var sceneFlashCar = -1
+private var sceneTier = 0
+private var sceneStorm = 0f
+/** Train-space (x, y) of everyone walking inside the train, so the glass doors can open for them. */
+private var sceneWalkers = FloatArray(0)
 private var sceneFlash = 0f
 private var fxBroken = false // set if a post-processing effect ever throws, so it is skipped from then on
 
@@ -771,15 +810,21 @@ private fun DrawScope.drawAurora(time: Float, w: Float, h: Float) {
     }
 }
 
-/** A platform with a small shelter and waiting passengers, drawn next to the train. */
+/** Station layout (dp): platform width and length, lamp posts along the track edge. */
+private const val ST_W = 58f
+private const val ST_LEN = 290f
+private val ST_LAMPS = floatArrayOf(-125f, -75f, -25f, 25f, 75f, 125f)
+
+/** A long platform with a station building, benches, lamp posts and waiting passengers, next to the train. */
 private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
-    val pw = 34f * u
-    if (originX < pw + 10f * u) return
+    val pw = ST_W * u
+    if (originX < pw + 8f * u) return
     val x = originX - pw - 6f * u
     val y = st.y * u
-    val len = 190f * u
+    val len = ST_LEN * u
+    val sp = sceneSprites
     drawRect(Color(0x33203040), Offset(x + 3f * u, y - len / 2f + 3f * u), Size(pw, len))
-    drawRect(Color(0xFFB9C3CC), Offset(x, y - len / 2f), Size(pw, len))
+    drawRect(Color(0xFFA9B4BE), Offset(x, y - len / 2f), Size(pw, len))
     val art = sceneArt
     if (art != null) {
         withTransform({ translate(x + 3f * u, y - len / 2f + 3f * u) }) {
@@ -788,36 +833,71 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     } else {
         drawRect(Color(0xFFD7DFE6), Offset(x + 3f * u, y - len / 2f + 3f * u), Size(pw - 6f * u, len - 6f * u))
     }
-    drawRect(Color(0xFFF2C94C), Offset(x + pw - 5f * u, y - len / 2f), Size(3f * u, len)) // safety line
-    // shelter roof with snow
-    val roof = sceneSprites?.stationRoof
-    if (roof != null) {
-        drawSprite(roof, x, y - 44f * u, 26f * u, 88f * u)
+    drawRect(Color(0xFF6B4A3A), Offset(x, y - len / 2f), Size(pw, len), style = Stroke(1.6f * u))
+    drawRect(Color(0xFFF2C94C), Offset(x + pw - 6f * u, y - len / 2f), Size(3f * u, len)) // safety line
+    // snow piled at both ends of the platform
+    drawOval(Color.White, Offset(x - 4f * u, y - len / 2f - 10f * u), Size(pw + 8f * u, 22f * u))
+    drawOval(Color.White, Offset(x - 4f * u, y + len / 2f - 12f * u), Size(pw + 8f * u, 22f * u))
+    // station building on the outer half
+    val bldg = sp?.stationBldg
+    if (bldg != null) {
+        drawSprite(bldg, x + 1f * u, y - 48f * u, 34f * u, 90f * u)
     } else {
-        drawRoundRect(Color(0xFF8A5F3A), Offset(x + 4f * u, y - 40f * u), Size(18f * u, 80f * u), CornerRadius(3f * u, 3f * u))
-        drawRoundRect(Color(0xFFF4F9FC), Offset(x + 5f * u, y - 38f * u), Size(16f * u, 30f * u), CornerRadius(3f * u, 3f * u))
+        sp?.stationRoof?.let { drawSprite(it, x, y - 44f * u, 26f * u, 88f * u) }
+    }
+    // benches and lamp posts
+    sp?.stationBench?.let { b ->
+        drawSprite(b, x + 6f * u, y - 112f * u, 10f * u, 22f * u)
+        drawSprite(b, x + 6f * u, y + 76f * u, 10f * u, 22f * u)
+    }
+    for (ly in ST_LAMPS) {
+        val lx = x + pw - 14f * u
+        val img = sp?.stationLamp
+        if (img != null) drawSprite(img, lx - 6f * u, y + ly * u - 6f * u, 12f * u, 12f * u)
+        else { drawCircle(Color(0xFF5A6470), 5f * u, Offset(lx, y + ly * u)); drawCircle(Color(0xFFFFF3C4), 3f * u, Offset(lx, y + ly * u)) }
     }
     if (st.stop) {
-        // storm shelter: a warm lamp and a red sign
-        drawCircle(
-            Brush.radialGradient(listOf(Color(0x99FFC46B), Color.Transparent), Offset(x + 12f * u, y + 52f * u), 46f * u),
-            46f * u, Offset(x + 12f * u, y + 52f * u), blendMode = BlendMode.Plus,
-        )
-        drawCircle(Color(0xFF3A3F47), 4.5f * u, Offset(x + 12f * u, y + 52f * u))
-        drawCircle(Color(0xFFFFE680), 3f * u, Offset(x + 12f * u, y + 52f * u))
-        drawRoundRect(Color(0xFFE5484D), Offset(x + 4f * u, y + 68f * u), Size(26f * u, 12f * u), CornerRadius(2f * u, 2f * u))
-        drawRect(Color.White, Offset(x + 8f * u, y + 73f * u), Size(18f * u, 2f * u))
+        // storm shelter: a red sign
+        drawRoundRect(Color(0xFFE5484D), Offset(x + 4f * u, y + 52f * u), Size(26f * u, 12f * u), CornerRadius(2f * u, 2f * u))
+        drawRect(Color.White, Offset(x + 8f * u, y + 57f * u), Size(18f * u, 2f * u))
     }
     // passengers seen from above; at a storm stop they walk over and board the train
-    val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C))
-    for (i in 0 until 4) {
-        val py = y - 70f * u + i * 22f * u
-        val prog = if (st.stop && st.dwell > 0f) ((st.dwell - 0.6f - i * 0.9f) / 2.2f).coerceIn(0f, 1f) else 0f
+    val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C), Color(0xFFB9A2EE), Color(0xFF8FC2AE))
+    for (i in 0 until 6) {
+        val py = y - 100f * u + i * 38f * u + (if (i % 2 == 0) 0f else 8f * u)
+        val prog = if (st.stop && st.dwell > 0f) ((st.dwell - 0.6f - i * 0.7f) / 2.2f).coerceIn(0f, 1f) else 0f
         if (prog >= 1f) continue
-        val px = x + 25f * u + (originX + 4f * u - (x + 25f * u)) * prog
+        val sx = x + 42f * u - (if (i % 3 == 1) 4f * u else 0f)
+        val px = sx + (originX + 4f * u - sx) * prog
         drawCircle(Color(0x33000000), 5.5f * u, Offset(px, py + 1.5f * u))
-        drawCircle(cols[i], 5f * u, Offset(px, py))
-        drawCircle(Color(0xFFF2C9A0), 2.6f * u, Offset(px, py - 0.5f * u))
+        drawCircle(Color(0xFF6B4A3A), 5.6f * u, Offset(px, py))
+        drawCircle(cols[i], 4.6f * u, Offset(px, py))
+        drawCircle(Color(0xFFF2C9A0), 2.4f * u, Offset(px, py - 0.5f * u))
+    }
+}
+
+/** Lamp light and warm windows; drawn after the night tint so they really glow. [on] 0..1. */
+private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, on: Float) {
+    val pw = ST_W * u
+    if (originX < pw + 8f * u) return
+    val x = originX - pw - 6f * u
+    val y = st.y * u
+    if (y < -ST_LEN * u || y > size.height + ST_LEN * u) return
+    val warm = Color(0xFFFFC46B)
+    for (ly in ST_LAMPS) {
+        val c = Offset(x + pw - 14f * u, y + ly * u)
+        val r = 38f * u
+        drawCircle(Brush.radialGradient(listOf(warm.copy(alpha = 0.55f * on), Color.Transparent), c, r), r, c, blendMode = BlendMode.Plus)
+        drawCircle(Color(0xFFFFF3C4).copy(alpha = on), 3f * u, c)
+    }
+    // light from the station windows spilling onto the platform
+    for (wy in listOf(-26f, 10f)) {
+        val c = Offset(x + 38f * u, y + wy * u)
+        val r = 28f * u
+        drawOval(
+            Brush.radialGradient(listOf(warm.copy(alpha = 0.5f * on), Color.Transparent), c, r),
+            Offset(c.x - r, c.y - r * 0.8f), Size(r * 2f, r * 1.6f), blendMode = BlendMode.Plus,
+        )
     }
 }
 
@@ -857,8 +937,11 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float) {
     if (art != null && kind != 4) {
         val pick = ((x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
         when (kind) {
+            1 -> sprite(art.wrecks[(pick / 3) % art.wrecks.size], x, y, r / 0.4f)
             2 -> sprite(art.rocks[pick % art.rocks.size], x, y, r / 0.3f)
-            3 -> sprite(art.shrub, x, y, r / 0.31f)
+            3 -> sprite(art.dead[pick % art.dead.size], x, y, r / 0.34f)
+            5 -> sprite(art.ice, x, y, r / 0.34f)
+            6 -> sprite(art.shrub, x, y, r / 0.31f)
             else -> sprite(art.pines[pick % art.pines.size], x, y, r / 0.36f)
         }
         return
@@ -965,10 +1048,83 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         }
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
+    drawCarDoors(cars, npc)
 }
+
+/**
+ * Sliding glass doors between the cars: one in the end wall of each car, with a short gangway between them.
+ * They slide open when someone walks up to them and close again behind them.
+ */
+private fun DrawScope.drawCarDoors(cars: Int, npc: Npc) {
+    for (i in 0 until cars - 1) {
+        val y0 = NOSE + i * PITCH + CAR_H - 9f
+        val y1 = NOSE + (i + 1) * PITCH + 9f
+        if (y1 < npc.camY - 40f || y0 > npc.camY + npc.viewH + 40f) continue
+        val cy = (y0 + y1) / 2f
+        var open = 0f
+        val w = sceneWalkers
+        var k = 0
+        while (k + 1 < w.size) {
+            if (abs(w[k] - AISLE_X) < 48f) open = max(open, ((44f - abs(w[k + 1] - cy)) / 22f).coerceIn(0f, 1f))
+            k += 2
+        }
+        val o = open * open * (3f - 2f * open)
+        // gangway between the cars: dark rubber bellows and a floor plate
+        box(Color(0xFF6B4A3A), AISLE_X - 16f, y0 + 4f, 32f, y1 - y0 - 8f, 3f)
+        box(Color(0xFF8E8A92), AISLE_X - 14f, y0 + 4f, 28f, y1 - y0 - 8f, 2f)
+        var by = y0 + 6f
+        while (by < y1 - 6f) { box(Color(0xFF6E6A73), AISLE_X - 14f, by, 3f, 1.6f); box(Color(0xFF6E6A73), AISLE_X + 11f, by, 3f, 1.6f); by += 3.2f }
+        box(Color(0xFFB7BEC6), AISLE_X - 10f, y0 + 8f, 20f, y1 - y0 - 16f, 1.5f)
+        glassDoor(y0, o)
+        glassDoor(y1 - 9f, o)
+    }
+}
+
+/** One sliding door in a car's end wall at [y] (9 dp thick). [o] 0 closed .. 1 open (panels hide inside the wall). */
+private fun DrawScope.glassDoor(y: Float, o: Float) {
+    val half = 13f
+    val vis = half * (1f - o * 0.92f)
+    // the doorway itself (the floor shows through when the doors are open)
+    box(Color(0xFFDCD3C6), AISLE_X - half, y, half * 2f, 9f, 1f)
+    for (side in listOf(-1f, 1f)) {
+        val x = if (side < 0f) AISLE_X - half else AISLE_X + half - vis
+        box(Color(0xFF6B4A3A), x - 0.6f, y + 1.4f, vis + 1.2f, 6.2f, 1.5f)
+        box(Color(0xFFBEE6F7).copy(alpha = 0.92f), x + 0.4f, y + 2.4f, vis - 0.8f, 4.2f, 1f)
+        if (vis > 4f) box(Color.White.copy(alpha = 0.8f), x + 1.6f, y + 3f, min(3f, vis - 3f), 1.2f, 0.6f)
+        // the edge handle
+        val hx = if (side < 0f) x + vis - 1.8f else x + 0.6f
+        box(Color(0xFF6B4A3A), hx, y + 2.6f, 1.2f, 3.8f, 0.6f)
+    }
+    // door frame posts
+    box(Color(0xFF6B4A3A), AISLE_X - half - 2f, y, 2.4f, 9f, 1f)
+    box(Color(0xFF6B4A3A), AISLE_X + half - 0.4f, y, 2.4f, 9f, 1f)
+}
+
+/** Headlight positions (dp) on each tier's nose. */
+private val NOSE_LAMPS = listOf(
+    floatArrayOf(56f, 15f, 134f, 15f), floatArrayOf(25f, 2.5f, 165f, 2.5f), floatArrayOf(62f, 10f, 128f, 10f),
+    floatArrayOf(36f, 18f, 154f, 18f), floatArrayOf(44f, 20f, 146f, 20f), floatArrayOf(40f, 14f, 150f, 14f),
+)
+/** The front tip of each tier's nose (dp), where the snow plough blade sits. */
+private val NOSE_TIP = floatArrayOf(-1f, -10f, -22f, -20f, -25f, -16f)
 
 private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     val u = density
+    val t = sceneTier.coerceIn(0, 5)
+    val tierFill = sceneSprites?.noseFills?.getOrNull(t)
+    if (t > 0 && tierFill != null) {
+        drawSprite(tierFill, -6f * u, -26f * u, 202f * u, 64f * u, tint = body)
+        sceneSprites?.noseLines?.getOrNull(t)?.let { drawSprite(it, -6f * u, -26f * u, 202f * u, 64f * u) }
+        val l = NOSE_LAMPS[t]
+        glow(l[0], l[1], 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
+        glow(l[2], l[3], 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
+        if (plow > 0) {
+            val ty = NOSE_TIP[t]
+            box(Color(0xFF6B4A3A), 64f, ty - 3f, 62f, 7f, 3.5f)
+            box(Color(0xFFA9DDF2), 65f, ty - 2f, 60f, 5f, 2.5f)
+        }
+        return
+    }
     val noseImg = sceneSprites?.noseFill
     if (noseImg != null) {
         drawSprite(noseImg, -6f * u, -6f * u, 202f * u, 44f * u, tint = body)
@@ -1012,6 +1168,7 @@ private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor
         drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
         sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
         box(accent.copy(alpha = 0.85f), 30f, top + 2.2f, CAR_W - 60f, 2.2f, 1.1f)
+        sceneSprites?.carTrims?.getOrNull(sceneTier.coerceIn(0, 5))?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
         return
     }
     // layered soft shadow on the ground

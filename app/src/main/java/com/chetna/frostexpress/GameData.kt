@@ -254,7 +254,7 @@ val ACHIEVEMENTS = listOf(
 fun xpForLevel(level: Int): Int = 60 + 40 * (level - 1) + 6 * (level - 1) * (level - 1)
 
 /** Daily quests: three are picked every day. [stat] is the counter that has to grow by [goal]. */
-enum class QuestStat { UPGRADES, BOOST_TAPS, CRATES, STATIONS, BOOSTERS, STORMS }
+enum class QuestStat { UPGRADES, BOOST_TAPS, CRATES, STATIONS, BOOSTERS, STORMS, DISTANCE, DEVICES, EVOLVES, LEVEL, SURVIVORS }
 
 data class Quest(val id: String, val text: String, val stat: QuestStat, val goal: Int, val xp: Int, val gems: Int)
 
@@ -269,7 +269,28 @@ val QUEST_POOL = listOf(
     Quest("q_station10", "Pass 10 stations", QuestStat.STATIONS, 10, 80, 4),
     Quest("q_booster1", "Use a booster from your bag", QuestStat.BOOSTERS, 1, 50, 2),
     Quest("q_storm1", "Wait out a snow storm", QuestStat.STORMS, 1, 60, 3),
+    Quest("q_dist1", "Travel 1 km", QuestStat.DISTANCE, 1_000, 40, 2),
+    Quest("q_dist5", "Travel 5 km", QuestStat.DISTANCE, 5_000, 80, 4),
+    Quest("q_dev1", "Install a new device", QuestStat.DEVICES, 1, 50, 3),
+    Quest("q_dev3", "Install 3 new devices", QuestStat.DEVICES, 3, 90, 5),
 )
+
+/** Long journey quests: lifetime goals, each claimed once. */
+val JOURNEY_QUESTS: List<Quest> = buildList {
+    fun q(id: String, text: String, stat: QuestStat, goal: Int, xp: Int, gems: Int) = add(Quest(id, text, stat, goal, xp, gems))
+    listOf(1, 5, 25, 100, 500, 2000).forEachIndexed { i, km -> q("j_km$km", "Travel $km km in total", QuestStat.DISTANCE, km * 1000, 60 + 40 * i, 3 + 3 * i) }
+    listOf(25, 100, 300, 1000, 3000).forEachIndexed { i, n -> q("j_upg$n", "Buy $n upgrades in total", QuestStat.UPGRADES, n, 60 + 40 * i, 3 + 3 * i) }
+    listOf(3, 10, 25, 50).forEachIndexed { i, n -> q("j_dev$n", "Install $n devices", QuestStat.DEVICES, n, 60 + 40 * i, 3 + 3 * i) }
+    listOf(10, 50, 150, 500).forEachIndexed { i, n -> q("j_st$n", "Pass $n stations", QuestStat.STATIONS, n, 60 + 40 * i, 3 + 3 * i) }
+    listOf(5, 20, 60).forEachIndexed { i, n -> q("j_cr$n", "Catch $n supply crates", QuestStat.CRATES, n, 70 + 50 * i, 4 + 3 * i) }
+    listOf(3, 10, 30).forEachIndexed { i, n -> q("j_sto$n", "Wait out $n snow storms", QuestStat.STORMS, n, 70 + 50 * i, 4 + 3 * i) }
+    listOf(3, 15, 50).forEachIndexed { i, n -> q("j_bo$n", "Use $n boosters", QuestStat.BOOSTERS, n, 60 + 50 * i, 3 + 3 * i) }
+    listOf(100, 500, 2000).forEachIndexed { i, n -> q("j_tap$n", "Tap BOOST $n times", QuestStat.BOOST_TAPS, n, 50 + 40 * i, 3 + 2 * i) }
+    listOf(1, 3, 6, 10).forEachIndexed { i, n -> q("j_evo$n", if (n == 1) "Evolve your train" else "Evolve your train $n times", QuestStat.EVOLVES, n, 120 + 80 * i, 8 + 6 * i) }
+    listOf(5, 10, 20, 30).forEachIndexed { i, n -> q("j_lv$n", "Reach player level $n", QuestStat.LEVEL, n, 0, 5 + 5 * i) }
+    q("j_sv1", "Rescue a survivor", QuestStat.SURVIVORS, 1, 80, 5)
+    q("j_sv4", "Rescue all 4 survivors", QuestStat.SURVIVORS, 4, 200, 15)
+}
 
 /** Train liveries (paint jobs). Livery i unlocks after i evolutions. Index 0 uses the tier's own colors. */
 data class Livery(val name: String, val body: Long, val accent: Long)

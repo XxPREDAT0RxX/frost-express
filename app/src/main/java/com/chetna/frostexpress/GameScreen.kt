@@ -82,6 +82,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.aspectRatio
+import kotlin.math.pow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.geometry.Size
@@ -264,6 +266,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 )
             }
             LevelUpPopup(vm, Modifier.align(Alignment.Center))
+            NewTrainPopup(vm)
             BoosterPopup(vm, Modifier.align(Alignment.Center))
             BottomBar(
                 vm,
@@ -2327,6 +2330,62 @@ private fun LevelBadge(vm: GameViewModel, onClick: () -> Unit) {
     }
 }
 
+/** After evolving: which train you got, with a picture of it. */
+@Composable
+private fun NewTrainPopup(vm: GameViewModel) {
+    var seen by remember { mutableIntStateOf(vm.evolveSerial) }
+    if (vm.evolveSerial == seen) return
+    val idx = vm.tierIndex
+    val tier = TIERS[idx]
+    CozyCard("New train!", Color(0xFFDCCBFA), onDismiss = { seen = vm.evolveSerial }) {
+        Text("Your train evolved into", fontSize = 12.sp, color = Muted)
+        Text(tier.name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        Spacer(Modifier.height(8.dp))
+        TrainPicture(idx, Modifier.fillMaxWidth(0.62f).aspectRatio(0.62f))
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Speed +${(Balance.TIER_SPEED_BONUS * idx * 100).toInt()}%  ·  Coins x${fmt(Balance.TIER_INCOME.pow(idx), 1)}\nUp to ${vm.maxCars} cars  ·  +${vm.cores} Frost Cores in total",
+            fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(12.dp))
+        BigButton("All aboard!", { seen = vm.evolveSerial }, Modifier.fillMaxWidth(0.7f))
+    }
+}
+
+/** A train tier drawn from above: its nose and two cars, in the tier's colours. */
+@Composable
+fun TrainPicture(tierIndex: Int, modifier: Modifier = Modifier) {
+    val sp = rememberGameSprites()
+    val tier = TIERS[tierIndex.coerceIn(0, TIERS.lastIndex)]
+    Canvas(modifier) {
+        // train space: 206 wide, nose (26 up) + 2 cars
+        val sw = 206f
+        val sh = 26f + 26f + 2 * 116f + 10f + 8f
+        val k = minOf(size.width / sw, size.height / sh)
+        val ox = (size.width - sw * k) / 2f
+        val oy = (size.height - sh * k) / 2f
+        val body = Color(tier.body)
+        fun img(i: androidx.compose.ui.graphics.ImageBitmap?, x: Float, y: Float, w: Float, h: Float, tint: Color? = null) {
+            if (i != null) drawSprite(i, ox + x * k, oy + y * k, w * k, h * k, tint = tint)
+        }
+        val t = tierIndex.coerceIn(0, 5)
+        for (c in 0 until 2) {
+            val top = 52f + c * 126f
+            drawRoundRect(Color(0xFFEFE6D8), Offset(ox + 8f * k, oy + (top + 8f) * k), Size(190f * k, 100f * k), CornerRadius(8f * k))
+            img(sp.carFill, 0f, top - 8f, 206f, 132f, body)
+            img(sp.carLine, 0f, top - 8f, 206f, 132f)
+            img(sp.carTrims.getOrNull(t), 0f, top - 8f, 206f, 132f)
+        }
+        if (t == 0) {
+            img(sp.noseFills.getOrNull(0), 2f, 46f - 26f + 0f, 202f, 44f, body)
+            img(sp.noseLines.getOrNull(0), 2f, 46f - 26f + 0f, 202f, 44f)
+        } else {
+            img(sp.noseFills.getOrNull(t), 2f, 0f, 202f, 64f, body)
+            img(sp.noseLines.getOrNull(t), 2f, 0f, 202f, 64f)
+        }
+    }
+}
+
 @Composable
 private fun LevelUpPopup(vm: GameViewModel, modifier: Modifier = Modifier) {
     val anim = remember { Animatable(0f) }
@@ -2579,8 +2638,7 @@ private fun QuestSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose
         ) {
             sp.iconQuest?.let { Image(it, null, Modifier.size(22.dp)) }
             Spacer(Modifier.width(6.dp))
-            Text("Daily Quests", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Text("New in ${vm.nextGiftIn}", fontSize = 11.sp, color = Muted)
+            Text("Quests", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
         }
         LazyColumn(
@@ -2614,46 +2672,92 @@ private fun QuestSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose
                 }
             }
             val quests = vm.todaysQuests
-            items(quests.size) { i ->
+            val openDaily = quests.indices.filter { !vm.questClaimed[it] }
+            val doneDaily = quests.indices.filter { vm.questClaimed[it] }
+            // journey quests: ready ones first, then the closest to done
+            val openJourney = JOURNEY_QUESTS.filter { it.id !in vm.journeyClaimed }
+                .sortedByDescending { vm.journeyProgress(it).toFloat() / it.goal }
+            val doneJourney = JOURNEY_QUESTS.filter { it.id in vm.journeyClaimed }
+            item { QuestHeader("Daily quests", "New in ${vm.nextGiftIn}") }
+            items(openDaily, key = { "d$it" }) { i ->
                 val q = quests[i]
-                val prog = vm.questProgress(q)
-                val done = prog >= q.goal
-                val claimed = vm.questClaimed[i]
-                Row(
+                QuestRow(q, vm.questProgress(q), claimed = false, onClaim = { vm.claimQuest(i) })
+            }
+            if (openDaily.isEmpty()) item { Text("All daily quests done. Come back tomorrow!", fontSize = 11.sp, color = Muted) }
+            item { QuestHeader("Journey", "${doneJourney.size} / ${JOURNEY_QUESTS.size} done") }
+            items(openJourney, key = { it.id }) { q ->
+                QuestRow(q, vm.journeyProgress(q), claimed = false, onClaim = { vm.claimJourney(q) })
+            }
+            if (doneDaily.isNotEmpty() || doneJourney.isNotEmpty()) {
+                item { QuestHeader("Completed", "") }
+                items(doneDaily, key = { "dd$it" }) { i -> QuestRow(quests[i], quests[i].goal, claimed = true, onClaim = {}) }
+                items(doneJourney, key = { "jd" + it.id }) { q -> QuestRow(q, q.goal, claimed = true, onClaim = {}) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuestHeader(title: String, right: String) {
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f))
+        if (right.isNotEmpty()) Text(right, fontSize = 11.sp, color = Muted)
+    }
+}
+
+private fun questNumber(q: Quest, v: Int): String =
+    if (q.stat == QuestStat.DISTANCE) fmtDistance(v.toDouble()) else "$v"
+
+@Composable
+private fun QuestRow(q: Quest, prog: Int, claimed: Boolean, onClaim: () -> Unit) {
+    val done = prog >= q.goal
+    val reward = (if (q.xp > 0) "+${q.xp} XP  " else "") + "+${q.gems} gems"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (claimed) PanelHi.copy(alpha = 0.6f) else if (done) Color(0xFFFFF3D6) else Color.White.copy(alpha = 0.6f))
+            .border(2.dp, Ink.copy(alpha = if (done && !claimed) 1f else 0.35f), RoundedCornerShape(14.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(q.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (claimed) Muted else Ink)
+            if (!claimed) {
+                Spacer(Modifier.height(4.dp))
+                Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (claimed) PanelHi.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.6f))
-                        .border(2.dp, Ink.copy(alpha = if (done && !claimed) 1f else 0.35f), RoundedCornerShape(14.dp))
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(q.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (claimed) Muted else Ink)
-                        Spacer(Modifier.height(4.dp))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(9.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(PanelHi)
-                                .border(1.2.dp, Ink, RoundedCornerShape(5.dp)),
-                        ) { Box(Modifier.fillMaxHeight().fillMaxWidth(prog.toFloat() / q.goal).background(Mint)) }
-                        Text("$prog / ${q.goal}   ·   +${q.xp} XP  +${q.gems} gems", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 2.dp))
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (done && !claimed) Color(0xFFFFB86B) else PanelHi)
-                            .border(2.dp, Ink, RoundedCornerShape(12.dp))
-                            .clickable(enabled = done && !claimed) { vm.claimQuest(i) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(if (claimed) "Done" else "Claim", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (done && !claimed) Ink else Muted)
-                    }
-                }
+                        .height(9.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(PanelHi)
+                        .border(1.2.dp, Ink, RoundedCornerShape(5.dp)),
+                ) { Box(Modifier.fillMaxHeight().fillMaxWidth((prog.toFloat() / q.goal).coerceIn(0f, 1f)).background(Mint)) }
+                Text("${questNumber(q, prog)} / ${questNumber(q, q.goal)}   ·   $reward", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 2.dp))
+            } else {
+                Text(reward, fontSize = 10.sp, color = Muted)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        if (claimed) {
+            Text(
+                "Completed", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF3E9B63),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(2.dp, Color(0xFF3E9B63), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+            )
+        } else {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (done) Color(0xFFFFB86B) else PanelHi)
+                    .border(2.dp, Ink, RoundedCornerShape(12.dp))
+                    .clickable(enabled = done) { onClaim() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (done) "Done!" else "Claim", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Ink else Muted)
             }
         }
     }
