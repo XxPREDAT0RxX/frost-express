@@ -244,27 +244,27 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 122.dp, start = 8.dp),
+                    .padding(top = 142.dp, start = 8.dp),
             )
             AchievementBanner(
                 vm.achievementPopup,
                 Modifier
                     .align(Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 84.dp),
+                    .padding(top = 188.dp),
             )
             ToastBanner(
                 vm.toast,
                 Modifier
                     .align(Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 120.dp),
+                    .padding(top = 140.dp),
             )
             Column(
                 Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 122.dp, end = 8.dp),
+                    .padding(top = 142.dp, end = 8.dp),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -701,14 +701,14 @@ private fun ToastBanner(text: String?, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = text != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
         Text(
             shown,
-            fontSize = 13.sp,
-            lineHeight = 17.sp,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
             fontFamily = CozyFont,
             fontWeight = FontWeight.Medium,
             color = Ink,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .padding(horizontal = 24.dp)
+                .widthIn(max = 260.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Panel.copy(alpha = 0.78f))
                 .border(2.dp, Ink.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
