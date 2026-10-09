@@ -64,6 +64,10 @@ class GameSprites(ctx: Context) {
     val iconShop = load("icon_shop")
     val iconGems = load("icon_gems")
     val iconBag = load("icon_bag")
+    val iconQuest = load("icon_quest")
+    val iconTrophy = load("icon_trophy")
+    val iconGift = load("icon_gift")
+    val iconEvolve = load("icon_evolve")
     /** Rescued travellers (Survivors upgrade), each with their own look. */
     val survivors: List<ImageBitmap> = (1..4).mapNotNull { load("npc_surv$it") }
     /** A different floor in every car (tiled, 4 px per dp). */

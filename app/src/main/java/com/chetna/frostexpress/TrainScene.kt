@@ -362,8 +362,15 @@ private class Npc {
     }
 }
 
+/** Shared with the UI: where the camera is (in cars) for the mini-map, and a car to jump to. */
+class SceneLink {
+    var camCar by androidx.compose.runtime.mutableFloatStateOf(0f)
+    var viewCars by androidx.compose.runtime.mutableFloatStateOf(3f)
+    var jumpCar = -1
+}
+
 @Composable
-fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}) {
+fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}, link: SceneLink? = null) {
     val npc = remember { Npc() }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val survivors = remember { List(4) { Npc() } }
@@ -437,6 +444,18 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                         cars = carCount(vm),
                     )
                     npc.update(dt, if (boosting) 1.8f else 1f)
+                    if (link != null) {
+                        if (link.jumpCar >= 0) {
+                            val target = NOSE + link.jumpCar * PITCH + CAR_H / 2f - npc.viewH / 2f
+                            npc.manualCam = target.coerceIn(npc.camLo, npc.camHi)
+                            npc.manualLeft = 6f
+                            link.jumpCar = -1
+                        }
+                        val camCar = (npc.camY - NOSE) / PITCH
+                        if (kotlin.math.abs(camCar - link.camCar) > 0.02f) link.camCar = camCar
+                        val vc = npc.viewH / PITCH
+                        if (kotlin.math.abs(vc - link.viewCars) > 0.02f) link.viewCars = vc
+                    }
                     val survivorCount = min(vm.level(UpgradeType.SURVIVORS), survivors.size)
                     for (i in 0 until survivorCount) {
                         survivors[i].syncWander(carCount(vm), i)
@@ -596,6 +615,9 @@ private fun DrawScope.drawScene(
             scale(scaleX = z, scaleY = z, pivot = Offset.Zero) { drawWindowLight(look.cars, dark) }
         }
     }
+    // sky effects and snowfall stay outside: the cars are sealed, so their insides stay clear in storms
+    if (aurora) drawAurora(time, w, h)
+    drawSnowfall(time, w, h, u, storm)
     // ...and the lit train interior is drawn on top, only slightly dimmed and warmed by its lamps.
     translate(left = originX, top = ny) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
@@ -617,8 +639,6 @@ private fun DrawScope.drawScene(
         }
         drawPath(beam, Brush.verticalGradient(listOf(Color.Transparent, Color(0xFFFFF3B0).copy(alpha = dark * 1.4f)), startY = ny - 190f * u * z, endY = ny))
     }
-    if (aurora) drawAurora(time, w, h)
-    drawSnowfall(time, w, h, u, storm)
     if (fx && w > 4f && h > 4f) safeFx { drawPostFx(w, h, dark, storm) }
     if (npc.trainLen > npc.viewH + 1f) { // scroll bar: the train is taller than the screen
         val frac = npc.viewH / npc.trainLen
@@ -707,15 +727,7 @@ private fun DrawScope.drawPostFx(w: Float, h: Float, dark: Float, storm: Float) 
         ),
         size = size,
     )
-    if (storm > 0f) {
-        drawRect(
-            Brush.radialGradient(
-                listOf(Color.Transparent, Color.Transparent, Color.White.copy(alpha = 0.45f * storm)),
-                center = c, radius = rad,
-            ),
-            size = size,
-        )
-    }
+    // (the storm white-out is drawn with the snowfall, outside the sealed cars)
 }
 
 private fun DrawScope.drawAurora(time: Float, w: Float, h: Float) {

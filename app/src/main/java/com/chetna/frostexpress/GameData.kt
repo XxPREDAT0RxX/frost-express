@@ -212,22 +212,63 @@ val PERMANENT = listOf(
 )
 
 /** Achievements. Reward: Frost Cores if [cores] > 0, otherwise a bundle of coins. */
-data class Achievement(val id: String, val title: String, val desc: String, val cores: Int = 0)
+data class Achievement(val id: String, val title: String, val desc: String, val cores: Int = 0, val xp: Int = 30)
 
 val ACHIEVEMENTS = listOf(
-    Achievement("steps", "First Steps", "Travel 100 m"),
-    Achievement("km1", "One Kilometre", "Travel 1 km in total"),
-    Achievement("km100", "Long Haul", "Travel 100 km in total", cores = 1),
-    Achievement("upg1", "Tinkerer", "Buy your first upgrade"),
-    Achievement("upg50", "Mechanic", "Buy 50 upgrades"),
-    Achievement("boost10", "Boost Fan", "Tap BOOST 10 times"),
-    Achievement("boost200", "Turbo Finger", "Tap BOOST 200 times"),
-    Achievement("wagon5", "Heavy Load", "Own 5 cargo wagons"),
-    Achievement("heat10", "Warm and Cosy", "Heat Generator level 10"),
-    Achievement("rich", "Millionaire", "Hold 1M coins"),
-    Achievement("streak3", "Regular", "Reach a 3 day login streak"),
-    Achievement("evo1", "Evolution", "Evolve for the first time", cores = 1),
-    Achievement("evo3", "Frost Veteran", "Evolve 3 times", cores = 2),
+    Achievement("steps", "First Steps", "Travel 100 m", xp = 20),
+    Achievement("km1", "One Kilometre", "Travel 1 km in total", xp = 30),
+    Achievement("km10", "Snow Wanderer", "Travel 10 km in total", xp = 60),
+    Achievement("km100", "Long Haul", "Travel 100 km in total", cores = 1, xp = 150),
+    Achievement("km1000", "Across the Ice", "Travel 1,000 km in total", cores = 2, xp = 400),
+    Achievement("upg1", "Tinkerer", "Buy your first upgrade", xp = 20),
+    Achievement("upg50", "Mechanic", "Buy 50 upgrades", xp = 60),
+    Achievement("upg200", "Chief Engineer", "Buy 200 upgrades", xp = 150),
+    Achievement("upg1000", "Master Builder", "Buy 1,000 upgrades", cores = 1, xp = 400),
+    Achievement("boost10", "Boost Fan", "Tap BOOST 10 times", xp = 20),
+    Achievement("boost200", "Turbo Finger", "Tap BOOST 200 times", xp = 80),
+    Achievement("wagon5", "Heavy Load", "Cargo Wagon level 5", xp = 50),
+    Achievement("heat10", "Warm and Cosy", "Heat Generator level 10", xp = 60),
+    Achievement("crate1", "Lucky Find", "Catch a supply crate", xp = 30),
+    Achievement("crate25", "Treasure Hunter", "Catch 25 supply crates", xp = 200),
+    Achievement("station10", "Friendly Stops", "Pass 10 stations", xp = 40),
+    Achievement("station100", "Timetable Hero", "Pass 100 stations", xp = 200),
+    Achievement("storm1", "Safe and Sound", "Wait out a snow storm at a shelter", xp = 40),
+    Achievement("storm20", "Storm Chaser", "Wait out 20 snow storms", xp = 200),
+    Achievement("booster1", "Little Helper", "Use a booster from your bag", xp = 30),
+    Achievement("booster25", "Power User", "Use 25 boosters", xp = 200),
+    Achievement("surv1", "Rescuer", "Rescue your first survivor", xp = 150),
+    Achievement("surv4", "Full Crew", "Rescue all four survivors", cores = 1, xp = 500),
+    Achievement("cars6", "Growing Train", "Have 6 cars at once", xp = 120),
+    Achievement("cars11", "The Long Express", "Have all 11 cars", cores = 2, xp = 500),
+    Achievement("rich", "Millionaire", "Hold 1M coins", xp = 80),
+    Achievement("rich2", "Billionaire", "Hold 1B coins", cores = 1, xp = 300),
+    Achievement("gems100", "Sparkly", "Hold 100 gems", xp = 80),
+    Achievement("streak3", "Regular", "Reach a 3 day login streak", xp = 50),
+    Achievement("streak7", "Loyal Passenger", "Reach a 7 day login streak", xp = 150),
+    Achievement("evo1", "Evolution", "Evolve for the first time", cores = 1, xp = 150),
+    Achievement("evo3", "Frost Veteran", "Evolve 3 times", cores = 2, xp = 300),
+    Achievement("evo5", "Legend of the North", "Evolve 5 times", cores = 3, xp = 600),
+)
+
+/** XP needed to go from [level] to the next one. */
+fun xpForLevel(level: Int): Int = 60 + 40 * (level - 1) + 6 * (level - 1) * (level - 1)
+
+/** Daily quests: three are picked every day. [stat] is the counter that has to grow by [goal]. */
+enum class QuestStat { UPGRADES, BOOST_TAPS, CRATES, STATIONS, BOOSTERS, STORMS }
+
+data class Quest(val id: String, val text: String, val stat: QuestStat, val goal: Int, val xp: Int, val gems: Int)
+
+val QUEST_POOL = listOf(
+    Quest("q_upg10", "Buy 10 upgrades", QuestStat.UPGRADES, 10, 40, 2),
+    Quest("q_upg40", "Buy 40 upgrades", QuestStat.UPGRADES, 40, 80, 4),
+    Quest("q_boost20", "Tap BOOST 20 times", QuestStat.BOOST_TAPS, 20, 40, 2),
+    Quest("q_boost60", "Tap BOOST 60 times", QuestStat.BOOST_TAPS, 60, 70, 3),
+    Quest("q_crate1", "Catch a supply crate", QuestStat.CRATES, 1, 50, 3),
+    Quest("q_crate3", "Catch 3 supply crates", QuestStat.CRATES, 3, 90, 5),
+    Quest("q_station4", "Pass 4 stations", QuestStat.STATIONS, 4, 40, 2),
+    Quest("q_station10", "Pass 10 stations", QuestStat.STATIONS, 10, 80, 4),
+    Quest("q_booster1", "Use a booster from your bag", QuestStat.BOOSTERS, 1, 50, 2),
+    Quest("q_storm1", "Wait out a snow storm", QuestStat.STORMS, 1, 60, 3),
 )
 
 /** Train liveries (paint jobs). Livery i unlocks after i evolutions. Index 0 uses the tier's own colors. */

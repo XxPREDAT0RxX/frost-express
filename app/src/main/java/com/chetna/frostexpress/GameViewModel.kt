@@ -173,7 +173,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         put("totalDist", totalDistance.toString()); put("taps", boostTaps); put("purch", purchases)
         put("streak", dailyStreak); put("dailyDay", lastDailyDay)
         put("ach", unlocked.joinToString(",")); put("unl", unlockedUpgrades.joinToString(","))
-        put("livery", liveryIndex); put("tstage", tutorialStage); put("gems", gems); put("inv", inventory.joinToString(","))
+        put("livery", liveryIndex); put("tstage", tutorialStage); put("gems", gems); put("inv", inventory.joinToString(",")); put("xp", xp); put("plvl", playerLevel)
     }.toString()
 
     private fun importProgress(json: String) {
@@ -192,6 +192,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             unlockedUpgrades.clear(); unlockedUpgrades.addAll(o.optString("unl", "").split(",").filter { it.isNotEmpty() })
             liveryIndex = o.optInt("livery", 0)
             gems = max(gems, o.optInt("gems", 0))
+            if (o.optInt("plvl", 1) > playerLevel) { playerLevel = o.optInt("plvl", 1); xp = o.optInt("xp", 0) }
             val inv = o.optString("inv", "").split(",").mapNotNull { it.toIntOrNull() }
             for (i in inventory.indices) inventory[i] = max(inventory[i], inv.getOrElse(i) { 0 })
             tutorialStage = o.optInt("tstage", 4)
@@ -304,6 +305,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (event != GameEvent.CRATE) return
         val gain = max(50.0, baseCoinsPerSec * 30.0) * (1.0 + effSum(Eff.CRATE))
         coins += gain
+        cratesCollected++
         event = GameEvent.NONE
         eventLeft = 0.0
         audio.play(R.raw.sfx_buy)
@@ -315,6 +317,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION)) *
             (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0)
         coins += gain
+        stationsVisited++
+        if (shelter) stormsSheltered++
         audio.play(R.raw.sfx_coin, 0.35f)
         showToast(
             if (shelter) "Storm shelter: the train waits at the station. +${fmt(gain)} coins"
@@ -378,6 +382,18 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun dailyGivesCore(streak: Int): Boolean = streak % 7 == 0
     fun dailyGems(streak: Int): Int = if (streak % 7 == 0) Balance.DAILY_GEMS * 5 else Balance.DAILY_GEMS
 
+    /** Time until tomorrow's daily gift, like "5h 12m". */
+    val nextGiftIn: String
+        get() {
+            val now = java.time.LocalDateTime.now()
+            val m = java.time.Duration.between(now, now.toLocalDate().plusDays(1).atStartOfDay()).toMinutes()
+            return "${m / 60}h ${m % 60}m"
+        }
+
+    fun giftHint() {
+        showToast(if (dailyReady) "Your daily gift is ready!" else "Next daily gift in $nextGiftIn")
+    }
+
     fun claimDaily() {
         if (!dailyReady) return
         val streak = dailyNextStreak
@@ -388,7 +404,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         lastDailyDay = today()
         dailyReady = false
         audio.play(R.raw.sfx_buy)
-        save()
+        addXp(20)
     }
 
     fun finishTutorial() {
@@ -408,7 +424,111 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putFloat("svol", v).apply()
     }
 
+    // ---- player level: XP from achievements, daily quests, evolving and the daily reward ----
+    var xp by mutableIntStateOf(prefs.getInt("xp", 0)); private set          // XP inside the current level
+    var playerLevel by mutableIntStateOf(prefs.getInt("plvl", 1)); private set
+    val xpNeeded: Int get() = xpForLevel(playerLevel)
+    var levelUpSerial by mutableIntStateOf(0); private set
+    var levelUpGems by mutableIntStateOf(0); private set
+    fun levelGems(level: Int): Int = 5 + level
+
+    fun addXp(amount: Int) {
+        xp += amount
+        while (xp >= xpForLevel(playerLevel)) {
+            xp -= xpForLevel(playerLevel)
+            playerLevel++
+            levelUpGems = levelGems(playerLevel)
+            gems += levelUpGems
+            levelUpSerial++
+            audio.play(R.raw.sfx_evolve, 0.7f)
+        }
+        save()
+    }
+
+    // lifetime counters for achievements and quests
+    var cratesCollected by mutableIntStateOf(prefs.getInt("crates", 0)); private set
+    var stationsVisited by mutableIntStateOf(prefs.getInt("stations", 0)); private set
+    var stormsSheltered by mutableIntStateOf(prefs.getInt("storms", 0)); private set
+    var boostersUsed by mutableIntStateOf(prefs.getInt("bused", 0)); private set
+
+    /** Cars the train has right now (a car appears once its first upgrade is unlocked). */
+    val carsNow: Int
+        get() {
+            var n = 2
+            for (i in 2 until CAR_LAYOUT.size) {
+                val first = CAR_LAYOUT[i][0]
+                if (UPGRADES.firstOrNull { it.type == first }?.let { isUnlocked(it) } == true) n = i + 1
+            }
+            return n
+        }
+
+    // ---- daily quests ----
+    private fun statValue(s: QuestStat): Int = when (s) {
+        QuestStat.UPGRADES -> purchases
+        QuestStat.BOOST_TAPS -> boostTaps
+        QuestStat.CRATES -> cratesCollected
+        QuestStat.STATIONS -> stationsVisited
+        QuestStat.BOOSTERS -> boostersUsed
+        QuestStat.STORMS -> stormsSheltered
+    }
+    private var questDay = prefs.getLong("qDay", -1L)
+    private var questBase = prefs.getString("qBase", "")?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
+    val questClaimed = mutableStateListOf(false, false, false).apply {
+        prefs.getString("qClaim", "")?.split(",")?.forEachIndexed { i, v -> if (i < 3) this[i] = v == "1" }
+    }
+
+    /** Today's three quests (the same for the whole day). */
+    val todaysQuests: List<Quest>
+        get() {
+            val r = java.util.Random(today() * 7919L)
+            return QUEST_POOL.shuffled(r).distinctBy { it.stat }.take(3)
+        }
+
+    private fun refreshQuestDay() {
+        if (questDay == today() && questBase.size == QuestStat.values().size) return
+        questDay = today()
+        questBase = QuestStat.values().map { statValue(it) }
+        for (i in questClaimed.indices) questClaimed[i] = false
+    }
+
+    fun questProgress(q: Quest): Int {
+        refreshQuestDay()
+        return (statValue(q.stat) - questBase.getOrElse(q.stat.ordinal) { statValue(q.stat) }).coerceIn(0, q.goal)
+    }
+
+    val questsReady: Int get() = todaysQuests.indices.count { !questClaimed[it] && questProgress(todaysQuests[it]) >= todaysQuests[it].goal }
+
+    fun claimQuest(i: Int) {
+        val q = todaysQuests.getOrNull(i) ?: return
+        if (questClaimed[i] || questProgress(q) < q.goal) return
+        questClaimed[i] = true
+        gems += q.gems
+        audio.play(R.raw.sfx_buy)
+        showToast("Quest done: +${q.xp} XP, +${q.gems} gems")
+        addXp(q.xp)
+    }
+
     private fun achievementMet(id: String): Boolean = when (id) {
+        "km10" -> totalDistance >= 10_000.0
+        "km1000" -> totalDistance >= 1_000_000.0
+        "upg200" -> purchases >= 200
+        "upg1000" -> purchases >= 1000
+        "crate1" -> cratesCollected >= 1
+        "crate25" -> cratesCollected >= 25
+        "station10" -> stationsVisited >= 10
+        "station100" -> stationsVisited >= 100
+        "storm1" -> stormsSheltered >= 1
+        "storm20" -> stormsSheltered >= 20
+        "booster1" -> boostersUsed >= 1
+        "booster25" -> boostersUsed >= 25
+        "surv1" -> level(UpgradeType.SURVIVORS) >= 1
+        "surv4" -> level(UpgradeType.SURVIVORS) >= 4
+        "cars6" -> carsNow >= 6
+        "cars11" -> carsNow >= 11
+        "rich2" -> coins >= 1e9
+        "gems100" -> gems >= 100
+        "streak7" -> dailyStreak >= 7
+        "evo5" -> evolutions >= 5
         "steps" -> totalDistance >= 100.0
         "km1" -> totalDistance >= 1000.0
         "km100" -> totalDistance >= 100_000.0
@@ -430,9 +550,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (a.id in unlocked || !achievementMet(a.id)) continue
             unlocked.add(a.id)
             if (a.cores > 0) cores += a.cores else coins += max(100.0, baseCoinsPerSec * 600.0)
-            achievementPopup = a.title
+            achievementPopup = "${a.title}  ·  +${a.xp} XP"
             popupLeft = 3.5
             audio.play(R.raw.sfx_buy)
+            addXp(a.xp)
         }
     }
 
@@ -453,6 +574,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         offlineCoins = 0.0; offlineMeters = 0.0
         tutorialStage = 0
         unlockedUpgrades.clear()
+        xp = 0; playerLevel = 1; cratesCollected = 0; stationsVisited = 0; stormsSheltered = 0; boostersUsed = 0
+        questDay = -1L
         save()
     }
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
@@ -599,6 +722,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         lastUsed = item
         usedSerial++
+        boostersUsed++
         audio.play(R.raw.sfx_evolve, 0.6f)
         save()
     }
@@ -726,7 +850,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         boostMeter = 1.0
         boostTimeLeft = 0.0
         boostLocked = false
-        save()
+        addXp(100) // also saves
     }
 
     // ---- rewarded ads: free gems, a mystery booster or a short coin rush (limited per day) ----
@@ -788,6 +912,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("unl", unlockedUpgrades.joinToString(","))
             .putInt("gems", gems)
             .putString("inv", inventory.joinToString(","))
+            .putInt("xp", xp).putInt("plvl", playerLevel)
+            .putInt("crates", cratesCollected).putInt("stations", stationsVisited).putInt("storms", stormsSheltered).putInt("bused", boostersUsed)
+            .putLong("qDay", questDay).putString("qBase", questBase.joinToString(",")).putString("qClaim", questClaimed.joinToString(",") { if (it) "1" else "0" })
             .putLong("adDay", adDay)
             .putString("adCnt", adCounts.joinToString(","))
             .putLong("gemDay", gemTradeDay)
@@ -845,6 +972,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         checkAchievements()
         checkUnlocks()
+        refreshQuestDay()
         tickEvents(dt)
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         // a soft train horn now and then

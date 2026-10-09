@@ -513,6 +513,21 @@ icon('icon_bag', f'''<path d="M10,20 C10,13 38,13 38,20 L38,38 C38,42 10,42 10,3
 <path d="M10,22 C16,24 32,24 38,22" fill="none" stroke="{OL}" stroke-width="1.4"/>''')
 
 
+icon('icon_quest', f'''<rect x="10" y="6" width="28" height="36" rx="5" fill="#FFF6E9" {o(2.2)}/><rect x="17" y="3" width="14" height="7" rx="3" fill="#D9A576" {o(1.8)}/>
+<path d="M15,18 l3,3 l5,-6" fill="none" stroke="#3F9E74" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="26" y1="18" x2="33" y2="18" stroke="{OL}" stroke-width="2" stroke-linecap="round"/>
+<path d="M15,28 l3,3 l5,-6" fill="none" stroke="#3F9E74" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="26" y1="28" x2="33" y2="28" stroke="{OL}" stroke-width="2" stroke-linecap="round"/>
+<circle cx="18" cy="37" r="2" fill="#F28C8C"/><line x1="26" y1="37" x2="31" y2="37" stroke="{OL}" stroke-width="2" stroke-linecap="round"/>''')
+icon('icon_trophy', f'''<path d="M14,8 L34,8 L33,22 C32,30 16,30 15,22 Z" fill="url(#gold)" {o(2.2)}/>
+<path d="M14,11 C6,11 6,22 15,22 M34,11 C42,11 42,22 33,22" fill="none" stroke="{OL}" stroke-width="2.2"/>
+<rect x="21" y="29" width="6" height="7" fill="#F2B84B" {o(1.6)}/><rect x="14" y="35" width="20" height="7" rx="2.5" fill="#D9A576" {o(2)}/>
+<path d="M24,12 l1.6,3.2 l3.5,.5 l-2.5,2.4 l.6,3.5 l-3.2,-1.7 l-3.2,1.7 l.6,-3.5 l-2.5,-2.4 l3.5,-.5 Z" fill="#fff" {o(1)}/>''')
+icon('icon_gift', f'''<rect x="8" y="20" width="32" height="22" rx="4" fill="#F7A3A3" {o(2.2)}/><rect x="6" y="14" width="36" height="9" rx="3.5" fill="#F28C8C" {o(2.2)}/>
+<rect x="21" y="14" width="6" height="28" fill="#FFE49A" {o(1.6)}/>
+<path d="M24,14 C18,4 10,8 16,13 Z M24,14 C30,4 38,8 32,13 Z" fill="#FFE49A" {o(1.8)}/>''')
+icon('icon_evolve', f'''<circle cx="24" cy="24" r="17" fill="#DCCBFA" {o(2.2)}/>
+<path d="M24,10 L33,22 L28,22 L28,34 L20,34 L20,22 L15,22 Z" fill="#B9A2EE" {o(2)}/><circle cx="35" cy="12" r="2" fill="#fff"/><circle cx="12" cy="34" r="1.6" fill="#fff"/>''')
+
+
 # ---------------- tiles (textures) ----------------
 
 TILES = {}

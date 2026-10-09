@@ -177,6 +177,15 @@ fun GameScreen(vm: GameViewModel) {
     val showUpgrades = sheet == 1
     var showSettings by remember { mutableStateOf(false) }
     var detail by remember { mutableStateOf<UpgradeType?>(null) }
+    var sheetTab by remember { mutableIntStateOf(0) }
+    val link = remember { SceneLink() }
+    // the tutorial's last card appears right after the last step is done
+    var lastStage by remember { mutableIntStateOf(vm.tutorialStage) }
+    var showTutorialDone by remember { mutableStateOf(false) }
+    if (vm.tutorialStage != lastStage) {
+        if (lastStage == 3 && vm.tutorialStage == 4) showTutorialDone = true
+        lastStage = vm.tutorialStage
+    }
     BackHandler(enabled = sheet != 0) { sheet = 0 }
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
     val sheetPx = with(LocalDensity.current) { sheetHeight.roundToPx() }
@@ -194,7 +203,7 @@ fun GameScreen(vm: GameViewModel) {
             TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
                 detail = type
-            })
+            }, link = link)
             TopHud(
                 vm,
                 Modifier
@@ -203,6 +212,17 @@ fun GameScreen(vm: GameViewModel) {
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 onOpenSettings = { showSettings = true },
                 onOpenGems = { sheet = 3 },
+                onOpenLevel = { sheetTab = 2; sheet = 1 },
+            )
+            // side rails: they use the snowy space left and right of the train
+            LeftRail(
+                vm,
+                onQuests = { sheet = if (sheet == 5) 0 else 5 },
+                onAwards = { sheetTab = 2; sheet = 1 },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = 122.dp, start = 8.dp),
             )
             AchievementBanner(
                 vm.achievementPopup,
@@ -218,21 +238,27 @@ fun GameScreen(vm: GameViewModel) {
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(top = 120.dp),
             )
-            val hint = when {
-                vm.tutorialStage == 1 -> "Tap the gear to open your upgrades"
-                vm.tutorialStage == 2 && !showUpgrades -> "Tap the gear and buy Engine Power"
-                vm.tutorialStage == 2 -> "Wait for 20 coins, then buy Engine Power"
-                vm.tutorialStage == 3 -> "Now tap BOOST a few times for bonus income"
-                else -> null
-            }
-            if (hint != null) TutorialHint(hint, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp + bottomInset * (1f - sheetP)))
-            ActiveBoosters(
-                vm,
+            Column(
                 Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 118.dp, end = 10.dp),
-            )
+                    .padding(top = 122.dp, end = 8.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                RightRail(vm, link, onEvolve = { sheetTab = 0; sheet = 1 })
+                ActiveBoosters(vm)
+            }
+            if (vm.tutorialStage in 1..3) {
+                TutorialGuide(
+                    vm, sheetOpen = showUpgrades,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(bottom = 64.dp + bottomInset * (1f - sheetP)),
+                )
+            }
+            LevelUpPopup(vm, Modifier.align(Alignment.Center))
             BoosterPopup(vm, Modifier.align(Alignment.Center))
             BottomBar(
                 vm,
@@ -270,10 +296,13 @@ fun GameScreen(vm: GameViewModel) {
                     GemShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onBack = { sheet = 2 })
                 } else if (shownSheet[0] == 4) {
                     InventorySheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onShop = { sheet = 2 })
+                } else if (shownSheet[0] == 5) {
+                    QuestSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
-                        focus = null, onFocusDone = {},
+                        focus = if (vm.tutorialStage == 2) UpgradeType.ENGINE else null, onFocusDone = {},
+                        startTab = sheetTab, onTabShown = { sheetTab = 0 },
                         onOpenDetail = { detail = it },
                         onClose = { sheet = 0 },
                     )
@@ -286,14 +315,13 @@ fun GameScreen(vm: GameViewModel) {
 
     // Pop-ups in order: tutorial welcome, daily reward, welcome back. The rest of the tutorial is shown as hints.
     if (vm.tutorialStage == 0) {
-        FrostAlert(
-            onDismissRequest = {},
-            title = { Text("Welcome aboard!") },
-            text = {
-                Text("Your train earns coins from the distance it travels, even when the app is closed. Let's buy your first upgrade and try the boost. It takes about a minute.")
-            },
-            confirmButton = { TextButton(onClick = { UiSound.click();  vm.tutorialAdvance(0) }) { Text("Start") } },
-            dismissButton = { TextButton(onClick = { UiSound.click(); vm.finishTutorial() }) { Text("Skip") } },
+        TutorialCard(
+            title = "Welcome aboard!",
+            step = 0,
+            text = "The world outside has frozen, but your little train keeps rolling. It earns coins for every metre it travels, even while the app is closed.\n\nLet me show you the ropes. It only takes a minute!",
+            button = "Let's go!",
+            onButton = { vm.tutorialAdvance(0) },
+            onSkip = vm::finishTutorial,
         )
     } else if (vm.tutorialDone && vm.dailyReady) {
         val streak = vm.dailyNextStreak
@@ -333,6 +361,16 @@ fun GameScreen(vm: GameViewModel) {
     }
 
     if (showSettings) SettingsDialog(vm, onClose = { showSettings = false })
+    if (showTutorialDone) {
+        TutorialCard(
+            title = "You're all set!",
+            step = 4,
+            text = "Tap any device on the train to see it up close and upgrade it.\n\nBuy enough upgrades to evolve into a bigger train with more cars.\n\nDaily quests, awards and your gift are on the left. Shop, gems and your bag are in the footer.",
+            button = "Start my journey",
+            onButton = { showTutorialDone = false },
+            onSkip = null,
+        )
+    }
 }
 
 @Composable
@@ -447,7 +485,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 // ---------- HUD ----------
 
 @Composable
-private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}) {
+private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}, onOpenLevel: () -> Unit = {}) {
     val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
     Column(
         modifier
@@ -459,6 +497,8 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            LevelBadge(vm, onOpenLevel)
+            Spacer(Modifier.width(8.dp))
             CoinIcon(Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
             Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = GoldText, modifier = Modifier.weight(1f))
@@ -999,10 +1039,13 @@ private fun UpgradesSheet(
     focus: UpgradeType? = null,
     onFocusDone: () -> Unit = {},
     onOpenDetail: (UpgradeType) -> Unit = {},
+    startTab: Int = 0,
+    onTabShown: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     var confirmEvolve by remember { mutableStateOf(false) }
-    var tab by remember { mutableStateOf(0) }
+    var tab by remember { mutableStateOf(startTab) }
+    LaunchedEffect(startTab) { if (startTab != 0) { tab = startTab; onTabShown() } }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Tapping a device on the train jumps to its upgrade and highlights it for a moment.
@@ -1053,7 +1096,7 @@ private fun UpgradesSheet(
             if (tab == 2) {
                 item {
                     Text(
-                        "${vm.unlocked.size}/${ACHIEVEMENTS.size} unlocked. Rewards: coins, or Frost Cores for the big ones.",
+                        "Level ${vm.playerLevel} · ${vm.xp}/${vm.xpNeeded} XP · ${vm.unlocked.size}/${ACHIEVEMENTS.size} awards. Every award gives XP; every level up gives gems.",
                         fontSize = 11.sp, color = Muted,
                     )
                 }
@@ -1211,12 +1254,10 @@ private fun AchievementRow(a: Achievement, done: Boolean) {
             Text(a.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (done) Ink else Muted)
             Text(a.desc, fontSize = 11.sp, color = Muted)
         }
-        Text(
-            if (a.cores > 0) "+${a.cores} core" else "coins",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (done) Mint else Muted,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text("+${a.xp} XP", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Color(0xFF8E6FD8) else Muted)
+            Text(if (a.cores > 0) "+${a.cores} core" else "coins", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (done) Mint else Muted)
+        }
     }
 }
 
@@ -2245,5 +2286,459 @@ private fun BoosterInfo(item: ShopItem, left: Double, modifier: Modifier = Modif
         Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
         Text(item.desc, fontSize = 11.sp, color = Muted)
         Text("Time left: ${fmtClock(left)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GoldText)
+    }
+}
+
+
+// ---------- player level ----------
+
+private val XpPurple = Color(0xFF8E6FD8)
+
+@Composable
+private fun LevelBadge(vm: GameViewModel, onClick: () -> Unit) {
+    val frac = (vm.xp.toFloat() / vm.xpNeeded).coerceIn(0f, 1f)
+    Box(
+        Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(Color(0xFFEDE4FF))
+            drawArc(XpPurple, -90f, 360f * frac, false, topLeft = Offset(3.dp.toPx(), 3.dp.toPx()), size = Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx()), style = Stroke(4.dp.toPx(), cap = StrokeCap.Round))
+            drawCircle(Ink, style = Stroke(2.dp.toPx()))
+        }
+        Text("${vm.playerLevel}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+    }
+}
+
+@Composable
+private fun LevelUpPopup(vm: GameViewModel, modifier: Modifier = Modifier) {
+    val anim = remember { Animatable(0f) }
+    var shownLevel by remember { mutableIntStateOf(0) }
+    LaunchedEffect(vm.levelUpSerial) {
+        if (vm.levelUpSerial == 0) return@LaunchedEffect
+        shownLevel = vm.playerLevel
+        anim.snapTo(0f)
+        anim.animateTo(1f, tween(2200))
+        shownLevel = 0
+    }
+    if (shownLevel == 0) return
+    val p = anim.value
+    val scale = if (p < 0.15f) p / 0.15f * 1.15f else if (p < 0.25f) 1.15f - (p - 0.15f) * 1.5f else 1f
+    val alpha = if (p > 0.85f) (1f - p) / 0.15f else 1f
+    Column(
+        modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
+            .clip(RoundedCornerShape(24.dp))
+            .background(Panel)
+            .border(3.dp, Ink, RoundedCornerShape(24.dp))
+            .padding(horizontal = 26.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.size(70.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                for (i in 0 until 10) {
+                    val a = (i * PI / 5).toFloat() + p * 3f
+                    drawLine(Color(0xFFFFC85C), center + Offset(cos(a), sin(a)) * size.minDimension * 0.36f, center + Offset(cos(a), sin(a)) * size.minDimension * 0.5f, 4.dp.toPx(), StrokeCap.Round)
+                }
+                drawCircle(Color(0xFFEDE4FF), size.minDimension * 0.33f)
+                drawCircle(Ink, size.minDimension * 0.33f, style = Stroke(2.5.dp.toPx()))
+            }
+            Text("${shownLevel}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = XpPurple)
+        }
+        Text("Level up!", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GemIcon(Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("+${vm.levelUpGems} gems", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
+        }
+    }
+}
+
+// ---------- side rails ----------
+
+@Composable
+private fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: String, bg: Color, badge: Int = 0, glow: Boolean = false, onClick: () -> Unit) {
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "rail").animateFloat(
+        1f, 1.08f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(650), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "railPulse",
+    )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(46.dp)
+                .graphicsLayer { if (glow) { scaleX = pulse; scaleY = pulse } }
+                .clip(CircleShape)
+                .background(bg)
+                .border(2.5.dp, Ink, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (img != null) Image(img, label, Modifier.size(30.dp))
+            if (badge > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(17.dp)
+                        .clip(CircleShape)
+                        .background(Ember)
+                        .border(1.5.dp, Ink, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text("$badge", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color.White) }
+            }
+        }
+        Text(
+            label, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Panel.copy(alpha = 0.9f))
+                .padding(horizontal = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, modifier: Modifier = Modifier) {
+    val sp = rememberGameSprites()
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = vm.questsReady, glow = vm.questsReady > 0, onClick = onQuests)
+        RailButton(sp.iconTrophy, "Awards", Color(0xFFFFF0C8), onClick = onAwards)
+        RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = vm::giftHint)
+    }
+}
+
+@Composable
+private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) {
+    val sp = rememberGameSprites()
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // evolve progress ring
+        val frac = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onEvolve),
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawCircle(Color(0xFFF1EAFF))
+                    drawArc(Color(0xFFB9A2EE), -90f, 360f * frac, false, topLeft = Offset(3.dp.toPx(), 3.dp.toPx()), size = Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx()), style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+                    drawCircle(Ink, style = Stroke(2.5.dp.toPx()))
+                }
+                if (sp.iconEvolve != null) Image(sp.iconEvolve, "Evolve", Modifier.size(26.dp))
+            }
+            Text(
+                if (vm.canEvolve) "Evolve!" else "${(frac * 100).toInt()}%", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(6.dp)).background(Panel.copy(alpha = 0.9f)).padding(horizontal = 4.dp),
+            )
+        }
+        // mini-map of the train: tap a car to look at it
+        val cars = vm.carsNow
+        val cell = 13.dp
+        Column(
+            Modifier
+                .width(34.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Panel.copy(alpha = 0.92f))
+                .border(2.dp, Ink, RoundedCornerShape(12.dp))
+                .padding(5.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("MAP", fontSize = 7.sp, fontWeight = FontWeight.ExtraBold, color = Muted)
+            Box(Modifier.width(24.dp).height(cell * cars + 2.dp)) {
+                Column {
+                    for (i in 0 until cars) {
+                        Box(
+                            Modifier
+                                .padding(vertical = 1.dp)
+                                .size(24.dp, cell - 2.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (i == 0) Color(0xFFF4A7A0) else Color(0xFFFFD9C2))
+                                .border(1.2.dp, Ink, RoundedCornerShape(4.dp))
+                                .clickable { link.jumpCar = i },
+                        )
+                    }
+                }
+                // what is on screen right now
+                val top = (link.camCar.coerceIn(-0.5f, cars.toFloat()))
+                val span = link.viewCars.coerceAtMost(cars.toFloat() + 1f)
+                Box(
+                    Modifier
+                        .padding(top = (cell * top.coerceAtLeast(0f)))
+                        .size(24.dp, (cell * (span + kotlin.math.min(0f, top))).coerceAtLeast(6.dp).coerceAtMost(cell * cars + 2.dp))
+                        .border(2.dp, Ice, RoundedCornerShape(5.dp)),
+                )
+            }
+        }
+    }
+}
+
+// ---------- daily quests ----------
+
+@Composable
+private fun QuestSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+    val sp = rememberGameSprites()
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Panel)
+            .border(OutlineW, Wood, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.horizontalGradient(listOf(Color(0xFFE2F3EA), Color(0xFFF1EAFF))))
+                .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            sp.iconQuest?.let { Image(it, null, Modifier.size(22.dp)) }
+            Spacer(Modifier.width(6.dp))
+            Text("Daily Quests", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text("New in ${vm.nextGiftIn}", fontSize = 11.sp, color = Muted)
+            TextButton(onClick = { UiSound.click(); onClose() }) { Text("Close", fontSize = 12.sp) }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                // player level card
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFF1EAFF))
+                        .border(2.dp, Ink, RoundedCornerShape(16.dp))
+                        .padding(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("Level ${vm.playerLevel}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Panel)
+                            .border(1.5.dp, Ink, RoundedCornerShape(6.dp)),
+                    ) { Box(Modifier.fillMaxHeight().fillMaxWidth((vm.xp.toFloat() / vm.xpNeeded).coerceIn(0f, 1f)).background(XpPurple)) }
+                    Text("${vm.xp} / ${vm.xpNeeded} XP · next level: +${vm.levelGems(vm.playerLevel + 1)} gems", fontSize = 11.sp, color = Muted, modifier = Modifier.padding(top = 3.dp))
+                    Text("Earn XP from awards, quests, evolving and the daily gift.", fontSize = 10.sp, color = Muted)
+                }
+            }
+            val quests = vm.todaysQuests
+            items(quests.size) { i ->
+                val q = quests[i]
+                val prog = vm.questProgress(q)
+                val done = prog >= q.goal
+                val claimed = vm.questClaimed[i]
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (claimed) PanelHi.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.6f))
+                        .border(2.dp, Ink.copy(alpha = if (done && !claimed) 1f else 0.35f), RoundedCornerShape(14.dp))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(q.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (claimed) Muted else Ink)
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(9.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(PanelHi)
+                                .border(1.2.dp, Ink, RoundedCornerShape(5.dp)),
+                        ) { Box(Modifier.fillMaxHeight().fillMaxWidth(prog.toFloat() / q.goal).background(Mint)) }
+                        Text("$prog / ${q.goal}   ·   +${q.xp} XP  +${q.gems} gems", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 2.dp))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (done && !claimed) Color(0xFFFFB86B) else PanelHi)
+                            .border(2.dp, Ink, RoundedCornerShape(12.dp))
+                            .clickable(enabled = done && !claimed) { vm.claimQuest(i) }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(if (claimed) "Done" else "Claim", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (done && !claimed) Ink else Muted)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------- tutorial ----------
+
+/** A centred cozy card with the conductor, used for the welcome and the "all set" screens. */
+@Composable
+private fun TutorialCard(title: String, step: Int, text: String, button: String, onButton: () -> Unit, onSkip: (() -> Unit)?) {
+    val sp = rememberGameSprites()
+    var t by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) { while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f } }
+    val enter = remember { Animatable(0.85f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 400f)) }
+    Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
+        Box(Modifier.fillMaxWidth(0.88f).widthIn(max = 380.dp).graphicsLayer { scaleX = enter.value; scaleY = enter.value }) {
+            Column(
+                Modifier
+                    .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Panel)
+                    .border(3.dp, Ink, RoundedCornerShape(28.dp))
+                    .padding(start = 18.dp, end = 18.dp, top = 30.dp, bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                TutorialSteps(step)
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        val c = center
+                        val r = size.minDimension / 2f
+                        drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF0D2), Color(0xFFCDE7F8)), c, r), r, c)
+                        for (i in 0 until 12) {
+                            val a = (i * PI / 6).toFloat() + t * 0.25f
+                            val ray = Path().apply {
+                                moveTo(c.x, c.y)
+                                lineTo(c.x + cos(a - 0.11f) * r, c.y + sin(a - 0.11f) * r)
+                                lineTo(c.x + cos(a + 0.11f) * r, c.y + sin(a + 0.11f) * r)
+                                close()
+                            }
+                            drawPath(ray, Color.White.copy(alpha = 0.3f))
+                        }
+                        drawCircle(Ink, r - 1.5.dp.toPx(), c, style = Stroke(3.dp.toPx()))
+                    }
+                    val hop = kotlin.math.abs(sin(t * 3f)) * 6f
+                    sp.npc?.let { Image(it, "Conductor", Modifier.size(84.dp, 105.dp).graphicsLayer { translationY = -hop }) }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(text, fontSize = 13.sp, color = Ink, textAlign = TextAlign.Center, lineHeight = 18.sp)
+                Spacer(Modifier.height(14.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.8f)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Brush.verticalGradient(listOf(Color(0xFFFFC98A), Color(0xFFFFA65C))))
+                        .border(2.5.dp, Ink, RoundedCornerShape(22.dp))
+                        .clickable(onClick = onButton)
+                        .padding(vertical = 11.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(button, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+                if (onSkip != null) {
+                    Text(
+                        "Skip tutorial", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 10.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onSkip).padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            Text(
+                title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFFFFE49A))
+                    .border(3.dp, Ink, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 22.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TutorialSteps(step: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (i in 0..4) {
+            Box(
+                Modifier
+                    .size(if (i == step) 14.dp else 10.dp)
+                    .clip(CircleShape)
+                    .background(if (i <= step) Color(0xFFFFB86B) else PanelHi)
+                    .border(1.5.dp, Ink, CircleShape),
+            )
+        }
+    }
+}
+
+/** During the tutorial: the conductor with a speech bubble above the footer, and a bouncing arrow at the button to press. */
+@Composable
+private fun TutorialGuide(vm: GameViewModel, sheetOpen: Boolean, modifier: Modifier = Modifier) {
+    val sp = rememberGameSprites()
+    val stage = vm.tutorialStage
+    val (title, text) = when {
+        stage == 1 -> "Your upgrades" to "Tap the gear button down here to open your upgrades."
+        stage == 2 && !sheetOpen -> "Buy Engine Power" to "Open the upgrades with the gear and buy Engine Power."
+        stage == 2 -> "Buy Engine Power" to "Wait for 30 coins, then tap the glowing Engine Power button."
+        else -> "Boost!" to "Tap BOOST a few times. Each tap fills a few seconds of extra income."
+    }
+    val arrowRight = stage == 3
+    val showArrow = !(stage == 2 && sheetOpen)
+    val bob by androidx.compose.animation.core.rememberInfiniteTransition(label = "guide").animateFloat(
+        0f, 1f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "guideBob",
+    )
+    Box(modifier) {
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp, vertical = 30.dp)
+                .widthIn(max = 360.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFCDE7F8))
+                    .border(2.5.dp, Ink, CircleShape),
+                contentAlignment = Alignment.BottomCenter,
+            ) { sp.npc?.let { Image(it, null, Modifier.size(44.dp, 55.dp).graphicsLayer { translationY = 6f - bob * 4f }) } }
+            Spacer(Modifier.width(6.dp))
+            Column(
+                Modifier
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 4.dp))
+                    .background(Panel)
+                    .border(2.5.dp, Ink, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 4.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f, fill = false))
+                    Spacer(Modifier.width(8.dp))
+                    TutorialSteps(stage)
+                }
+                Text(text, fontSize = 12.sp, color = Ink, lineHeight = 16.sp)
+            }
+        }
+        if (showArrow) {
+            Canvas(
+                Modifier
+                    .align(if (arrowRight) Alignment.BottomEnd else Alignment.BottomStart)
+                    .padding(start = 20.dp, end = 52.dp)
+                    .size(34.dp, 34.dp)
+                    .graphicsLayer { translationY = bob * 10.dp.toPx() - 2.dp.toPx() },
+            ) {
+                val w = size.width
+                val h = size.height
+                val arrow = Path().apply {
+                    moveTo(w * 0.3f, 0f); lineTo(w * 0.7f, 0f); lineTo(w * 0.7f, h * 0.5f); lineTo(w, h * 0.5f)
+                    lineTo(w * 0.5f, h); lineTo(0f, h * 0.5f); lineTo(w * 0.3f, h * 0.5f); close()
+                }
+                drawPath(arrow, Color(0xFFFFB86B))
+                drawPath(arrow, Ink, style = Stroke(2.5.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
     }
 }
