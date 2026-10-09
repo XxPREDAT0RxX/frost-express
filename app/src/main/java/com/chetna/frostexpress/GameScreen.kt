@@ -196,6 +196,7 @@ fun GameScreen(vm: GameViewModel) {
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 onOpenSettings = { showSettings = true },
+                onOpenGems = { sheet = 3 },
             )
             AchievementBanner(
                 vm.achievementPopup,
@@ -256,7 +257,9 @@ fun GameScreen(vm: GameViewModel) {
                     .clipToBounds(),
             ) {
                 if (shownSheet[0] == 2) {
-                    ShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                    ShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onGetGems = { sheet = 3 })
+                } else if (shownSheet[0] == 3) {
+                    GemShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onBack = { sheet = 2 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
@@ -290,7 +293,7 @@ fun GameScreen(vm: GameViewModel) {
             text = {
                 Text(
                     "${fmt(vm.dailyCoins(streak))} coins" +
-                        (if (vm.dailyGivesCore(streak)) " and 1 Frost Core" else "") +
+                        (if (vm.dailyGivesCore(streak)) ", 1 Frost Core" else "") + ", ${vm.dailyGems(streak)} gems" +
                         "\nCome back every day to grow your streak. Every 7th day gives a Frost Core."
                 )
             },
@@ -429,7 +432,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 // ---------- HUD ----------
 
 @Composable
-private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}) {
+private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}) {
     val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
     Column(
         modifier
@@ -444,6 +447,21 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
             CoinIcon(Modifier.size(22.dp))
             Spacer(Modifier.width(6.dp))
             Text(fmt(vm.coins), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = GoldText, modifier = Modifier.weight(1f))
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(GemPink.copy(alpha = 0.14f))
+                    .clickable(onClick = onOpenGems)
+                    .padding(horizontal = 7.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GemIcon(Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("${vm.gems}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = GemPink)
+                Spacer(Modifier.width(3.dp))
+                Text("+", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = GemPink)
+            }
+            Spacer(Modifier.width(6.dp))
             SpeakerButton(vm.soundOn, vm::toggleSound)
             Spacer(Modifier.width(6.dp))
             MenuButton(onOpenSettings)
@@ -1246,6 +1264,8 @@ private fun UpgradeRow(
     locked: Boolean = false,
     highlight: Boolean = false,
     onInfo: (() -> Unit)? = null,
+    priceIcon: Int = 0, // 0 coin, 1 frost core, 2 gem, 3 none (real-money price)
+    icon: (@Composable () -> Unit)? = null,
 ) {
     val buyNow = androidx.compose.runtime.rememberUpdatedState(onBuy)
     val accent = if (locked) Muted else upgradeColor(type)
@@ -1267,7 +1287,7 @@ private fun UpgradeRow(
                 .then(if (onInfo != null) Modifier.clickable { onInfo() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            if (locked) LockIcon(Muted, Modifier.size(20.dp)) else UpgradeIcon(type, accent, Modifier.size(22.dp))
+            if (locked) LockIcon(Muted, Modifier.size(20.dp)) else if (icon != null) icon() else UpgradeIcon(type, accent, Modifier.size(22.dp))
         }
         Column(Modifier.weight(1f).then(if (onInfo != null) Modifier.clickable { onInfo() } else Modifier)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1304,7 +1324,12 @@ private fun UpgradeRow(
             Text(buttonTop, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (enabled) Color.White else Muted)
             if (buttonBottom != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (core) CoreIcon(if (enabled) Color.White else Muted, Modifier.size(9.dp)) else CoinIcon(Modifier.size(9.dp))
+                    when {
+                        priceIcon == 2 -> GemIcon(Modifier.size(10.dp))
+                        priceIcon == 3 -> {}
+                        core || priceIcon == 1 -> CoreIcon(if (enabled) Color.White else Muted, Modifier.size(9.dp))
+                        else -> CoinIcon(Modifier.size(9.dp))
+                    }
                     Spacer(Modifier.width(3.dp))
                     Text(buttonBottom, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (enabled) Color.White else Muted)
                 }
@@ -1426,6 +1451,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
     val canBuy = !locked && !maxed && vm.coins >= cost
     val buyNow = androidx.compose.runtime.rememberUpdatedState { vm.buy(spec) }
 
+    val mats = rememberMaterials()
     var t by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f }
@@ -1482,11 +1508,13 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                         .padding(10.dp)
                         .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
                 ) {
-                    if (spec.eff != null) {
-                        val side = min(size.width, size.height) * 0.92f
-                        drawDevice(type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, maxOf(lvl, 1), flash.value, 0.6f)
-                    } else {
-                        drawGadget(spec.gadget, color, t, lvl, flash.value)
+                    withMaterial(mats.forType(type), 0f, 0f, size.width, size.height, density / 3f) {
+                        if (spec.eff != null) {
+                            val side = min(size.width, size.height) * 0.92f
+                            drawDevice(type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, maxOf(lvl, 1), flash.value, 0.6f)
+                        } else {
+                            drawGadget(spec.gadget, color, t, lvl, flash.value)
+                        }
                     }
                 }
             }
@@ -1561,7 +1589,7 @@ private fun ShopIcon(color: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit, onGetGems: () -> Unit) {
     Column(
         modifier
             .fillMaxWidth()
@@ -1580,9 +1608,11 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
             ShopIcon(Ember, Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text("Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            CoinIcon(Modifier.size(16.dp))
+            GemIcon(Modifier.size(16.dp))
             Spacer(Modifier.width(5.dp))
-            Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
+            Text("${vm.gems}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
+            Spacer(Modifier.width(8.dp))
+            PillButton("Get gems", GemPink, Color.White, onClick = onGetGems)
             TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
         }
         LazyColumn(
@@ -1591,7 +1621,7 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             item {
-                Text("Boosters bought with coins. Prices follow your income. Timed boosters stack up to 30 minutes.", fontSize = 11.sp, color = Muted)
+                Text("Boosters bought with gems. Timed boosters stack up to 30 minutes.", fontSize = 11.sp, color = Muted)
             }
             items(ShopItem.values().toList()) { item ->
                 val cost = vm.shopCost(item)
@@ -1615,9 +1645,109 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
                         else -> null
                     },
                     buttonTop = "Buy",
-                    buttonBottom = fmt(cost),
-                    enabled = avail && vm.coins >= cost,
+                    buttonBottom = "$cost",
+                    enabled = avail && vm.gems >= cost,
                     onBuy = { vm.buyShop(item) },
+                    priceIcon = 2,
+                )
+            }
+        }
+    }
+}
+
+// ---------- gems ----------
+
+private val GemPink = Color(0xFFD6336C)
+
+@Composable
+private fun GemIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        val outline = Path().apply {
+            moveTo(.22f * s, .14f * s); lineTo(.78f * s, .14f * s); lineTo(.96f * s, .38f * s)
+            lineTo(.5f * s, .94f * s); lineTo(.04f * s, .38f * s); close()
+        }
+        drawPath(outline, Brush.linearGradient(listOf(Color(0xFFFF8FB8), Color(0xFFD6336C), Color(0xFF8E1B4B)), Offset(0f, 0f), Offset(s, s)))
+        val table = Path().apply { moveTo(.22f * s, .14f * s); lineTo(.78f * s, .14f * s); lineTo(.64f * s, .38f * s); lineTo(.36f * s, .38f * s); close() }
+        drawPath(table, Color.White.copy(alpha = 0.45f))
+        drawLine(Color.White.copy(alpha = 0.35f), Offset(.04f * s, .38f * s), Offset(.96f * s, .38f * s), .03f * s)
+        drawLine(Color.White.copy(alpha = 0.3f), Offset(.36f * s, .38f * s), Offset(.5f * s, .94f * s), .03f * s)
+        drawLine(Color.White.copy(alpha = 0.3f), Offset(.64f * s, .38f * s), Offset(.5f * s, .94f * s), .03f * s)
+    }
+}
+
+@Composable
+private fun GemShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit, onBack: () -> Unit) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Panel)
+            .border(1.5.dp, GemPink.copy(alpha = 0.55f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.horizontalGradient(listOf(Color(0xFFFFD6E5), Color(0xFFF3E3FF))))
+                .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) { Text("< Shop", fontSize = 12.sp) }
+            Text("Gem Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            GemIcon(Modifier.size(16.dp))
+            Spacer(Modifier.width(5.dp))
+            Text("${vm.gems}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GemPink)
+            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            item { Text("GEM PACKS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink) }
+            items(GemPack.values().toList()) { pack ->
+                val price = vm.gemPackPrice(pack)
+                UpgradeRow(
+                    type = UpgradeType.BOOSTER,
+                    title = pack.title,
+                    level = "",
+                    effect = "+${pack.gems} gems",
+                    note = if (!Balance.IAP_ENABLED) "Opens after launch on Google Play" else null,
+                    buttonTop = if (Balance.IAP_ENABLED) "Buy" else "Soon",
+                    buttonBottom = price,
+                    enabled = Balance.IAP_ENABLED,
+                    onBuy = { vm.buyGemPack(pack) },
+                    priceIcon = 3,
+                    icon = { GemIcon(Modifier.size(24.dp)) },
+                )
+            }
+            item {
+                Spacer(Modifier.height(4.dp))
+                Text("TRADE COINS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink)
+                Text("Up to ${Balance.GEM_TRADE_PER_DAY} gems a day. ${vm.gemTradeLeft} left today.", fontSize = 11.sp, color = Muted)
+            }
+            items(GemTrade.values().toList()) { trade ->
+                val cost = vm.gemTradeCost(trade)
+                UpgradeRow(
+                    type = UpgradeType.BOOSTER,
+                    title = "${trade.gems} gems",
+                    level = "",
+                    effect = "Pay with coins",
+                    note = if (vm.gemTradeLeft < trade.gems) "Daily limit reached" else null,
+                    buttonTop = "Trade",
+                    buttonBottom = fmt(cost),
+                    enabled = vm.coins >= cost && vm.gemTradeLeft >= trade.gems,
+                    onBuy = { vm.tradeForGems(trade) },
+                    icon = { GemIcon(Modifier.size(22.dp)) },
+                )
+            }
+            item {
+                Spacer(Modifier.height(4.dp))
+                Text("FREE GEMS", fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = GemPink)
+                Text(
+                    "The daily reward gives ${Balance.DAILY_GEMS} gems, and ${Balance.DAILY_GEMS * 5} on every 7th day in a row.",
+                    fontSize = 11.sp, color = Muted,
                 )
             }
         }
