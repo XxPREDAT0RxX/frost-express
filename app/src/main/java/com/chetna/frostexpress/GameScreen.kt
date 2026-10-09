@@ -2,7 +2,12 @@ package com.chetna.frostexpress
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -25,6 +30,19 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -100,6 +118,7 @@ private fun upgradeColor(t: UpgradeType): Color = when (t) {
     UpgradeType.COAL -> Color(0xFF6B7580)
     UpgradeType.BOOSTER -> Color(0xFFB24DD6)
     UpgradeType.CONDUCTOR -> Color(0xFF5C7CFA)
+    else -> gadgetColor(UPGRADES.firstOrNull { it.type == t }?.gadget ?: Gadget.GEAR)
 }
 
 @Composable
@@ -146,9 +165,13 @@ private fun FrostAlert(
 fun GameScreen(vm: GameViewModel) {
     var showUpgrades by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var focusType by remember { mutableStateOf<UpgradeType?>(null) }
+    var detail by remember { mutableStateOf<UpgradeType?>(null) }
     BackHandler(enabled = showUpgrades) { showUpgrades = false }
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
+    val sheetPx = with(LocalDensity.current) { sheetHeight.roundToPx() }
+    // One progress value drives the sheet height, so opening and closing never jump.
+    val sheetP by animateFloatAsState(if (showUpgrades) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "sheet")
+    val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
 
     Column(
         Modifier
@@ -159,8 +182,7 @@ fun GameScreen(vm: GameViewModel) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
-                focusType = type
-                showUpgrades = true
+                detail = type
             })
             TopHud(
                 vm,
@@ -213,21 +235,29 @@ fun GameScreen(vm: GameViewModel) {
             modifier = Modifier
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         )
-        AnimatedVisibility(
-            visible = showUpgrades,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-        ) {
-            UpgradesSheet(
-                vm, Modifier.height(sheetHeight),
-                focus = focusType, onFocusDone = { focusType = null },
-                onClose = { showUpgrades = false },
-            )
+        if (sheetP > 0.001f) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints.copy(minHeight = sheetPx, maxHeight = sheetPx))
+                        val h = (sheetPx * sheetP).toInt()
+                        layout(placeable.width, h) { placeable.place(0, 0) }
+                    }
+                    .clipToBounds(),
+            ) {
+                UpgradesSheet(
+                    vm, Modifier.height(sheetHeight),
+                    focus = null, onFocusDone = {},
+                    onOpenDetail = { detail = it },
+                    onClose = { showUpgrades = false },
+                )
+            }
         }
-        if (!showUpgrades) {
-            Spacer(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)))
-        }
+        Spacer(Modifier.height(bottomInset * (1f - sheetP)))
     }
+
+    detail?.let { UpgradeDialog(vm, it, onClose = { detail = null }) }
 
     // Pop-ups in order: tutorial welcome, daily reward, welcome back. The rest of the tutorial is shown as hints.
     if (vm.tutorialStage == 0) {
@@ -379,6 +409,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
                 drawCircle(Panel, .32f * s, Offset(.66f * s, .4f * s))
                 drawCircle(color, .05f * s, Offset(.78f * s, .22f * s))
             }
+            else -> drawGadget(UPGRADES.firstOrNull { it.type == type }?.gadget ?: Gadget.GEAR, color, 0f, 0, 0f)
         }
     }
 }
@@ -911,6 +942,7 @@ private fun UpgradesSheet(
     modifier: Modifier = Modifier,
     focus: UpgradeType? = null,
     onFocusDone: () -> Unit = {},
+    onOpenDetail: (UpgradeType) -> Unit = {},
     onClose: () -> Unit,
 ) {
     var confirmEvolve by remember { mutableStateOf(false) }
@@ -998,7 +1030,10 @@ private fun UpgradesSheet(
                 item {
                     Text("Reset when you evolve. Hold a buy button to keep buying.", fontSize = 11.sp, color = Muted)
                 }
-            items(UPGRADES) { spec ->
+            // Show every unlocked upgrade plus the next locked one; the rest stay a surprise.
+            val firstLocked = UPGRADES.indexOfFirst { !vm.isUnlocked(it) }
+            val visibleUpgrades = if (firstLocked < 0) UPGRADES else UPGRADES.take(firstLocked + 1)
+            items(visibleUpgrades) { spec ->
                 val lvl = vm.level(spec.type)
                 val maxed = lvl >= spec.maxLevel
                 val n = vm.buyCount(spec)
@@ -1024,7 +1059,11 @@ private fun UpgradesSheet(
                     onBuy = { vm.buy(spec) },
                     locked = locked,
                     highlight = focus == spec.type,
+                    onInfo = if (locked) null else ({ onOpenDetail(spec.type) }),
                 )
+            }
+            if (firstLocked >= 0 && firstLocked + 1 < UPGRADES.size) item {
+                Text("${UPGRADES.size - firstLocked - 1} more upgrades to discover...", fontSize = 11.sp, color = Muted)
             }
         }
             if (tab == 0) item { EvolveCard(vm, onEvolve = { confirmEvolve = true }) }
@@ -1161,6 +1200,7 @@ private fun UpgradeRow(
     core: Boolean = false,
     locked: Boolean = false,
     highlight: Boolean = false,
+    onInfo: (() -> Unit)? = null,
 ) {
     val buyNow = androidx.compose.runtime.rememberUpdatedState(onBuy)
     val accent = if (locked) Muted else upgradeColor(type)
@@ -1178,12 +1218,13 @@ private fun UpgradeRow(
             Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(accent.copy(alpha = 0.18f)),
+                .background(accent.copy(alpha = 0.18f))
+                .then(if (onInfo != null) Modifier.clickable { onInfo() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             if (locked) LockIcon(Muted, Modifier.size(20.dp)) else UpgradeIcon(type, accent, Modifier.size(22.dp))
         }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).then(if (onInfo != null) Modifier.clickable { onInfo() } else Modifier)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Spacer(Modifier.width(6.dp))
@@ -1321,6 +1362,135 @@ fun CrashScreen(report: String, onContinue: () -> Unit, onReset: () -> Unit) {
             }
             PillButton("Continue", Ice, Color.White, onClick = onContinue)
             PillButton("Reset save", Color(0xFFF3D3CF), Color(0xFFB03A2E), onClick = onReset)
+        }
+    }
+}
+
+
+// ---------- per-upgrade pop-up: shows the device and animates it when it is upgraded ----------
+
+@Composable
+private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> Unit) {
+    val spec = UPGRADES.firstOrNull { it.type == type } ?: return
+    val color = gadgetColor(spec.gadget)
+    val lvl = vm.level(type)
+    val maxed = lvl >= spec.maxLevel
+    val locked = !vm.isUnlocked(spec)
+    val n = vm.buyCount(spec)
+    val cost = vm.bulkCost(spec, n)
+    val canBuy = !locked && !maxed && vm.coins >= cost
+    val buyNow = androidx.compose.runtime.rememberUpdatedState { vm.buy(spec) }
+
+    var t by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f }
+    }
+    val flash = remember { Animatable(0f) }
+    val pop = remember { Animatable(1f) }
+    var prev by remember { mutableIntStateOf(lvl) }
+    LaunchedEffect(lvl) {
+        if (lvl > prev) {
+            launch { flash.snapTo(1f); flash.animateTo(0f, tween(900)) }
+            launch { pop.snapTo(1.16f); pop.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 300f)) }
+        }
+        prev = lvl
+    }
+
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 380.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Panel)
+                .border(2.dp, Wood.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
+                .padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(spec.title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+                Text(
+                    if (locked) "Locked" else "Lv $lvl" + (if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            // the device, on a patch of the train's wooden floor
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(190.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Brush.verticalGradient(listOf(Color(0xFFEBDDBF), Color(0xFFD8C298))))
+                    .border(1.5.dp, Wood.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    var py = 14f * density
+                    while (py < size.height) {
+                        drawLine(Color(0x1A5A4A3B), Offset(0f, py), Offset(size.width, py), 1.5f * density)
+                        py += 30f * density
+                    }
+                }
+                Canvas(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(10.dp)
+                        .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
+                ) { drawGadget(spec.gadget, color, t, lvl, flash.value) }
+            }
+            Spacer(Modifier.height(8.dp))
+            if (locked) {
+                val req = UPGRADES.firstOrNull { it.type == spec.unlockType }
+                Text("Reach ${req?.title} Lv ${spec.unlockLevel} to unlock.", fontSize = 12.sp, color = Muted)
+            } else {
+                val eff = spec.eff
+                if (eff != null) {
+                    Text("Now: " + (if (lvl == 0) "no bonus yet" else effText(eff, spec.per * lvl)), fontSize = 12.sp, color = Ink)
+                    if (!maxed) Text("Next level: " + effText(eff, spec.per * (lvl + 1)), fontSize = 12.sp, color = GoldText, fontWeight = FontWeight.SemiBold)
+                } else {
+                    Text("Each level: ${spec.effect}", fontSize = 12.sp, color = Ink)
+                    vm.nextMilestone(type)?.let { Text("Double bonus at Lv $it", fontSize = 12.sp, color = GoldText, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Close") }
+                Column(
+                    Modifier
+                        .weight(1.4f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (canBuy) color else PanelHi)
+                        // Tap to buy once; hold to keep buying, faster the longer you hold.
+                        .pointerInput(canBuy) {
+                            if (!canBuy) return@pointerInput
+                            awaitEachGesture {
+                                awaitFirstDown()
+                                buyNow.value()
+                                var wait = 450L
+                                while (true) {
+                                    val released = withTimeoutOrNull(wait) { waitForUpOrCancellation(); true } ?: false
+                                    if (released) break
+                                    buyNow.value()
+                                    wait = (wait * 0.82f).toLong().coerceAtLeast(90L)
+                                }
+                            }
+                        }
+                        .padding(vertical = 9.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        if (locked) "Locked" else if (maxed) "MAX" else "Upgrade +$n",
+                        fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (canBuy) Color.White else Muted,
+                    )
+                    if (!locked && !maxed) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CoinIcon(Modifier.size(11.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(fmt(cost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (canBuy) Color.White else Muted)
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -381,18 +381,24 @@ private fun DrawScope.drawScene(
     drawDecor(scroll, originX, trainPx, h, u)
     if (fx) safeFx { drawGroundFx(time, scroll, w, h, u, dark, storm) }
     for (st in stations) drawStation(st, originX, u)
-    translate(left = originX, top = (centerOff - npc.camY) * u * z) {
+    val ny = (centerOff - npc.camY) * u * z
+    // The outside world (track, ground, trees) gets the full night tint first...
+    translate(left = originX, top = ny) {
+        scale(scaleX = z, scaleY = z, pivot = Offset.Zero) { drawTrack(scroll, npc.trainLen) }
+    }
+    if (dark > 0.01f) drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
+    // ...and the lit train interior is drawn on top, only slightly dimmed and warmed by its lamps.
+    translate(left = originX, top = ny) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
-            drawTrack(scroll, npc.trainLen)
             drawTrain(tier, look, npc, time, boosting)
             if (npc2 != null) drawNpc(npc2, Color(0xFF5BBE7A), Color(0xFFF2C94C))
             drawNpc(npc)
         }
     }
-    // day and night: a blue tint, with headlight beams once it is dark
     if (dark > 0.01f) {
-        drawRect(Color(0xFF0B1B3A).copy(alpha = dark), size = size)
-        val ny = (centerOff - npc.camY) * u * z
+        val trainH = npc.trainLen * u * z
+        drawRect(Color(0xFF0B1B3A).copy(alpha = dark * 0.3f), Offset(originX, ny), Size(trainPx, trainH))
+        drawRect(Color(0xFFFFB866).copy(alpha = dark * 0.22f), Offset(originX, ny), Size(trainPx, trainH), blendMode = BlendMode.Plus)
         val cx = originX + trainPx / 2f
         val beam = Path().apply {
             moveTo(cx - 40f * u * z, ny + 4f * u * z); lineTo(cx + 40f * u * z, ny + 4f * u * z)

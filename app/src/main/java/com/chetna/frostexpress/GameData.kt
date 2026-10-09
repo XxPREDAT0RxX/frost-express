@@ -17,7 +17,67 @@ val TIERS = listOf(
     TrainTier("Eternal Engine", 0xFF222831, 0xFFFFC83D),
 )
 
-enum class UpgradeType { ENGINE, WAGON, HEAT, FOOD, PLOW, COAL, BOOSTER, CONDUCTOR }
+/** Drawing family used for an upgrade's device picture. */
+enum class Gadget { GEAR, WHEEL, FLAME, LAMP, STEAM, CRATE, FAN, COIL, BELL, TANK, DIAL, SHIELD, COIN, CLOCK, ANTENNA, CUP, PLOW, COALPILE, ENGINE, BED }
+
+/** What a generic (non-core) upgrade improves. */
+enum class Eff { SPEED, INCOME, RECHARGE, BOOSTMULT, BOOSTLEN, OFFLINE, STATION, CRATE, STORM, NIGHT, AURORA }
+
+private val EXTRA_DEFS = listOf(
+    // id, title, gadget, effect, per level, max level
+    Triple("SNOW_CHAINS", "Snow Chains", Gadget.WHEEL) to Triple(Eff.SPEED, 0.03, 12),
+    Triple("BRASS_PISTONS", "Brass Pistons", Gadget.GEAR) to Triple(Eff.SPEED, 0.03, 12),
+    Triple("STEAM_WHISTLE", "Steam Whistle", Gadget.BELL) to Triple(Eff.INCOME, 0.02, 12),
+    Triple("HEADLAMP", "Headlamp", Gadget.LAMP) to Triple(Eff.NIGHT, 0.05, 12),
+    Triple("WATER_TANK", "Water Tank", Gadget.TANK) to Triple(Eff.RECHARGE, 0.04, 12),
+    Triple("PRESSURE_GAUGE", "Pressure Gauge", Gadget.DIAL) to Triple(Eff.SPEED, 0.02, 12),
+    Triple("COAL_TENDER", "Coal Tender", Gadget.COALPILE) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("FROST_SHIELD", "Frost Shield", Gadget.SHIELD) to Triple(Eff.STORM, 0.05, 12),
+    Triple("TICKET_OFFICE", "Ticket Office", Gadget.COIN) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("SAMOVAR", "Samovar", Gadget.CUP) to Triple(Eff.INCOME, 0.02, 12),
+    Triple("ROOF_FAN", "Roof Fan", Gadget.FAN) to Triple(Eff.INCOME, 0.02, 12),
+    Triple("RADIO_MAST", "Radio Mast", Gadget.ANTENNA) to Triple(Eff.STATION, 0.06, 12),
+    Triple("POCKET_WATCH", "Pocket Watch", Gadget.CLOCK) to Triple(Eff.BOOSTLEN, 0.15, 10),
+    Triple("SPARK_COIL", "Spark Coil", Gadget.COIL) to Triple(Eff.BOOSTMULT, 0.05, 12),
+    Triple("FLYWHEEL", "Flywheel", Gadget.WHEEL) to Triple(Eff.SPEED, 0.03, 12),
+    Triple("STEAM_DOME", "Steam Dome", Gadget.STEAM) to Triple(Eff.SPEED, 0.03, 12),
+    Triple("WIND_DEFLECTOR", "Wind Deflector", Gadget.PLOW) to Triple(Eff.SPEED, 0.02, 12),
+    Triple("SPARE_CRATES", "Spare Crates", Gadget.CRATE) to Triple(Eff.CRATE, 0.06, 12),
+    Triple("INSULATION", "Insulation Layer", Gadget.SHIELD) to Triple(Eff.INCOME, 0.02, 12),
+    Triple("STOVE_PIPE", "Stove Pipe", Gadget.STEAM) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("LANTERN_RACK", "Lantern Rack", Gadget.LAMP) to Triple(Eff.NIGHT, 0.06, 12),
+    Triple("COOLING_FAN", "Cooling Fan", Gadget.FAN) to Triple(Eff.RECHARGE, 0.04, 12),
+    Triple("SIGNAL_BELL", "Signal Bell", Gadget.BELL) to Triple(Eff.STATION, 0.05, 12),
+    Triple("CARGO_NET", "Cargo Net", Gadget.CRATE) to Triple(Eff.INCOME, 0.02, 12),
+    Triple("BOILER_RIVETS", "Boiler Rivets", Gadget.GEAR) to Triple(Eff.SPEED, 0.02, 12),
+    Triple("WOOL_BLANKETS", "Wool Blankets", Gadget.BED) to Triple(Eff.OFFLINE, 0.02, 10),
+    Triple("TEA_BREWER", "Tea Brewer", Gadget.CUP) to Triple(Eff.OFFLINE, 0.02, 10),
+    Triple("TIMETABLE", "Timetable Board", Gadget.CLOCK) to Triple(Eff.STATION, 0.05, 12),
+    Triple("GOLD_COUPLER", "Gold Coupler", Gadget.COIN) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("AURORA_PRISM", "Aurora Prism", Gadget.COIL) to Triple(Eff.AURORA, 0.05, 10),
+    Triple("FROST_RADAR", "Frost Radar", Gadget.ANTENNA) to Triple(Eff.STORM, 0.05, 12),
+    Triple("NIGHT_WATCH", "Night Watch", Gadget.CLOCK) to Triple(Eff.NIGHT, 0.06, 12),
+    Triple("TURBO_VALVE", "Turbo Valve", Gadget.STEAM) to Triple(Eff.BOOSTMULT, 0.05, 12),
+    Triple("ICE_CUTTER", "Ice Cutter", Gadget.PLOW) to Triple(Eff.SPEED, 0.03, 12),
+    Triple("GREASE_PUMP", "Grease Pump", Gadget.TANK) to Triple(Eff.SPEED, 0.02, 12),
+    Triple("FUEL_INJECTOR", "Fuel Injector", Gadget.FLAME) to Triple(Eff.RECHARGE, 0.04, 12),
+    Triple("CABIN_HEATER", "Cabin Heater", Gadget.FLAME) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("CARGO_CRANE", "Cargo Crane", Gadget.CRATE) to Triple(Eff.CRATE, 0.08, 12),
+    Triple("LOUNGE", "Passenger Lounge", Gadget.CUP) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("BANK_SAFE", "Bank Safe", Gadget.COIN) to Triple(Eff.OFFLINE, 0.02, 10),
+    Triple("COMPASS", "Compass", Gadget.DIAL) to Triple(Eff.STATION, 0.04, 12),
+    Triple("GOVERNOR", "Governor", Gadget.GEAR) to Triple(Eff.SPEED, 0.03, 12),
+    Triple("MAGNET_COUPLER", "Magnet Coupler", Gadget.COIL) to Triple(Eff.INCOME, 0.03, 12),
+    Triple("POLAR_BEACON", "Polar Beacon", Gadget.LAMP) to Triple(Eff.BOOSTLEN, 0.15, 10),
+)
+
+enum class UpgradeType { ENGINE, WAGON, HEAT, FOOD, PLOW, COAL, BOOSTER, CONDUCTOR,
+    SNOW_CHAINS, BRASS_PISTONS, STEAM_WHISTLE, HEADLAMP, WATER_TANK, PRESSURE_GAUGE, COAL_TENDER, FROST_SHIELD,
+    TICKET_OFFICE, SAMOVAR, ROOF_FAN, RADIO_MAST, POCKET_WATCH, SPARK_COIL, FLYWHEEL, STEAM_DOME,
+    WIND_DEFLECTOR, SPARE_CRATES, INSULATION, STOVE_PIPE, LANTERN_RACK, COOLING_FAN, SIGNAL_BELL, CARGO_NET,
+    BOILER_RIVETS, WOOL_BLANKETS, TEA_BREWER, TIMETABLE, GOLD_COUPLER, AURORA_PRISM, FROST_RADAR, NIGHT_WATCH,
+    TURBO_VALVE, ICE_CUTTER, GREASE_PUMP, FUEL_INJECTOR, CABIN_HEATER, CARGO_CRANE, LOUNGE, BANK_SAFE,
+    COMPASS, GOVERNOR, MAGNET_COUPLER, POLAR_BEACON }
 
 data class UpgradeSpec(
     val type: UpgradeType,
@@ -29,19 +89,54 @@ data class UpgradeSpec(
     /** This upgrade unlocks once [unlockType] reaches [unlockLevel] (null = available from the start). */
     val unlockType: UpgradeType? = null,
     val unlockLevel: Int = 0,
+    val gadget: Gadget = Gadget.GEAR,
+    /** Generic upgrades: what they improve and by how much per level (null = one of the core eight). */
+    val eff: Eff? = null,
+    val per: Double = 0.0,
 )
 
+fun effText(e: Eff, per: Double): String {
+    val pct = (per * 100).let { if (it % 1.0 == 0.0) it.toInt().toString() else String.format(Locale.US, "%.0f", it) }
+    return when (e) {
+        Eff.SPEED -> "+$pct% train speed"
+        Eff.INCOME -> "+$pct% coins"
+        Eff.RECHARGE -> "+$pct% faster boost recharge"
+        Eff.BOOSTMULT -> "+${String.format(Locale.US, "%.2f", per)} boost multiplier"
+        Eff.BOOSTLEN -> "+${String.format(Locale.US, "%.2f", per)} s of boost per tap"
+        Eff.OFFLINE -> "+$pct% offline earnings"
+        Eff.STATION -> "+$pct% station bonus"
+        Eff.CRATE -> "+$pct% supply crate reward"
+        Eff.STORM -> "-$pct% of storm slowdown"
+        Eff.NIGHT -> "+$pct% coins at night"
+        Eff.AURORA -> "+$pct% aurora bonus"
+    }
+}
+
 /** To add an upgrade: add an UpgradeType, an entry here, and its formula in GameViewModel. */
-val UPGRADES = listOf(
-    UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.18),
-    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+60% coins per metre", 50.0, 1.45, 40, UpgradeType.ENGINE, 5),
-    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+8% income, warm passengers pay more", 150.0, 1.30, Int.MAX_VALUE, UpgradeType.WAGON, 3),
-    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+6% income", 400.0, 1.32, Int.MAX_VALUE, UpgradeType.HEAT, 5),
-    UpgradeSpec(UpgradeType.PLOW, "Ice Plow", "+5% speed", 600.0, 1.35, 60, UpgradeType.FOOD, 3),
-    UpgradeSpec(UpgradeType.COAL, "Coal Stoker", "+8% faster boost recharge", 300.0, 1.30, 30, UpgradeType.PLOW, 5),
-    UpgradeSpec(UpgradeType.BOOSTER, "Boost Core", "+0.2 boost multiplier", 800.0, 1.40, 20, UpgradeType.COAL, 5),
-    UpgradeSpec(UpgradeType.CONDUCTOR, "Night Conductor", "+5% offline earnings", 1000.0, 1.40, 15, UpgradeType.BOOSTER, 3),
+private val CORE_UPGRADES = listOf(
+    UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.18, gadget = Gadget.ENGINE),
+    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+60% coins per metre", 50.0, 1.45, 40, UpgradeType.ENGINE, 5, gadget = Gadget.CRATE),
+    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+8% income, warm passengers pay more", 150.0, 1.30, Int.MAX_VALUE, UpgradeType.WAGON, 3, gadget = Gadget.FLAME),
+    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+6% income", 400.0, 1.32, Int.MAX_VALUE, UpgradeType.HEAT, 5, gadget = Gadget.CUP),
+    UpgradeSpec(UpgradeType.PLOW, "Ice Plow", "+5% speed", 600.0, 1.35, 60, UpgradeType.FOOD, 3, gadget = Gadget.PLOW),
+    UpgradeSpec(UpgradeType.COAL, "Coal Stoker", "+8% faster boost recharge", 300.0, 1.30, 30, UpgradeType.PLOW, 5, gadget = Gadget.COALPILE),
+    UpgradeSpec(UpgradeType.BOOSTER, "Boost Core", "+0.2 boost multiplier", 800.0, 1.40, 20, UpgradeType.COAL, 5, gadget = Gadget.COIL),
+    UpgradeSpec(UpgradeType.CONDUCTOR, "Night Conductor", "+5% offline earnings", 1000.0, 1.40, 15, UpgradeType.BOOSTER, 3, gadget = Gadget.BED),
 )
+
+private val EXTRA_UPGRADES: List<UpgradeSpec> by lazy {
+    var prev = UpgradeType.CONDUCTOR
+    EXTRA_DEFS.mapIndexed { i, (a, b) ->
+        val (id, title, gadget) = a
+        val (eff, per, max) = b
+        val type = UpgradeType.valueOf(id)
+        val spec = UpgradeSpec(type, title, effText(eff, per), Math.floor(1500.0 * Math.pow(1.28, i.toDouble())), 1.35, max, prev, 3, gadget, eff, per)
+        prev = type
+        spec
+    }
+}
+
+val UPGRADES: List<UpgradeSpec> = CORE_UPGRADES + EXTRA_UPGRADES
 
 /** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
 enum class PermType { INCOME, SPEED, START, OFFLINE, BOOST, CREW }

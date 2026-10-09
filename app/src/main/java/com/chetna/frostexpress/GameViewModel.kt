@@ -265,8 +265,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private val eventSpeedMult: Double get() = if (stormLeft > 0.0) Balance.STORM_SPEED else 1.0
-    private val eventIncomeMult: Double get() = if (event == GameEvent.AURORA) Balance.AURORA_INCOME else 1.0
+    private val eventSpeedMult: Double
+        get() = if (stormLeft > 0.0) 1.0 - (1.0 - Balance.STORM_SPEED) * (1.0 - min(0.9, effSum(Eff.STORM))) else 1.0
+    private val eventIncomeMult: Double
+        get() = if (event == GameEvent.AURORA) Balance.AURORA_INCOME + effSum(Eff.AURORA) else 1.0
 
     private fun startRandomEvent() {
         event = if ((0..1).random() == 0) GameEvent.AURORA else GameEvent.CRATE
@@ -284,7 +286,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun collectCrate() {
         if (event != GameEvent.CRATE) return
-        val gain = max(50.0, baseCoinsPerSec * 60.0)
+        val gain = max(50.0, baseCoinsPerSec * 60.0) * (1.0 + effSum(Eff.CRATE))
         coins += gain
         event = GameEvent.NONE
         eventLeft = 0.0
@@ -294,7 +296,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called by the scene when a station reaches the train. */
     fun collectStation() {
-        val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC)
+        val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION))
         coins += gain
         audio.play(R.raw.sfx_buy)
         showToast("Station: passengers paid +${fmt(gain)} coins")
@@ -458,6 +460,14 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     // ---- derived values ----
     fun level(t: UpgradeType): Int = levels[t.ordinal]
 
+    private val extraSpecs: List<UpgradeSpec> = UPGRADES.filter { it.eff != null }
+    /** Total bonus from all generic upgrades of one kind (per level x level). */
+    private fun effSum(e: Eff): Double {
+        var sum = 0.0
+        for (sp in extraSpecs) if (sp.eff == e) sum += sp.per * levels[sp.type.ordinal]
+        return sum
+    }
+
     val tierIndex: Int get() = min(evolutions, TIERS.lastIndex)
 
     val speed: Double
@@ -465,7 +475,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             milestoneMult(UpgradeType.ENGINE) *
             (1.0 + Balance.PLOW_BONUS * level(UpgradeType.PLOW)) *
             (1.0 + Balance.TIER_SPEED_BONUS * tierIndex) *
-            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED)) * eventSpeedMult
+            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED)) * (1.0 + effSum(Eff.SPEED)) * eventSpeedMult
 
     val coinsPerMeter: Double
         get() = (1.0 + Balance.WAGON_BONUS * level(UpgradeType.WAGON)) * milestoneMult(UpgradeType.WAGON) *
@@ -474,23 +484,25 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             Balance.TIER_INCOME.pow(tierIndex) *
             (1.0 + Balance.CORE_BONUS * cores) *
             (1.0 + Balance.PERM_INCOME * permLevel(PermType.INCOME)) *
-            (1.0 + Balance.PERM_CREW * permLevel(PermType.CREW))
+            (1.0 + Balance.PERM_CREW * permLevel(PermType.CREW)) *
+            (1.0 + effSum(Eff.INCOME))
 
     val boostMultiplier: Double
         get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER) +
-            Balance.PERM_BOOST * permLevel(PermType.BOOST)
+            Balance.PERM_BOOST * permLevel(PermType.BOOST) + effSum(Eff.BOOSTMULT)
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult
+    private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     val coinsPerSec: Double get() = speed * coinsPerMeter * incomeMultiplier
     /** Steady income without boost, aurora or ad multipliers; used to size one-off rewards. */
     private val baseCoinsPerSec: Double get() = speed * coinsPerMeter
     private val rechargePerSec: Double
-        get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL))
+        get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL)) * (1.0 + effSum(Eff.RECHARGE))
     private val offlineRate: Double
         get() = min(1.0, Balance.OFFLINE_BASE + Balance.CONDUCTOR_BONUS * level(UpgradeType.CONDUCTOR) +
-            Balance.PERM_OFFLINE * permLevel(PermType.OFFLINE))
+            Balance.PERM_OFFLINE * permLevel(PermType.OFFLINE) + effSum(Eff.OFFLINE))
 
     val evolveDistance: Double get() = Balance.EVOLVE_BASE_DISTANCE * Balance.EVOLVE_GROWTH.pow(evolutions)
     val canEvolve: Boolean get() = runDistance >= evolveDistance
@@ -548,7 +560,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.play(R.raw.sfx_boost, 0.7f)
         boostTaps++
         boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
-        boostTimeLeft = min(Balance.BOOST_MAX_SEC, boostTimeLeft + Balance.BOOST_SEC_PER_TAP)
+        val extraLen = effSum(Eff.BOOSTLEN)
+        boostTimeLeft = min(Balance.BOOST_MAX_SEC + extraLen * 4.0, boostTimeLeft + Balance.BOOST_SEC_PER_TAP + extraLen)
         if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
     }
 
