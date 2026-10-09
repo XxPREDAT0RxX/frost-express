@@ -451,6 +451,14 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     // supply crate beside the track: [active, y in dp, side, x px, y px]
     val crate = remember { floatArrayOf(0f, 0f, 0f, 0f, 0f) }
     val zoneSeen = remember { intArrayOf(-1) }
+    val wolves = remember { ArrayList<Wolf>() }
+    var seenWolves by remember { mutableIntStateOf(vm.wolfSerial) }
+    // keepsake sparkle: [active, y dp, side, x px, y px]
+    val sparkle = remember { floatArrayOf(0f, 0f, 0f, 0f, 0f) }
+    var seenSparkles by remember { mutableIntStateOf(vm.sparkleSerial) }
+    // train edges and screen width in dp, written while drawing
+    val edges = remember { floatArrayOf(100f, 290f, 390f) }
+    val wolfImg = ImageBitmap.imageResource(R.drawable.spr_wolf)
     var seenCrates by remember { mutableIntStateOf(vm.crateSerial) }
     var time by remember { mutableFloatStateOf(0f) }
     // start where the last ride left off, so a new session does not always begin in the same region
@@ -497,10 +505,42 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     scroll += ds
                     // a new region of the frozen world reaches the train
                     val zoneNow = zoneAt(scroll - halfH[0])
-                    if (zoneNow != zoneSeen[0]) { if (zoneSeen[0] >= 0) vm.enterZone(ZONES[zoneNow].name); zoneSeen[0] = zoneNow }
+                    if (zoneNow != zoneSeen[0]) { vm.enterRegion(zoneNow, ZONES[zoneNow].name); zoneSeen[0] = zoneNow }
                     if (seenCrates < vm.crateSerial) {
                         seenCrates = vm.crateSerial
                         crate[0] = 1f; crate[1] = -70f; crate[2] = if (Math.random() < 0.5) 0f else 1f
+                    }
+                    // keepsake sparkles scroll past like crates
+                    if (seenSparkles < vm.sparkleSerial) {
+                        seenSparkles = vm.sparkleSerial
+                        sparkle[0] = 1f; sparkle[1] = -60f; sparkle[2] = if (Math.random() < 0.5) 0f else 1f
+                    }
+                    if (sparkle[0] > 0f) { sparkle[1] += ds; if (sparkle[1] > halfH[0] * 2f + 60f) sparkle[0] = 0f }
+                    // wolves: a small pack runs at the train from both sides
+                    if (seenWolves < vm.wolfSerial) {
+                        seenWolves = vm.wolfSerial
+                        val n = (3..5).random()
+                        for (k in 0 until n) {
+                            val side = k % 2
+                            wolves.add(Wolf(if (side == 0) -30f else edges[2] + 30f, halfH[0] * (0.45f + Math.random().toFloat() * 1.1f), side, k * 1.1f))
+                        }
+                    }
+                    if (wolves.isNotEmpty()) {
+                        for (wf in wolves) {
+                            if (wf.delay > 0f) { wf.delay -= dt; continue }
+                            wf.t += dt
+                            if (wf.state == 0) {
+                                val target = if (wf.side == 0) edges[0] - 8f else edges[1] + 8f
+                                val dir = if (wf.side == 0) 1f else -1f
+                                wf.x += dir * 38f * dt
+                                if ((wf.side == 0 && wf.x >= target) || (wf.side == 1 && wf.x <= target)) { wf.state = 2; vm.wolfReached() }
+                            } else if (wf.state == 1) {
+                                wf.x += (if (wf.side == 0) -1f else 1f) * 190f * dt
+                            }
+                            wf.y += ds * 0.4f
+                        }
+                        wolves.removeAll { it.state == 2 || it.x < -80f || it.x > edges[2] + 80f && it.state == 1 }
+                        if (wolves.isEmpty()) vm.endWolves()
                     }
                     if (crate[0] > 0f) {
                         if (vm.event != GameEvent.CRATE) crate[0] = 0f
@@ -578,6 +618,16 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     vm.collectCrate()
                     return@detectTapGestures
                 }
+                if (sparkle[0] > 0f && kotlin.math.hypot(pos.x - sparkle[3], pos.y - sparkle[4]) < 40f * u) {
+                    sparkle[0] = 0f
+                    vm.collectSparkle()
+                    return@detectTapGestures
+                }
+                wolves.firstOrNull { it.state == 0 && it.delay <= 0f && kotlin.math.hypot(pos.x - it.x * u, pos.y - it.y * u) < 30f * u }?.let {
+                    it.state = 1
+                    vm.chaseWolf()
+                    return@detectTapGestures
+                }
                 val tx = (pos.x - npc.originXpx) / (u * npc.zoom)
                 val ty = pos.y / (u * npc.zoom) - (npc.centerOffDp - npc.camY)
                 hotspotAt(tx, ty, npc.cars)?.let(onDeviceTap)
@@ -612,6 +662,8 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneMats = mats
         sceneSprites = sprites
         sceneGfx = vm.gfx
+        sceneGolden = vm.meta.golden.toList()
+        sceneDecor = vm.meta.decor.toList()
         sceneTier = vm.tierIndex
         sceneWalkers = FloatArray(2 + 2 + survivors.size * 2).also { a ->
             a[0] = npc.x; a[1] = npc.y
@@ -632,6 +684,37 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
             val cy = (crate[1] + (npc.camAuto - npc.camY) * npc.zoom) * u
             crate[3] = cx; crate[4] = cy
             drawSupplyCrate(cx, cy, time, sprites.crate)
+        }
+        run {
+            val u = density
+            val trainPx = CAR_W * u * npc.zoom
+            val ox = npc.originXpx
+            edges[0] = ox / u; edges[1] = (ox + trainPx) / u; edges[2] = size.width / u
+            if (sparkle[0] > 0f) {
+                val cx = if (sparkle[2] < 0.5f) ox * 0.5f else ox + trainPx + (size.width - ox - trainPx) * 0.5f
+                val cy = (sparkle[1] + (npc.camAuto - npc.camY) * npc.zoom) * u
+                sparkle[3] = cx; sparkle[4] = cy
+                drawKeepsakeSparkle(cx, cy, time)
+            }
+            for (wf in wolves) {
+                if (wf.delay > 0f) continue
+                val run = kotlin.math.abs(sin(wf.t * 12f)) * 3f * u
+                val faceRight = (wf.side == 0) == (wf.state == 0)
+                val sz = 44f * u
+                withTransform({
+                    translate(wf.x * u, wf.y * u - run)
+                    if (!faceRight) scale(-1f, 1f, Offset.Zero)
+                }) {
+                    drawImage(wolfImg, dstOffset = IntOffset((-sz / 2f).toInt(), (-sz * 0.6f).toInt()), dstSize = IntSize(sz.toInt(), (sz * 0.75f).toInt()))
+                }
+                if (wf.state == 0) {
+                    // a little exclamation bubble so they read as "tap me"
+                    drawCircle(Color(0xFFFFF6E9), 7f * u, Offset(wf.x * u, wf.y * u - 30f * u))
+                    drawCircle(Color(0xFF6B4A3A), 7f * u, Offset(wf.x * u, wf.y * u - 30f * u), style = Stroke(1.5f * u))
+                    drawLine(Color(0xFFE5484D), Offset(wf.x * u, wf.y * u - 34f * u), Offset(wf.x * u, wf.y * u - 29f * u), 2f * u, StrokeCap.Round)
+                    drawCircle(Color(0xFFE5484D), 1.1f * u, Offset(wf.x * u, wf.y * u - 26.5f * u))
+                }
+            }
         }
     }
 }
@@ -771,6 +854,14 @@ private var sceneFlashCar = -1
 private var sceneTier = 0
 private var sceneStorm = 0f
 private var sceneStationNear = false
+private var sceneGolden: List<String> = emptyList()
+private var sceneDecor: List<String> = emptyList()
+
+/** A wolf running at the train across the snow (screen dp). [state] 0 running, 1 chased away. */
+private class Wolf(var x: Float, var y: Float, val side: Int, var delay: Float) {
+    var state = 0
+    var t = 0f
+}
 /** Train-space (x, y) of everyone walking inside the train, so the glass doors can open for them. */
 private var sceneWalkers = FloatArray(0)
 private var sceneFlash = 0f
@@ -1130,6 +1221,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             }
         }
         drawCarShell(top, body, accent, floor, plank, metal = i == 0, floorIdx = i)
+        if ("RUG" in sceneDecor) drawRug(top)
         when (i) {
             0 -> drawEngineCar(top, look, npc, time, boosting)
             1 -> drawUtilityCar(top, look, npc, time)
@@ -1138,6 +1230,74 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
     drawCarDoors(cars, npc)
+    if ("LIGHTS" in sceneDecor || "LANTERNS" in sceneDecor) for (i in 0 until cars) {
+        val top = NOSE + i * PITCH
+        if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
+        if ("LIGHTS" in sceneDecor) drawStringLights(top, time)
+        if ("LANTERNS" in sceneDecor) drawLanterns(top, time)
+    }
+}
+
+/** A cosy red runner down the aisle (under everything else in the car). */
+private fun DrawScope.drawRug(top: Float) {
+    box(Color(0xFF6B4A3A), AISLE_X - 12f, top + 12f, 24f, CAR_H - 24f, 3f)
+    box(Color(0xFFC9584E), AISLE_X - 11f, top + 13f, 22f, CAR_H - 26f, 2.5f)
+    box(Color(0xFFE8C46A), AISLE_X - 8f, top + 16f, 16f, CAR_H - 32f, 2f)
+    box(Color(0xFFC9584E), AISLE_X - 6f, top + 18f, 12f, CAR_H - 36f, 1.5f)
+    var y = top + 22f
+    while (y < top + CAR_H - 24f) { dot(Color(0xFFE8C46A), AISLE_X, y, 1.4f); y += 8f }
+}
+
+/** Little bulbs along the end walls of a car; they glow at night. */
+private fun DrawScope.drawStringLights(top: Float, time: Float) {
+    val cols = listOf(Color(0xFFFFE49A), Color(0xFFF49AB2), Color(0xFF9FD3EE), Color(0xFFBFE0D2))
+    val night = (fxDark / 0.42f).coerceIn(0f, 1f)
+    for (row in listOf(top + 9.5f, top + CAR_H - 9.5f)) {
+        var x = 18f
+        var k = 0
+        while (x < CAR_W - 16f) {
+            val c = cols[k % cols.size]
+            val tw = 0.6f + 0.4f * sin(time * 3f + k * 1.7f)
+            if (night > 0.05f) glow(x, row, 9f, c, 0.35f * night * tw)
+            dot(Color(0xFF6B4A3A), x, row, 1.9f)
+            dot(c, x, row, 1.3f)
+            x += 14f; k++
+        }
+    }
+}
+
+/** A small lantern in every window; warm light at night. */
+private fun DrawScope.drawLanterns(top: Float, time: Float) {
+    val night = (fxDark / 0.42f).coerceIn(0f, 1f)
+    var wy = top + 16f + 8f
+    var k = 0
+    while (wy < top + CAR_H - 20f) {
+        for (wx in listOf(5.5f, CAR_W - 5.5f)) {
+            val fl = 0.8f + 0.2f * sin(time * 7f + k)
+            if (night > 0.05f) glow(wx, wy, 14f, Color(0xFFFFC46B), 0.45f * night * fl)
+            dot(Color(0xFF6B4A3A), wx, wy, 2.6f)
+            dot(Color(0xFFFFD98A), wx, wy, 1.8f)
+            k++
+        }
+        wy += 24f
+    }
+}
+
+/** Golden devices sparkle. */
+private fun DrawScope.goldShine(cx: Float, cy: Float, r: Float, time: Float) {
+    val u = density
+    drawCircle(Color(0xFFFFD166).copy(alpha = 0.18f), r * u, Offset(cx * u, cy * u), blendMode = BlendMode.Plus)
+    for (i in 0 until 3) {
+        val ph = (time * 0.6f + i / 3f) % 1f
+        val a = sin(ph * PI_F)
+        val ang = i * 2.1f + time * 0.3f
+        val px = cx + cos(ang) * r * 0.7f
+        val py = cy + sin(ang) * r * 0.6f
+        val s = (2.2f + 1.6f * a) * u
+        drawLine(Color.White.copy(alpha = a), Offset(px * u - s, py * u), Offset(px * u + s, py * u), 1.1f * u)
+        drawLine(Color.White.copy(alpha = a), Offset(px * u, py * u - s), Offset(px * u, py * u + s), 1.1f * u)
+        drawCircle(Color(0xFFFFE49A).copy(alpha = a), 1.2f * u, Offset(px * u, py * u))
+    }
 }
 
 /**
@@ -1461,7 +1621,10 @@ private fun DrawScope.overheadDevice(type: UpgradeType, y: Float, look: Look, ti
     if (lv > 0) {
         val u = density
         val sp = sceneSprites
-        if (sp != null && drawDeviceSprite(sp, type, (AISLE_X - 20f) * u, (y - 3f) * u, 40f * u, time, (fxDark / 0.42f).coerceIn(0f, 1f))) return
+        if (sp != null && drawDeviceSprite(sp, type, (AISLE_X - 20f) * u, (y - 3f) * u, 40f * u, time, (fxDark / 0.42f).coerceIn(0f, 1f))) {
+            if (type.name in sceneGolden) goldShine(AISLE_X, y + 17f, 20f, time)
+            return
+        }
         dot(Color(0x26000000), AISLE_X, y + 18f, 17f)
         withMaterial(sceneMats?.forType(type), (AISLE_X - 27f) * u, (y - 10f) * u, 54f * u, 54f * u, u / 4f) {
             drawDevice(type, (AISLE_X - 17f) * u, y * u, 34f * u, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
@@ -1476,7 +1639,10 @@ private fun DrawScope.floorDevice(type: UpgradeType, x: Float, y: Float, look: L
     if (lv > 0) {
         val u = density
         val sp = sceneSprites
-        if (sp != null && drawDeviceSprite(sp, type, (x + 34f - 25f) * u, (y + 23f - 25f) * u, 50f * u, time, (fxDark / 0.42f).coerceIn(0f, 1f))) return
+        if (sp != null && drawDeviceSprite(sp, type, (x + 34f - 25f) * u, (y + 23f - 25f) * u, 50f * u, time, (fxDark / 0.42f).coerceIn(0f, 1f))) {
+            if (type.name in sceneGolden) goldShine(x + 34f, y + 23f, 25f, time)
+            return
+        }
         box(Color(0x1F000000), x + 1f, y + 2f, 66f, 44f, 8f)
         withMaterial(sceneMats?.forType(type), (x - 2f) * u, (y - 8f) * u, 72f * u, 62f * u, u / 4f) {
             drawDevice(type, (x + 13f) * u, (y + 2f) * u, 42f * u, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
@@ -1849,4 +2015,24 @@ private fun DrawScope.drawSupplyCrate(cx: Float, cy: Float, time: Float, img: Im
     }
     drawPath(arrow, Color(0xFFFFB86B))
     drawPath(arrow, Color(0xFF6B4A3A), style = Stroke(2.2f * u, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+}
+
+
+/** A glittering keepsake in the snow: tap it to add it to the album. */
+private fun DrawScope.drawKeepsakeSparkle(cx: Float, cy: Float, time: Float) {
+    val u = density
+    val pulse = 0.85f + 0.15f * sin(time * 5f)
+    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF3C4).copy(alpha = 0.8f), Color.Transparent), Offset(cx, cy), 34f * u * pulse), 34f * u * pulse, Offset(cx, cy))
+    // a small wrapped keepsake box
+    drawRoundRect(Color(0xFF6B4A3A), Offset(cx - 11f * u, cy - 9f * u), Size(22f * u, 18f * u), CornerRadius(4f * u))
+    drawRoundRect(Color(0xFFB9A2EE), Offset(cx - 9.5f * u, cy - 7.5f * u), Size(19f * u, 15f * u), CornerRadius(3f * u))
+    drawRect(Color(0xFFFFE49A), Offset(cx - 1.6f * u, cy - 7.5f * u), Size(3.2f * u, 15f * u))
+    for (i in 0 until 4) {
+        val a = time * 1.4f + i * PI_F / 2f
+        val d = 22f * u
+        val p = Offset(cx + cos(a) * d, cy + sin(a) * d * 0.8f)
+        val s = (3f + 2f * sin(time * 6f + i)) * u
+        drawLine(Color.White, Offset(p.x - s, p.y), Offset(p.x + s, p.y), 1.4f * u)
+        drawLine(Color.White, Offset(p.x, p.y - s), Offset(p.x, p.y + s), 1.4f * u)
+    }
 }

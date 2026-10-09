@@ -111,22 +111,22 @@ import kotlin.math.sin
 
 // Palette: snowy exterior (matches the scene) + warm wooden interior (matches the train floor).
 // Cozy palette: cream panels, soft pastels and a warm brown outline around everything.
-private val Snow = Color(0xFFEEF5FB)
-private val Ink = Color(0xFF6B4A3A)       // warm brown: text and outlines
-private val Panel = Color(0xFFFFF6E9)     // cream
-private val PanelHi = Color(0xFFF3E3CC)
-private val Track = Color(0xFFEFE3D3)     // empty part of progress bars
-private val Wood = Color(0xFF6B4A3A)      // outline colour for cards and sheets
-private val Ice = Color(0xFF5E9CCF)
-private val Ember = Color(0xFFF08A5D)
-private val Gold = Color(0xFFFFC85C)
-private val GoldText = Color(0xFFC98A1E)
-private val Mint = Color(0xFF3F9E74)
-private val Muted = Color(0xFF9A7A64)
-private val Glass = Color(0xFFFFF6E9).copy(alpha = 0.97f)
-private val OutlineW = 2.5.dp
+internal val Snow = Color(0xFFEEF5FB)
+internal val Ink = Color(0xFF6B4A3A)       // warm brown: text and outlines
+internal val Panel = Color(0xFFFFF6E9)     // cream
+internal val PanelHi = Color(0xFFF3E3CC)
+internal val Track = Color(0xFFEFE3D3)     // empty part of progress bars
+internal val Wood = Color(0xFF6B4A3A)      // outline colour for cards and sheets
+internal val Ice = Color(0xFF5E9CCF)
+internal val Ember = Color(0xFFF08A5D)
+internal val Gold = Color(0xFFFFC85C)
+internal val GoldText = Color(0xFFC98A1E)
+internal val Mint = Color(0xFF3F9E74)
+internal val Muted = Color(0xFF9A7A64)
+internal val Glass = Color(0xFFFFF6E9).copy(alpha = 0.97f)
+internal val OutlineW = 2.5.dp
 /** The game's display font (Poppins): titles, tutorial, pop-up messages. */
-private val CozyFont = androidx.compose.ui.text.font.FontFamily(
+internal val CozyFont = androidx.compose.ui.text.font.FontFamily(
     androidx.compose.ui.text.font.Font(R.font.poppins_regular, FontWeight.Normal),
     androidx.compose.ui.text.font.Font(R.font.poppins_medium, FontWeight.Medium),
     androidx.compose.ui.text.font.Font(R.font.poppins_bold, FontWeight.Bold),
@@ -204,6 +204,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
         lastStage = vm.tutorialStage
     }
     var showGift by remember { mutableStateOf(false) }
+    var showWheel by remember { mutableStateOf(false) }
     var showQuit by remember { mutableStateOf(false) }
     BackHandler(enabled = sheet != 0) { sheet = 0 }
     // back on the main screen: ask before leaving the game
@@ -239,7 +240,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
             LeftRail(
                 vm,
                 onQuests = { sheet = if (sheet == 5) 0 else 5 },
-                onAwards = { sheetTab = 2; sheet = 1 },
+                onAwards = { sheet = if (sheet == 7) 0 else 7 },
+                onWheel = { showWheel = true },
                 onGift = { showGift = true },
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -269,6 +271,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 RightRail(vm, link, onEvolve = { sheet = if (sheet == 6) 0 else 6 })
+                RailButton(rememberGameSprites().iconTrophy, "Journey", Color(0xFFCDE7F8), onClick = { sheet = if (sheet == 8) 0 else 8 })
                 ActiveBoosters(vm)
             }
             if (vm.tutorialStage in 1..3) {
@@ -281,6 +284,13 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 )
             }
             LevelUpPopup(vm, Modifier.align(Alignment.Center))
+            FloatingPops(vm, Modifier.align(Alignment.Center))
+            MinigamePrompt(
+                vm,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 150.dp + bottomInset * (1f - sheetP)),
+            )
             NewTrainPopup(vm)
             BoosterPopup(vm, Modifier.align(Alignment.Center))
             BottomBar(
@@ -323,6 +333,10 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     QuestSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else if (shownSheet[0] == 6) {
                     EvolveSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                } else if (shownSheet[0] == 7) {
+                    EventsSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                } else if (shownSheet[0] == 8) {
+                    JourneySheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
@@ -371,6 +385,9 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
 
     if (showSettings) SettingsDialog(vm, onClose = { showSettings = false })
     if (showQuit) QuitCard(vm, onStay = { showQuit = false })
+    if (showWheel) WheelDialog(vm, onClose = { showWheel = false })
+    MetaPopups(vm)
+    MinigameDialog(vm)
     if (showTutorialDone) {
         TutorialCard(
             title = "You're all set!",
@@ -384,7 +401,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
 }
 
 @Composable
-private fun CoinIcon(modifier: Modifier = Modifier) {
+internal fun CoinIcon(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val r = size.minDimension / 2f
         drawCircle(Brush.linearGradient(listOf(Color(0xFFFFE066), Color(0xFFF59F00))), radius = r)
@@ -686,7 +703,7 @@ private fun TutorialHint(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun LockIcon(color: Color, modifier: Modifier = Modifier) {
+internal fun LockIcon(color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val s = size.minDimension
         drawArc(color, 180f, 180f, false, Offset(.25f * s, .08f * s), Size(.5f * s, .5f * s), style = Stroke(width = .1f * s))
@@ -745,7 +762,7 @@ private fun SupplyCrate(onTap: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StarIcon(color: Color, modifier: Modifier = Modifier) {
+internal fun StarIcon(color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val s = size.minDimension
         val p = Path()
@@ -778,7 +795,7 @@ private fun SettingsCard(title: String, content: @Composable androidx.compose.fo
 }
 
 @Composable
-private fun PillButton(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun PillButton(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier
             .clip(RoundedCornerShape(18.dp))
@@ -793,7 +810,7 @@ private fun PillButton(text: String, bg: Color, fg: Color, modifier: Modifier = 
 }
 
 @Composable
-private fun SettingToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SettingToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         Text(label, fontSize = 13.sp)
         Spacer(Modifier.width(12.dp))
@@ -886,8 +903,8 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                     }
                 }
                 SettingsCard("Train paint") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LIVERIES.forEachIndexed { i, l ->
+                    LIVERIES.indices.chunked(5).forEach { rowIdx -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rowIdx.forEach { i -> val l = LIVERIES[i]
                             val open = vm.liveryUnlocked(i)
                             val c = if (i == 0) Ice else Color(l.body)
                             Box(
@@ -902,8 +919,8 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                                 if (!open) LockIcon(Muted, Modifier.size(14.dp))
                             }
                         }
-                    }
-                    Text("A new paint unlocks with each evolve.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
+                    } }
+                    Text("A new paint unlocks with each evolve; more come from events and the Frost Pass (Journey > Style).", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
                 }
                 SettingsCard("Google Play") {
                     if (vm.cloudStatus.isNotEmpty()) Text(vm.cloudStatus, fontSize = 11.sp, color = Ice, textAlign = TextAlign.Center)
@@ -940,7 +957,7 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
     }
 }
 
-private const val PRIVACY_URL = "https://github.com/XxPREDAT0RxX/frost-express/blob/main/PRIVACY.md"
+private const val PRIVACY_URL = "https://claude.ai/artifact/L5YCpKP417J28S5icPpDnT"
 private const val BuildConfigVersion = "1.0"
 
 @Composable
@@ -1008,6 +1025,7 @@ private fun BottomBar(
     )
     val fill = vm.boostMeter.toFloat().coerceIn(0f, 1f)
     val status = when {
+        vm.isBoosting && vm.combo > 1 -> "Combo x${vm.combo} · x${fmt(vm.boostMultiplier, 2)} income"
         vm.endlessFuel -> "Endless fuel · ${fmtClock(vm.shopFuelLeft)}"
         vm.boostLocked -> "Recharging ${(fill * 100).toInt()}%"
         vm.isBoosting -> "x${fmt(vm.boostMultiplier, 1)} active · ${vm.boostTimeLeft.toInt() + 1}s"
@@ -1278,7 +1296,7 @@ private fun permIcon(t: PermType): UpgradeType = when (t) {
 }
 
 @Composable
-private fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
+internal fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val s = size.minDimension
         val p = Path().apply {
@@ -1807,6 +1825,20 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                     }
                 }
                 if (!locked && !maxed) Text("Hold the button to keep upgrading", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 6.dp))
+                // golden devices: Gold Polish makes this device's effect x1.5
+                if (!locked && lvl > 0 && type != UpgradeType.SURVIVORS) {
+                    Spacer(Modifier.height(8.dp))
+                    if (vm.isGolden(type)) {
+                        Text("Golden device · effect x1.5", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
+                    } else {
+                        ChunkyButton(vm.meta.polish > 0, listOf(Color(0xFFFFE7A0), Color(0xFFF2B84B)), { vm.makeGolden(type) }, Modifier.fillMaxWidth(0.85f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                PolishIcon(Modifier.size(16.dp)); Spacer(Modifier.width(5.dp))
+                                Text(if (vm.meta.polish > 0) "Make golden (${vm.meta.polish} Gold Polish)" else "Gold Polish needed (wheel, events, pass)", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (vm.meta.polish > 0) Ink else Muted)
+                            }
+                        }
+                    }
+                }
             }
             // name ribbon on top of the card
             Text(
@@ -1909,7 +1941,7 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
     }
 }
 
-private fun itemColor(item: ShopItem): Color = when (item) {
+internal fun itemColor(item: ShopItem): Color = when (item) {
     ShopItem.COCOA -> Color(0xFFF7A3A3)
     ShopItem.TURBO -> Color(0xFFFFC98A)
     ShopItem.TICKET -> Color(0xFFFFE49A)
@@ -1969,10 +2001,10 @@ private fun ShopCard(vm: GameViewModel, item: ShopItem, modifier: Modifier = Mod
 
 // ---------- gems ----------
 
-private val GemPink = Color(0xFFD6336C)
+internal val GemPink = Color(0xFFD6336C)
 
 @Composable
-private fun GemIcon(modifier: Modifier = Modifier) {
+internal fun GemIcon(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val s = size.minDimension
         val outline = Path().apply {
@@ -2112,7 +2144,7 @@ private fun FooterIcon(img: androidx.compose.ui.graphics.ImageBitmap?, open: Boo
 
 /** The red notification dot with a number. Drawn outside the round button so it is never cut off. */
 @Composable
-private fun NotifyBadge(count: Int, modifier: Modifier = Modifier) {
+internal fun NotifyBadge(count: Int, modifier: Modifier = Modifier) {
     Box(
         modifier
             .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
@@ -2127,12 +2159,12 @@ private fun NotifyBadge(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ItemIcon(item: ShopItem, modifier: Modifier = Modifier) {
+internal fun ItemIcon(item: ShopItem, modifier: Modifier = Modifier) {
     val img = rememberGameSprites().item[item]
     if (img != null) Image(img, item.title, modifier) else Box(modifier)
 }
 
-private fun fmtClock(sec: Double): String {
+internal fun fmtClock(sec: Double): String {
     val s = sec.toInt().coerceAtLeast(0)
     return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
 }
@@ -2407,7 +2439,7 @@ private fun BoosterInfo(item: ShopItem, left: Double, modifier: Modifier = Modif
 
 // ---------- player level ----------
 
-private val XpPurple = Color(0xFF8E6FD8)
+internal val XpPurple = Color(0xFF8E6FD8)
 
 @Composable
 private fun LevelBadge(vm: GameViewModel, onClick: () -> Unit) {
@@ -2432,6 +2464,8 @@ private fun LevelBadge(vm: GameViewModel, onClick: () -> Unit) {
 @Composable
 private fun NewTrainPopup(vm: GameViewModel) {
     if (!vm.newTrainPending) return
+    var cutDone by remember(vm.evolveSerial) { mutableStateOf(false) }
+    if (!cutDone) { EvolveCutscene((vm.tierIndex - 1).coerceAtLeast(0), vm.tierIndex) { cutDone = true }; return }
     val idx = vm.tierIndex
     val tier = TIERS[idx]
     CozyCard("New train!", Color(0xFFDCCBFA), onDismiss = vm::dismissNewTrain) {
@@ -2530,7 +2564,7 @@ private fun LevelUpPopup(vm: GameViewModel, modifier: Modifier = Modifier) {
 // ---------- side rails ----------
 
 @Composable
-private fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: String, bg: Color, badge: Int = 0, glow: Boolean = false, onClick: () -> Unit) {
+internal fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: String, bg: Color, badge: Int = 0, glow: Boolean = false, icon: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "rail").animateFloat(
         1f, 1.08f,
         androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(650), androidx.compose.animation.core.RepeatMode.Reverse),
@@ -2551,7 +2585,7 @@ private fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: St
                     .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center,
             ) {
-                if (img != null) Image(img, label, Modifier.size(30.dp))
+                if (icon != null) icon() else if (img != null) Image(img, label, Modifier.size(30.dp))
             }
             if (badge > 0) NotifyBadge(badge, Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp))
         }
@@ -2567,11 +2601,13 @@ private fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: St
 }
 
 @Composable
-private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, onGift: () -> Unit, modifier: Modifier = Modifier) {
+private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, onWheel: () -> Unit, onGift: () -> Unit, modifier: Modifier = Modifier) {
     val sp = rememberGameSprites()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = vm.questsReady, glow = vm.questsReady > 0, onClick = onQuests)
-        RailButton(sp.iconTrophy, "Awards", Color(0xFFFFF0C8), onClick = onAwards)
+        val q = vm.questsReady + vm.storiesReady
+        RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = q, glow = q > 0, onClick = onQuests)
+        RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
+        RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
         RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
     }
 }
@@ -2755,6 +2791,11 @@ private fun QuestSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose
             val openJourney = JOURNEY_QUESTS.filter { it.id !in vm.journeyClaimed }
                 .sortedByDescending { vm.journeyProgress(it).toFloat() / it.goal }
             val doneJourney = JOURNEY_QUESTS.filter { it.id in vm.journeyClaimed }
+            item {
+                QuestHeader("Survivor stories", "${vm.storiesReady} ready")
+                Spacer(Modifier.height(6.dp))
+                StoryRows(vm)
+            }
             item { QuestHeader("Daily quests", "New in ${vm.nextGiftIn}") }
             items(openDaily, key = { "d$it" }) { i ->
                 val q = quests[i]
@@ -3086,7 +3127,7 @@ fun LoadingScreen(progress: Float) {
 // ---------- cozy cards: daily gift and welcome back ----------
 
 @Composable
-private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, closable: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+internal fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, closable: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     val enter = remember { Animatable(0.85f) }
     LaunchedEffect(Unit) { enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 400f)) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -3117,7 +3158,7 @@ private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, closab
 }
 
 @Composable
-private fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, colors: List<Color> = listOf(Color(0xFFFFC98A), Color(0xFFFFA65C))) {
+internal fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, colors: List<Color> = listOf(Color(0xFFFFC98A), Color(0xFFFFA65C))) {
     Box(
         modifier
             .clip(RoundedCornerShape(22.dp))
@@ -3277,7 +3318,7 @@ private fun WelcomeBackCard(vm: GameViewModel) {
 
 /** The round close button used everywhere: a soft red button with a chunky shadow and a white cross. */
 @Composable
-private fun CloseButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 34.dp) {
+internal fun CloseButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 34.dp) {
     var pressed by remember { mutableStateOf(false) }
     Box(modifier.size(size + 3.dp)) {
         Box(Modifier.size(size).offset(y = 3.dp).background(Ink, CircleShape))
@@ -3313,7 +3354,7 @@ private fun CloseButton(onClick: () -> Unit, modifier: Modifier = Modifier, size
 
 /** A round back button (arrow), same style as [CloseButton] but blue. */
 @Composable
-private fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.size(37.dp)) {
         Box(Modifier.size(34.dp).offset(y = 3.dp).background(Ink, CircleShape))
         Box(
@@ -3385,7 +3426,7 @@ private fun Icicles(modifier: Modifier = Modifier) {
 
 /** A currency counter in a small recessed pill. */
 @Composable
-private fun CurrencyPill(icon: @Composable () -> Unit, text: String, color: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, plus: Boolean = false) {
+internal fun CurrencyPill(icon: @Composable () -> Unit, text: String, color: Color, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, plus: Boolean = false) {
     Row(
         modifier
             .clip(RoundedCornerShape(14.dp))
@@ -3412,7 +3453,7 @@ private fun CurrencyPill(icon: @Composable () -> Unit, text: String, color: Colo
  * optional back button, counters on the right and the round close button.
  */
 @Composable
-private fun SheetFrame(
+internal fun SheetFrame(
     title: String,
     icon: androidx.compose.ui.graphics.ImageBitmap?,
     tint: Color,
@@ -3460,7 +3501,7 @@ private fun SheetFrame(
 
 /** A chunky 3D button: a dark base under a coloured face that sinks when pressed. Hold to repeat when [repeat]. */
 @Composable
-private fun ChunkyButton(
+internal fun ChunkyButton(
     enabled: Boolean,
     colors: List<Color>,
     onClick: () -> Unit,
@@ -3510,7 +3551,7 @@ private fun ChunkyButton(
 
 /** A section title inside a sheet: a small ribbon with a line. */
 @Composable
-private fun SectionTitle(text: String, color: Color = Ink, note: String? = null) {
+internal fun SectionTitle(text: String, color: Color = Ink, note: String? = null) {
     Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text.uppercase(), fontSize = 11.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
@@ -3671,5 +3712,18 @@ private fun EvolveSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClos
                 }
             }
         }
+    }
+}
+
+
+/** The lucky wheel's rail icon. */
+@Composable
+private fun WheelIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val cols = listOf(Color(0xFFFFE49A), Color(0xFFF49AB2), Color(0xFF9FD3EE), Color(0xFFBFE0D2))
+        for (i in 0 until 8) drawArc(cols[i % 4], -90f + i * 45f, 45f, true)
+        drawCircle(Ink, style = Stroke(2.dp.toPx()))
+        drawCircle(Panel, size.minDimension * 0.14f)
+        drawCircle(Ink, size.minDimension * 0.14f, style = Stroke(1.5.dp.toPx()))
     }
 }

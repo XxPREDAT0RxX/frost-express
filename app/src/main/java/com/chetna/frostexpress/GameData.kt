@@ -269,7 +269,7 @@ val ACHIEVEMENTS = listOf(
 fun xpForLevel(level: Int): Int = 60 + 40 * (level - 1) + 6 * (level - 1) * (level - 1)
 
 /** Daily quests: three are picked every day. [stat] is the counter that has to grow by [goal]. */
-enum class QuestStat { UPGRADES, BOOST_TAPS, CRATES, STATIONS, BOOSTERS, STORMS, DISTANCE, DEVICES, EVOLVES, LEVEL, SURVIVORS }
+enum class QuestStat { UPGRADES, BOOST_TAPS, CRATES, STATIONS, BOOSTERS, STORMS, DISTANCE, DEVICES, EVOLVES, LEVEL, SURVIVORS, PASSENGERS, COLLECTIBLES, WOLVES, MINIGAMES }
 
 data class Quest(val id: String, val text: String, val stat: QuestStat, val goal: Int, val xp: Int, val gems: Int)
 
@@ -316,10 +316,26 @@ val LIVERIES = listOf(
     Livery("Midnight", 0xFF1C2541, 0xFF5BC0BE),
     Livery("Aurora", 0xFF1B998B, 0xFFC3F0CA),
     Livery("Rose", 0xFFD6336C, 0xFFFFE3EC),
+    // event and Frost Pass paints (owned once bought, not unlocked by evolving)
+    Livery("Blizzard", 0xFF8DB8DD, 0xFFFFFFFF),
+    Livery("Aurora Glow", 0xFF6A4FB0, 0xFF7CF2C8),
+    Livery("Cargo Gold", 0xFFE0A21B, 0xFF5A3E2B),
+    Livery("Wolf Moon", 0xFF4B5563, 0xFFE5E7EB),
+    Livery("Frost Royal", 0xFF2B3A67, 0xFFFFD166),
 )
 
 /** Random events that happen while the train runs. */
-enum class GameEvent { NONE, AURORA, CRATE }
+enum class GameEvent { NONE, AURORA, CRATE, WOLVES, TRADER, SOS, COAL }
+
+/** Short games that pop up now and then: clear snow off the roof in a storm, shovel coal, check tickets at a station. */
+enum class MiniGame(val title: String, val hint: String) {
+    SNOW("Clear the roof!", "Tap the snow piles before the storm buries the train"),
+    COAL("Coal rush!", "Tap the furnace as fast as you can"),
+    TICKETS("Check tickets!", "Tap the coach that matches each ticket colour"),
+}
+
+/** A deal from a passing trader train: pay coins, get the item. */
+class TraderDeal(val reward: Reward, val costSecs: Double)
 
 object Balance {
     const val BASE_SPEED = 2.0            // metres per second

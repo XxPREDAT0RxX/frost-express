@@ -287,19 +287,310 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         get() = if (event == GameEvent.AURORA) Balance.AURORA_INCOME + effSum(Eff.AURORA) else 1.0
 
     private fun startRandomEvent() {
-        event = if ((0..1).random() == 0) GameEvent.AURORA else GameEvent.CRATE
+        // weights; this week's event makes its own kind three times as likely
+        val ev = currentEvent().id
+        val weights = listOf(
+            GameEvent.AURORA to (if (ev == 1) 6 else 2), GameEvent.CRATE to (if (ev == 2) 9 else 3),
+            GameEvent.WOLVES to (if (ev == 3) 6 else 2), GameEvent.TRADER to 1, GameEvent.SOS to 1, GameEvent.COAL to 2,
+        )
+        var r = (0 until weights.sumOf { it.second }).random()
+        event = weights.first { (_, w) -> (r < w).also { r -= w } }.first
         eventLeft = when (event) {
             GameEvent.AURORA -> Balance.AURORA_SEC
-            else -> 120.0 // the scene ends it earlier, when the crate has passed the train
+            GameEvent.TRADER -> 60.0
+            GameEvent.SOS -> 45.0
+            GameEvent.COAL -> 20.0
+            else -> 120.0 // the scene ends crates and wolves earlier
         }
-        if (event == GameEvent.CRATE) crateSerial++
+        when (event) {
+            GameEvent.CRATE -> crateSerial++
+            GameEvent.WOLVES -> wolfSerial++
+            GameEvent.AURORA -> if (ev == 1) { meta.addFlakes(20) }
+            GameEvent.TRADER -> trader = listOf(
+                TraderDeal(listOf(Reward.Item(ShopItem.TURBO), Reward.Item(ShopItem.COCOA), Reward.Item(ShopItem.TICKET)).random(), 240.0),
+                TraderDeal(listOf(Reward.Gems(10), Reward.Polish(1), Reward.Item(ShopItem.RUSH5)).random(), 900.0),
+            )
+            GameEvent.COAL -> { minigamePrompt = MiniGame.COAL; promptLeft = 20.0 }
+            else -> {}
+        }
         showToast(
             when (event) {
                 GameEvent.AURORA -> "Aurora! Income x${fmt(Balance.AURORA_INCOME, 1)} for ${Balance.AURORA_SEC.toInt()}s"
+                GameEvent.WOLVES -> "Wolves! Tap them before they reach the train"
+                GameEvent.TRADER -> "A trader train pulls alongside with deals"
+                GameEvent.SOS -> "An SOS signal flashes in the snow"
+                GameEvent.COAL -> "Coal rush! Shovel fast for a bonus"
                 else -> "Supply crate ahead! Tap it before it passes"
             }
         )
     }
+
+    // ---------------- meta systems (Meta.kt): rewards, events, pass, wheel, album, stories, journey ----------------
+    val meta = MetaState(prefs)
+    var totalBoarded by mutableIntStateOf(prefs.getInt("boarded", 0)); private set
+    var wolfSerial by mutableIntStateOf(0); private set
+    var trader by mutableStateOf<List<TraderDeal>?>(null); private set
+    var minigamePrompt by mutableStateOf<MiniGame?>(null); private set
+    private var promptLeft = 0.0
+    var activeMinigame by mutableStateOf<MiniGame?>(null); private set
+    var zone by mutableIntStateOf(-1); private set
+    var postcardSerial by mutableIntStateOf(0); private set
+    var critSerial by mutableIntStateOf(0); private set
+    var critAmount by mutableDoubleStateOf(0.0); private set
+    private var critIn = 40.0
+    var sparkleSerial by mutableIntStateOf(0); private set
+    private var sparkleIn = 70.0
+    var combo by mutableIntStateOf(0); private set
+    private var lastBoostTap = 0L
+    var warmCity by mutableStateOf(false); private set
+    var foundSerial by mutableIntStateOf(0); private set
+    var lastFound by mutableStateOf(""); private set
+    private var recordIn = 5.0
+
+    /** Gives a reward and says so. */
+    fun grant(r: Reward, quiet: Boolean = false) {
+        when (r) {
+            is Reward.Coins -> coins += max(50.0, baseCoinsPerSec * r.secs)
+            is Reward.Gems -> gems += r.n
+            is Reward.Item -> inventory[r.item.ordinal] = owned(r.item) + r.n
+            is Reward.Flakes -> meta.addFlakes(r.n)
+            is Reward.Polish -> meta.addPolish(r.n)
+            is Reward.Paint -> meta.addPaint(r.livery)
+            is Reward.Passengers -> passengers = min(seats, passengers + r.n)
+        }
+        if (!quiet) showToast("+ ${r.label()}")
+        save()
+    }
+    fun rewardValue(r: Reward): String = if (r is Reward.Coins) "${fmt(max(50.0, baseCoinsPerSec * r.secs))} coins" else r.label()
+
+    // event shop
+    fun buyFlakeOffer(o: FlakeOffer) {
+        if (o.title in meta.boughtOffers && o.reward is Reward.Paint) return
+        if (!meta.spendFlakes(o.cost)) return
+        meta.markOffer(o.title)
+        audio.play(R.raw.sfx_buy)
+        grant(o.reward)
+    }
+
+    // Frost Pass
+    fun claimPass(tier: Int, premium: Boolean) {
+        if (!meta.claimPass(tier, premium)) return
+        audio.play(R.raw.sfx_buy)
+        grant(if (premium) passPremium(tier) else passFree(tier))
+    }
+    fun buyPremiumPass() {
+        if (meta.passPremium || gems < PASS_PREMIUM_GEMS) return
+        gems -= PASS_PREMIUM_GEMS
+        meta.unlockPremium()
+        audio.play(R.raw.sfx_evolve, 0.7f)
+        showToast("Premium Frost Pass unlocked!")
+        save()
+    }
+
+    // lucky wheel: 0 free, 1 ad, 2 gems; [onResult] gets the slice index (the reward is given right away)
+    fun canSpin(kind: Int): Boolean = when (kind) {
+        0 -> meta.wheelFreeReady
+        1 -> Balance.ADS_ENABLED && meta.wheelAdsUsed < WHEEL_AD_SPINS
+        else -> gems >= WHEEL_GEM_SPIN
+    }
+    fun spinWheel(kind: Int, onResult: (Int) -> Unit) {
+        if (!canSpin(kind)) return
+        val go = {
+            if (kind == 2) gems -= WHEEL_GEM_SPIN
+            meta.useWheel(kind)
+            val i = rollWheel()
+            grant(WHEEL[i].reward, quiet = true)
+            meta.addStars(5)
+            onResult(i)
+        }
+        if (kind == 1) {
+            if (!adReady) { showToast("The ad is still loading, try again in a moment"); return }
+            ads.showRewarded { go() }
+        } else go()
+    }
+
+    // album: sparkles in the snow hide keepsakes from the current region
+    fun collectSparkle() {
+        val region = zone.coerceAtLeast(0)
+        val missing = (0 until 6).filter { !meta.hasItem(region, it) }
+        if (missing.isEmpty()) { grant(Reward.Flakes(10)); return }
+        val i = missing.random()
+        meta.addItem(region, i)
+        lastFound = COLLECTIBLE_NAMES[region][i]
+        foundSerial++
+        audio.play(R.raw.sfx_buy)
+        meta.addStars(10)
+        if ((0 until 6).all { meta.hasItem(region, it) }) showToast("Set complete! +${(SET_BONUS * 100).toInt()}% coins forever")
+        save()
+    }
+
+    // wolves: tapped ones run off, the rest scare a passenger away
+    fun chaseWolf() {
+        meta.addWolves(1)
+        coins += max(20.0, baseCoinsPerSec * 8.0)
+        meta.addStars(2)
+        if (currentEvent().id == 3) meta.addFlakes(4)
+        audio.play(R.raw.sfx_coin, 0.5f)
+    }
+    fun wolfReached() {
+        if (passengers > 0) { passengers--; showToast("A wolf scared a passenger off the train") }
+    }
+    fun endWolves() { if (event == GameEvent.WOLVES) { event = GameEvent.NONE; eventLeft = 0.0 } }
+
+    // trader train and SOS
+    fun traderCost(d: TraderDeal): Double = floor(max(100.0, baseCoinsPerSec * d.costSecs))
+    fun acceptDeal(d: TraderDeal) {
+        val c = traderCost(d)
+        if (coins < c) return
+        coins -= c
+        audio.play(R.raw.sfx_buy)
+        grant(d.reward)
+        trader = null
+        if (event == GameEvent.TRADER) { event = GameEvent.NONE; eventLeft = 0.0 }
+    }
+    fun dismissTrader() { trader = null; if (event == GameEvent.TRADER) { event = GameEvent.NONE; eventLeft = 0.0 } }
+    fun answerSos(help: Boolean) {
+        if (event != GameEvent.SOS) return
+        event = GameEvent.NONE; eventLeft = 0.0
+        if (!help) return
+        grant(Reward.Gems(5), quiet = true)
+        grant(Reward.Passengers(3), quiet = true)
+        meta.addStars(15)
+        if (Math.random() < 0.35) collectSparkle()
+        showToast("You helped the stranded travellers: +5 gems, +3 passengers")
+    }
+
+    // mini-games
+    fun startMinigame() { activeMinigame = minigamePrompt; minigamePrompt = null }
+    fun finishMinigame(game: MiniGame, score: Int) {
+        activeMinigame = null
+        meta.addMinigame()
+        meta.addStars(15)
+        meta.addFlakes(5)
+        val gain = max(100.0, baseCoinsPerSec * (10.0 + score * 4.0))
+        coins += gain
+        when (game) {
+            MiniGame.SNOW -> stormLeft = min(stormLeft, max(Balance.STORM_FADE_SEC, stormLeft - 15.0))
+            MiniGame.COAL -> { boostMeter = 1.0; boostLocked = false }
+            MiniGame.TICKETS -> paxMult += 0.01 * score
+        }
+        audio.play(R.raw.sfx_buy)
+        showToast("${game.title.trimEnd('!')} done: +${fmt(gain)} coins")
+        save()
+    }
+    fun cancelMinigame() { activeMinigame = null }
+    /** The scene offers ticket checking now and then while the train stands at a station. */
+    fun offerTickets() { if (minigamePrompt == null && activeMinigame == null && Math.random() < 0.4) { minigamePrompt = MiniGame.TICKETS; promptLeft = 15.0 } }
+
+    // golden devices
+    fun isGolden(t: UpgradeType): Boolean = t.name in meta.golden
+    fun makeGolden(t: UpgradeType) {
+        if (level(t) <= 0) return
+        if (meta.makeGolden(t)) { audio.play(R.raw.sfx_evolve, 0.8f); showToast("${UPGRADES.first { it.type == t }.title} is golden! Its effect x1.5"); save() }
+    }
+
+    // survivor stories
+    fun storyUnlocked(i: Int): Boolean = level(UpgradeType.SURVIVORS) > i
+    fun storyChapter(i: Int): Chapter? = STORIES[i].chapters.getOrNull(meta.storyStep[i])
+    fun storyProgress(i: Int): Int {
+        val ch = storyChapter(i) ?: return 0
+        if (meta.storyBase[i] < 0) { meta.storyBase[i] = statValue(ch.stat); meta.saveStories() }
+        return (statValue(ch.stat) - meta.storyBase[i]).coerceIn(0, ch.amount)
+    }
+    fun claimStory(i: Int) {
+        val ch = storyChapter(i) ?: return
+        if (!storyUnlocked(i) || storyProgress(i) < ch.amount) return
+        meta.storyStep[i] = meta.storyStep[i] + 1
+        meta.storyBase[i] = -1
+        meta.saveStories()
+        meta.addStars(40)
+        audio.play(R.raw.sfx_evolve, 0.6f)
+        grant(ch.reward)
+        addXp(60)
+    }
+    val storiesReady: Int get() = STORIES.indices.count { storyUnlocked(it) && storyChapter(it) != null && storyProgress(it) >= storyChapter(it)!!.amount }
+
+    // customisation
+    fun buyHorn(i: Int) {
+        val h = HORNS[i]
+        if (i in meta.horns) { meta.chooseHorn(i); audio.play(h.res, 0.8f); return }
+        if (gems < h.gems) return
+        gems -= h.gems
+        meta.buyHorn(i)
+        audio.play(h.res, 0.8f)
+        save()
+    }
+    fun buyDecor(d: Decor) {
+        if (d.name in meta.decor || gems < d.gems) return
+        gems -= d.gems
+        meta.addDecor(d)
+        audio.play(R.raw.sfx_buy)
+        save()
+    }
+
+    // friends
+    fun makeGiftCode(): String {
+        val code = GiftCodes.make(meta.playerId, today())
+        if (!meta.sentToday) { meta.markSent(); gems += 2; showToast("Thanks for sharing! +2 gems"); save() }
+        return code
+    }
+    fun redeemCode(code: String): String {
+        val c = code.trim().uppercase()
+        val sender = GiftCodes.check(c, today()) ?: return "That code doesn't work. Codes last until the next day."
+        if (sender == meta.playerId) return "That's your own code. Send it to a friend!"
+        if (c in meta.redeemed) return "You already opened this gift."
+        if (meta.redeemedToday >= 3) return "You can open 3 gifts a day. Come back tomorrow!"
+        meta.markRedeemed(c)
+        gems += 5
+        meta.addStars(10)
+        audio.play(R.raw.sfx_buy)
+        save()
+        return "Gift opened: +5 gems!"
+    }
+
+    /** Called by the scene when the train enters a region (index into the scene's region list). */
+    fun enterRegion(i: Int, name: String) {
+        val first = zone >= 0
+        zone = i
+        if (first) showToast("Now passing: $name")
+        if (meta.addPostcard(i)) postcardSerial++
+    }
+
+    private fun tickMeta(dt: Double) {
+        // lucky crits: a sudden handful of coins
+        critIn -= dt
+        if (critIn <= 0.0) {
+            critIn = 30.0 + Math.random() * 45.0
+            critAmount = max(30.0, baseCoinsPerSec * (10.0 + Math.random() * 20.0))
+            coins += critAmount
+            critSerial++
+            audio.play(R.raw.sfx_coin, 0.5f)
+        }
+        // keepsake sparkles beside the track
+        sparkleIn -= dt
+        if (sparkleIn <= 0.0) { sparkleIn = 80.0 + Math.random() * 90.0; sparkleSerial++ }
+        // mini-game prompt runs out
+        if (minigamePrompt != null) { promptLeft -= dt; if (promptLeft <= 0.0) minigamePrompt = null }
+        if (event == GameEvent.TRADER && eventLeft <= dt) trader = null
+        // combo cools down when the boost ends
+        if (boostTimeLeft <= 0.0 && combo > 0) combo = 0
+        // records and the journey
+        recordIn -= dt
+        if (recordIn <= 0.0) {
+            recordIn = 5.0
+            meta.record(runDistance, speed, passengers)
+            val km = totalDistance / 1000.0
+            JOURNEY.forEachIndexed { i, leg ->
+                if (km >= leg.km && i !in meta.legsDone) {
+                    meta.markLeg(i)
+                    gems += leg.gems
+                    showToast("Arrived at ${leg.name}! +${leg.gems} gems")
+                    if (i == JOURNEY.lastIndex) warmCity = true
+                }
+            }
+        }
+    }
+    fun dismissWarmCity() { warmCity = false }
 
     /** Increases when a supply crate appears beside the track (the scene then scrolls it past the train). */
     var crateSerial by mutableIntStateOf(0); private set
@@ -317,6 +608,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val gain = max(50.0, baseCoinsPerSec * 30.0) * (1.0 + effSum(Eff.CRATE))
         coins += gain
         cratesCollected++
+        meta.addStars(10)
+        if (currentEvent().id == 2) meta.addFlakes(15)
         event = GameEvent.NONE
         eventLeft = 0.0
         audio.play(R.raw.sfx_buy)
@@ -346,6 +639,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         coins += gain
         stationsVisited++
         if (shelter) stormsSheltered++
+        totalBoarded += on
+        meta.addStars(3)
+        meta.addFlakes(if (shelter && currentEvent().id == 0) 25 else 1)
+        if (shelter && currentEvent().id == 0) coins += gain * 0.5 // Blizzard Week: shelters pay triple
         audio.play(R.raw.sfx_brake, 0.8f)
         showToast(
             if (shelter) "Storm shelter: +${fmt(gain)} coins · $on aboard, $off off"
@@ -364,7 +661,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             nextStormIn -= dt
             if (nextStormIn <= 0.0) {
-                nextStormIn = Balance.STORM_MIN_GAP + Math.random() * (Balance.STORM_MAX_GAP - Balance.STORM_MIN_GAP)
+                nextStormIn = (Balance.STORM_MIN_GAP + Math.random() * (Balance.STORM_MAX_GAP - Balance.STORM_MIN_GAP)) * (if (currentEvent().id == 0) 0.5 else 1.0)
+                minigamePrompt = MiniGame.SNOW; promptLeft = 25.0
                 stormTotal = Balance.STORM_MIN_SEC + Math.random() * (Balance.STORM_MAX_SEC - Balance.STORM_MIN_SEC)
                 stormLeft = stormTotal
                 stormStationSerial++
@@ -412,7 +710,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     var liveryIndex by mutableIntStateOf(prefs.getInt("livery", 0)); private set
-    fun liveryUnlocked(i: Int): Boolean = i <= evolutions
+    fun liveryUnlocked(i: Int): Boolean = if (i < 5) i <= evolutions else i in meta.paints
     fun chooseLivery(i: Int) {
         if (!liveryUnlocked(i)) return
         liveryIndex = i
@@ -448,6 +746,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         lastDailyDay = today()
         dailyReady = false
         audio.play(R.raw.sfx_buy)
+        meta.addStars(25)
         addXp(20)
     }
 
@@ -519,6 +818,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         QuestStat.EVOLVES -> evolutions
         QuestStat.LEVEL -> playerLevel
         QuestStat.SURVIVORS -> level(UpgradeType.SURVIVORS)
+        QuestStat.PASSENGERS -> totalBoarded
+        QuestStat.COLLECTIBLES -> meta.found.size
+        QuestStat.WOLVES -> meta.wolvesChased
+        QuestStat.MINIGAMES -> meta.minigamesPlayed
     }
     var devicesInstalled by mutableIntStateOf(prefs.getInt("devinst", 0)); private set
 
@@ -530,6 +833,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun claimJourney(q: Quest) {
         if (q.id in journeyClaimed || journeyProgress(q) < q.goal) return
         journeyClaimed.add(q.id)
+        meta.addStars(60)
         gems += q.gems
         audio.play(R.raw.sfx_buy)
         showToast("Journey quest done: +${q.xp} XP, +${q.gems} gems")
@@ -575,6 +879,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         gems += q.gems
         audio.play(R.raw.sfx_buy)
         showToast("Quest done: +${q.xp} XP, +${q.gems} gems")
+        meta.addStars(40)
         addXp(q.xp)
     }
 
@@ -721,8 +1026,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Milestones: each one doubles that upgrade's effect (only for speed/income upgrades). */
     private val milestoneTypes = setOf(UpgradeType.ENGINE, UpgradeType.WAGON, UpgradeType.HEAT, UpgradeType.FOOD)
     fun milestoneMult(t: UpgradeType): Double {
-        if (t !in milestoneTypes) return 1.0
-        return 2.0.pow(Balance.MILESTONES.count { level(t) >= it })
+        val gold = if (isGolden(t)) 1.5 else 1.0
+        if (t !in milestoneTypes) return gold
+        return 2.0.pow(Balance.MILESTONES.count { level(t) >= it }) * gold
     }
     fun nextMilestone(t: UpgradeType): Int? =
         if (t in milestoneTypes) Balance.MILESTONES.firstOrNull { level(t) < it } else null
@@ -734,7 +1040,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Total bonus from all generic upgrades of one kind (per level x level). */
     private fun effSum(e: Eff): Double {
         var sum = 0.0
-        for (sp in extraSpecs) if (sp.eff == e) sum += sp.per * levels[sp.type.ordinal]
+        for (sp in extraSpecs) if (sp.eff == e) sum += sp.per * levels[sp.type.ordinal] * (if (isGolden(sp.type)) 1.5 else 1.0)
         return sum
     }
 
@@ -761,11 +1067,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val boostMultiplier: Double
         get() = Balance.BOOST_BASE_MULT + Balance.BOOST_MULT_PER_LEVEL * level(UpgradeType.BOOSTER) +
-            Balance.PERM_BOOST * permLevel(PermType.BOOST) + effSum(Eff.BOOSTMULT)
+            Balance.PERM_BOOST * permLevel(PermType.BOOST) + effSum(Eff.BOOSTMULT) +
+            0.025 * min(combo, 20) // quick taps build a combo: up to +0.5x
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -1003,6 +1310,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
         if (boostTimeLeft <= 0.0) audio.play(R.raw.sfx_boost, 0.55f) // only when a boost starts, not on every tap
         boostTaps++
+        val now = System.currentTimeMillis()
+        combo = if (now - lastBoostTap < 700L) combo + 1 else 1
+        lastBoostTap = now
+        meta.recordCombo(combo)
         if (!endlessFuel) boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         val extraLen = effSum(Eff.BOOSTLEN)
         boostTimeLeft = min(Balance.BOOST_MAX_SEC + extraLen * 4.0, boostTimeLeft + Balance.BOOST_SEC_PER_TAP + extraLen)
@@ -1105,7 +1416,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putInt("gems", gems)
             .putString("inv", inventory.joinToString(","))
             .putInt("xp", xp).putInt("plvl", playerLevel)
-            .putInt("crates", cratesCollected).putInt("stations", stationsVisited).putInt("storms", stormsSheltered).putInt("bused", boostersUsed).putInt("devinst", devicesInstalled).putString("jq", journeyClaimed.joinToString(","))
+            .putInt("crates", cratesCollected).putInt("stations", stationsVisited).putInt("storms", stormsSheltered).putInt("bused", boostersUsed).putInt("devinst", devicesInstalled).putString("jq", journeyClaimed.joinToString(",")).putInt("boarded", totalBoarded)
             .putLong("qDay", questDay).putString("qBase", questBase.joinToString(",")).putString("qClaim", questClaimed.joinToString(",") { if (it) "1" else "0" })
             .putLong("adDay", adDay)
             .putString("adCnt", adCounts.joinToString(","))
@@ -1172,12 +1483,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         checkUnlocks()
         refreshQuestDay()
         tickEvents(dt)
+        tickMeta(dt)
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         // a soft train horn now and then
         hornIn -= dt
         if (hornIn <= 0.0) {
             hornIn = 70.0 + Math.random() * 90.0
-            audio.play(R.raw.sfx_horn, 0.85f)
+            audio.play(HORNS.getOrNull(meta.horn)?.res ?: R.raw.sfx_horn, 0.85f)
         }
         tickAmbience(dt)
         if (shopIncomeLeft > 0.0) shopIncomeLeft = max(0.0, shopIncomeLeft - dt)

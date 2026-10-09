@@ -76,6 +76,9 @@ class GameSprites(ctx: Context) {
     val iconTrophy = load("icon_trophy")
     val iconGift = load("icon_gift")
     val iconEvolve = load("icon_evolve")
+    /** Album keepsakes, [region][index]. */
+    val keepsakes: List<List<ImageBitmap?>> = (0 until 6).map { r -> (0 until 6).map { i -> load("col_${r}_$i") } }
+    val wolf = load("spr_wolf")
     /** Rescued travellers (Survivors upgrade), each with their own look. */
     val survivors: List<ImageBitmap> = (1..4).mapNotNull { load("npc_surv$it") }
     /** A different floor in every car (tiled, 4 px per dp). */

@@ -212,7 +212,34 @@ def upgrade():
     return out / np.max(np.abs(out)) * 0.55
 
 
-if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v2":
+def horn_deep():
+    """A deep diesel two-tone horn."""
+    t = tvec(2.0)
+    env = np.minimum(1, t / 0.12) * np.minimum(1, (2.0 - t) / 0.5)
+    tone = sum(np.sign(np.sin(2 * np.pi * f * t)) * 0.3 + np.sin(2 * np.pi * f * t) for f in (138.6, 174.6)) / 2
+    tone = lowpass(tone, 0.12)
+    out = reverb(tone * env, 0.5)
+    return out / np.max(np.abs(out)) * 0.6
+
+
+def horn_chorus():
+    """A bright steam whistle chord that slides up a little."""
+    t = tvec(2.2)
+    env = np.minimum(1, t / 0.2) * np.minimum(1, (2.2 - t) / 0.7)
+    bend = 1 + 0.03 * np.minimum(1, t / 0.4)
+    out = np.zeros(len(t))
+    for f in (523.3, 659.3, 784.0):
+        ph = 2 * np.pi * np.cumsum(f * bend) / SR
+        out += np.sin(ph) + 0.2 * np.sin(2 * ph)
+    breath = lowpass(rng.standard_normal(len(t)), 0.3) * 0.15
+    out = reverb((out / 3 + breath) * env, 0.6)
+    return out / np.max(np.abs(out)) * 0.55
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v3":
+    save("sfx_horn2", horn_deep(), q=4)
+    save("sfx_horn3", horn_chorus(), q=4)
+elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v2":
     save("amb_day", breeze(), q=2)
     for k in (1, 2, 3):
         save(f"sfx_bird{k}", bird_song(k), q=3)

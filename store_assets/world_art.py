@@ -306,6 +306,76 @@ art('item_rush10', 48, 48, coin_stack(4, 'x10', '#D6336C'))
 art('item_rush100', 48, 48, coin_stack(5, 'x100', '#8E6FD8'))
 
 
+# ---------------- a wolf (side view, facing right) ----------------
+art('spr_wolf', 64, 48, f"""<ellipse cx="32" cy="44" rx="22" ry="3" fill="#000" opacity=".12"/>
+<path d="M10,26 C4,22 2,16 6,14 C8,20 12,22 16,23" fill="#8F99A4" {o(1.8)}/>
+<path d="M14,22 C18,16 34,15 42,18 L50,14 L52,8 L55,14 C60,15 62,19 60,22 L52,25 C50,30 46,32 42,32 L40,42 L35,42 L36,33 L24,33 L22,42 L17,42 L18,31 C14,30 12,27 14,22 Z" fill="#A3ADB8" {o(1.8)}/>
+<path d="M20,30 C26,27 36,27 42,30" fill="none" stroke="#DCE3EA" stroke-width="3" stroke-linecap="round"/>
+<path d="M52,8 L50,15 L54,14 Z" fill="#6F7E8C"/><circle cx="54.5" cy="18" r="1.4" fill="#2B2A33"/>
+<path d="M59,21 L62,21" stroke="{OL}" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M30,17 C34,15 40,15 44,17" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>""")
+
+# ---------------- keepsakes for the album: 6 per region ----------------
+REGION_TINT = ['#BFE0D2', '#FFD9C2', '#CDE7F8', '#FFE49A', '#B8D8F2', '#FFC9D6']
+NAMES = [
+    ["Pine Cone Charm", "Carved Owl", "Lost Mitten", "Ranger Badge", "Birch Whistle", "Frozen Acorn"],
+    ["Old Photograph", "Toy Train", "Street Sign Plate", "Shop Bell", "Snow Globe", "Love Letter"],
+    ["Ice Crystal", "Skate Blade", "Frozen Fish", "Polar Compass", "Sled Bell", "Glacier Pearl"],
+    ["Brass Gear", "Turbine Bolt", "Worker Helmet", "Old Fuse", "Copper Coil", "Oil Lamp"],
+    ["Ship in a Bottle", "Anchor Pin", "Seashell", "Captain's Log", "Lighthouse Key", "Sea Glass"],
+    ["Campfire Mug", "Hand-knit Scarf", "Harmonica", "Survivor Map", "Tin Star", "Warm Socks"],
+]
+SHAPES = {
+    'cone': f'<ellipse cx="24" cy="26" rx="8" ry="11" fill="#B9876A" {o(1.6)}/><path d="M17,22 L31,22 M16,27 L32,27 M17,32 L31,32" stroke="#8C5E4C" stroke-width="1.4"/><path d="M24,15 L24,10" stroke="{OL}" stroke-width="1.6"/>',
+    'owl': f'<ellipse cx="24" cy="27" rx="10" ry="12" fill="#D9A576" {o(1.6)}/><circle cx="20" cy="23" r="3.6" fill="#fff" {o(1.2)}/><circle cx="28" cy="23" r="3.6" fill="#fff" {o(1.2)}/><circle cx="20" cy="23" r="1.4" fill="{OL}"/><circle cx="28" cy="23" r="1.4" fill="{OL}"/><path d="M23,27 L25,27 L24,29 Z" fill="#E8890C"/>',
+    'mitten': f'<path d="M17,36 L17,20 C17,14 30,14 30,20 L30,24 C34,22 36,26 33,29 L30,32 L30,36 Z" fill="#E5484D" {o(1.6)}/><rect x="16" y="33" width="15" height="5" rx="2" fill="#fff" {o(1.4)}/>',
+    'badge': f'<path d="M24,12 L33,16 L32,28 C30,34 24,37 24,37 C24,37 18,34 16,28 L15,16 Z" fill="url(#gold)" {o(1.6)}/><path d="M24,19 l2,4 l4.4,.6 l-3.2,3 l.8,4.3 l-4,-2.1 l-4,2.1 l.8,-4.3 l-3.2,-3 l4.4,-.6 Z" fill="#fff" {o(1)}/>',
+    'whistle': f'<rect x="12" y="20" width="22" height="10" rx="5" fill="#E9BC8C" {o(1.6)}/><circle cx="17" cy="25" r="2" fill="{OL}"/><path d="M34,22 L38,20 L38,30 L34,28" fill="#D9A576" {o(1.4)}/>',
+    'acorn': f'<ellipse cx="24" cy="28" rx="8" ry="9" fill="#C98F72" {o(1.6)}/><path d="M15,22 C15,16 33,16 33,22 Z" fill="#8C6A5A" {o(1.6)}/><path d="M24,16 L24,12" stroke="{OL}" stroke-width="1.8"/><path d="M19,25 C20,30 22,32 24,33" stroke="{ICE}" stroke-width="1.6" fill="none"/>',
+    'photo': f'<rect x="13" y="13" width="22" height="24" rx="1.5" fill="#FFF6E9" {o(1.6)}/><rect x="16" y="16" width="16" height="13" fill="#B8D8F2"/><path d="M16,29 L22,22 L26,26 L28,24 L32,29 Z" fill="#8FC2AE"/>',
+    'train': f'<rect x="12" y="20" width="16" height="12" rx="2" fill="#E5484D" {o(1.6)}/><rect x="28" y="14" width="9" height="18" rx="2" fill="#5E9CCF" {o(1.6)}/><circle cx="17" cy="34" r="3" fill="#4A4550" {o(1.2)}/><circle cx="30" cy="34" r="3" fill="#4A4550" {o(1.2)}/>',
+    'sign': f'<rect x="11" y="17" width="26" height="14" rx="2" fill="#2F8FE0" {o(1.6)}/><path d="M15,24 L33,24" stroke="#fff" stroke-width="2.4" stroke-dasharray="3 2"/>',
+    'bell': f'<path d="M16,31 C16,20 18,15 24,15 C30,15 32,20 32,31 Z" fill="url(#gold)" {o(1.6)}/><rect x="14" y="30" width="20" height="4" rx="2" fill="#F2B84B" {o(1.4)}/><circle cx="24" cy="36" r="2.2" fill="#C98A1E" {o(1)}/>',
+    'globe': f'<rect x="16" y="32" width="16" height="6" rx="2" fill="#8C6A5A" {o(1.6)}/><circle cx="24" cy="24" r="10" fill="#DDF3FF" {o(1.6)}/><path d="M18,28 L24,20 L30,28 Z" fill="#7FC29A"/><circle cx="21" cy="19" r="1" fill="#fff"/><circle cx="27" cy="22" r="1" fill="#fff"/>',
+    'letter': f'<rect x="11" y="16" width="26" height="18" rx="2" fill="#FFF6E9" {o(1.6)}/><path d="M11,17 L24,27 L37,17" fill="none" stroke="{OL}" stroke-width="1.6"/><path d="M24,24 C22,21 19,23 21,25 L24,28 L27,25 C29,23 26,21 24,24 Z" fill="#E5484D"/>',
+    'crystal': f'<path d="M24,10 L32,20 L28,38 L20,38 L16,20 Z" fill="{ICE}" {o(1.6)}/><path d="M24,10 L24,38 M16,20 L32,20" stroke="{ICE_D}" stroke-width="1.2"/>',
+    'blade': f'<path d="M12,30 L36,30 C38,30 38,33 36,33 L12,33 Z" fill="#C9D3DC" {o(1.6)}/><rect x="16" y="16" width="16" height="12" rx="3" fill="#E5484D" {o(1.6)}/><path d="M20,28 L20,30 M28,28 L28,30" stroke="{OL}" stroke-width="1.6"/>',
+    'fish': f'<path d="M12,24 C18,16 30,16 34,24 C30,32 18,32 12,24 Z" fill="#9FD3EE" {o(1.6)}/><path d="M34,24 L40,18 L40,30 Z" fill="#9FD3EE" {o(1.6)}/><circle cx="18" cy="23" r="1.4" fill="{OL}"/>',
+    'compass': f'<circle cx="24" cy="25" r="11" fill="url(#gold)" {o(1.6)}/><circle cx="24" cy="25" r="8" fill="#FFF6E9" {o(1.2)}/><path d="M24,18 L26,25 L24,32 L22,25 Z" fill="#E5484D" {o(.8)}/>',
+    'pearl': f'<path d="M12,30 C12,20 36,20 36,30 Z" fill="#B8C6D6" {o(1.6)}/><circle cx="24" cy="26" r="6" fill="#FFFFFF" {o(1.4)}/><circle cx="22" cy="24" r="1.6" fill="#DDF3FF"/>',
+    'gear': f'<circle cx="24" cy="24" r="9" fill="#F2B84B" {o(1.6)}/>' + ''.join(f'<rect x="22" y="11" width="4" height="5" fill="#F2B84B" {o(1.2)} transform="rotate({a} 24 24)"/>' for a in range(0, 360, 45)) + f'<circle cx="24" cy="24" r="3.5" fill="#FFF6E9" {o(1.2)}/>',
+    'bolt': f'<rect x="21" y="12" width="6" height="22" rx="1" fill="#C9D3DC" {o(1.6)}/><path d="M21,16 L27,18 M21,20 L27,22 M21,24 L27,26" stroke="#8F99A4" stroke-width="1.2"/><rect x="16" y="32" width="16" height="6" rx="1.5" fill="#A3ABB5" {o(1.6)}/>',
+    'helmet': f'<path d="M12,30 C12,18 36,18 36,30 Z" fill="#FFD166" {o(1.6)}/><rect x="10" y="29" width="28" height="5" rx="2.5" fill="#FFC85C" {o(1.6)}/><path d="M24,19 L24,29" stroke="#E8A93C" stroke-width="3"/>',
+    'fuse': f'<rect x="15" y="18" width="18" height="12" rx="3" fill="#BEE6F7" {o(1.6)}/><rect x="11" y="20" width="5" height="8" rx="1" fill="#C9D3DC" {o(1.4)}/><rect x="32" y="20" width="5" height="8" rx="1" fill="#C9D3DC" {o(1.4)}/><path d="M17,24 C20,20 22,28 25,24 C27,21 29,26 31,24" stroke="#E8890C" stroke-width="1.4" fill="none"/>',
+    'coil': ''.join(f'<ellipse cx="24" cy="{16 + k * 4}" rx="9" ry="3" fill="none" stroke="{OL}" stroke-width="3.6"/><ellipse cx="24" cy="{16 + k * 4}" rx="9" ry="3" fill="none" stroke="#D98457" stroke-width="2"/>' for k in range(6)),
+    'lamp': f'<rect x="18" y="16" width="12" height="16" rx="3" fill="#FFF3C4" {o(1.6)}/><rect x="17" y="13" width="14" height="4" rx="2" fill="#8F99A4" {o(1.4)}/><rect x="17" y="31" width="14" height="5" rx="2" fill="#8F99A4" {o(1.4)}/><circle cx="24" cy="24" r="3" fill="#FFB86B"/>',
+    'bottle': f'<path d="M14,22 L30,22 C34,22 34,34 30,34 L14,34 C10,34 10,22 14,22 Z" fill="#DDF3FF" {o(1.6)}/><rect x="33" y="25" width="5" height="6" rx="1" fill="#B9876A" {o(1.2)}/><path d="M16,31 L28,31 L26,27 L22,27 L22,24 L20,27 L18,27 Z" fill="#B98375"/>',
+    'anchor': f'<path d="M24,14 L24,34 M17,22 L31,22 M14,28 C16,36 32,36 34,28" fill="none" stroke="{OL}" stroke-width="4.4" stroke-linecap="round"/><path d="M24,14 L24,34 M17,22 L31,22 M14,28 C16,36 32,36 34,28" fill="none" stroke="#5E9CCF" stroke-width="2.2" stroke-linecap="round"/><circle cx="24" cy="12" r="3" fill="none" stroke="{OL}" stroke-width="1.8"/>',
+    'shell': f'<path d="M24,36 L12,22 C14,12 34,12 36,22 Z" fill="#FFC9D6" {o(1.6)}/><path d="M24,36 L18,16 M24,36 L24,14 M24,36 L30,16" stroke="#F49AB2" stroke-width="1.4"/>',
+    'book': f'<rect x="13" y="13" width="22" height="24" rx="2" fill="#8C6A5A" {o(1.6)}/><rect x="16" y="16" width="16" height="18" rx="1" fill="#B98375"/><path d="M18,22 L30,22 M18,26 L28,26" stroke="#FFE49A" stroke-width="1.6"/>',
+    'key': f'<circle cx="17" cy="24" r="6" fill="none" stroke="{OL}" stroke-width="4.2"/><circle cx="17" cy="24" r="6" fill="none" stroke="#F2B84B" stroke-width="2.2"/><path d="M23,24 L37,24 M33,24 L33,29 M29,24 L29,28" stroke="{OL}" stroke-width="4.2" stroke-linecap="round"/><path d="M23,24 L37,24 M33,24 L33,29 M29,24 L29,28" stroke="#F2B84B" stroke-width="2.2" stroke-linecap="round"/>',
+    'glass': f'<path d="M16,20 L26,14 L34,22 L30,34 L18,32 Z" fill="#8FC2AE" opacity=".85" {o(1.6)}/><path d="M22,20 L26,18" stroke="#fff" stroke-width="2" stroke-linecap="round"/>',
+    'mug': f'<rect x="14" y="17" width="16" height="19" rx="3" fill="#E5484D" {o(1.6)}/><path d="M30,21 C37,21 37,31 30,31" fill="none" stroke="{OL}" stroke-width="4"/><path d="M30,21 C37,21 37,31 30,31" fill="none" stroke="#E5484D" stroke-width="2"/><path d="M19,13 C17,10 21,9 19,6 M25,13 C23,10 27,9 25,6" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round"/>',
+    'scarf': f'<path d="M12,18 C20,14 28,14 36,18 L36,24 C28,20 20,20 12,24 Z" fill="#F08A5D" {o(1.6)}/><path d="M26,21 L30,38 L24,38 L22,22 Z" fill="#F08A5D" {o(1.6)}/><path d="M16,19 L16,23 M22,17 L22,21 M30,17 L30,21" stroke="#FFE49A" stroke-width="2"/>',
+    'harmonica': f'<rect x="10" y="19" width="28" height="11" rx="2" fill="#C9D3DC" {o(1.6)}/>' + ''.join(f'<rect x="{12 + k * 4.4}" y="23" width="2.6" height="3" fill="{OL}"/>' for k in range(6)),
+    'map': f'<path d="M10,16 L19,13 L29,16 L38,13 L38,33 L29,36 L19,33 L10,36 Z" fill="#FFF0C8" {o(1.6)}/><path d="M19,13 L19,33 M29,16 L29,36" stroke="#D9C6AE" stroke-width="1.2"/><path d="M13,30 C18,26 22,28 26,22 C29,19 32,20 35,18" stroke="#E5484D" stroke-width="1.6" stroke-dasharray="2 2" fill="none"/>',
+    'star': f'<path d="M24,11 l4,8 l9,1.3 l-6.5,6.2 l1.6,8.9 l-8.1,-4.3 l-8.1,4.3 l1.6,-8.9 l-6.5,-6.2 l9,-1.3 Z" fill="#C9D3DC" {o(1.6)}/><circle cx="24" cy="25" r="3" fill="#A3ABB5"/>',
+    'socks': f'<path d="M15,12 L22,12 L22,26 C22,30 26,30 30,30 C34,30 34,37 30,37 L20,37 C16,37 15,34 15,30 Z" fill="#B9A2EE" {o(1.6)}/><path d="M15,17 L22,17 M15,21 L22,21" stroke="#fff" stroke-width="2"/>',
+}
+SHAPE_FOR = [
+    ['cone', 'owl', 'mitten', 'badge', 'whistle', 'acorn'],
+    ['photo', 'train', 'sign', 'bell', 'globe', 'letter'],
+    ['crystal', 'blade', 'fish', 'compass', 'bell', 'pearl'],
+    ['gear', 'bolt', 'helmet', 'fuse', 'coil', 'lamp'],
+    ['bottle', 'anchor', 'shell', 'book', 'key', 'glass'],
+    ['mug', 'scarf', 'harmonica', 'map', 'star', 'socks'],
+]
+for r in range(6):
+    for i in range(6):
+        body = f'<circle cx="24" cy="24" r="21" fill="{REGION_TINT[r]}" {o(2)}/><circle cx="24" cy="24" r="17" fill="#FFFFFF" opacity=".55"/>' + SHAPES[SHAPE_FOR[r][i]]
+        art(f'col_{r}_{i}', 48, 48, body, 4)
+
+
 # ---------------- rendering ----------------
 async def render(only):
     from playwright.async_api import async_playwright
