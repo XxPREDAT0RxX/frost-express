@@ -219,8 +219,7 @@ trim2 = ''.join(f'<rect x="{M - 1}" y="{M + y}" width="9" height="{18}" rx="2" f
                 for y in (4, H - 22)) + f'<rect x="{M + 30}" y="{M - 1}" width="{W - 60}" height="5" rx="2" fill="#C9D3DC" stroke="{OL}" stroke-width="1.2"/>'
 trim3 = f'''<defs><linearGradient id="aur2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7CF2C8"/><stop offset=".5" stop-color="#B9A2EE"/><stop offset="1" stop-color="#7CF2C8"/></linearGradient></defs>
 <rect x="{M + 1}" y="{M + 14}" width="3" height="{H - 28}" rx="1.5" fill="url(#aur2)"/><rect x="{M + W - 4}" y="{M + 14}" width="3" height="{H - 28}" rx="1.5" fill="url(#aur2)"/>'''
-trim4 = f'''<rect x="{M + 70}" y="{M - 1}" width="8" height="{H + 2}" fill="#FFFFFF" opacity=".9"/><rect x="{M + W - 78}" y="{M - 1}" width="8" height="{H + 2}" fill="#FFFFFF" opacity=".9"/>
-<rect x="{M + 70}" y="{M - 1}" width="8" height="{H + 2}" fill="none" stroke="{OL}" stroke-width="1"/><rect x="{M + W - 78}" y="{M - 1}" width="8" height="{H + 2}" fill="none" stroke="{OL}" stroke-width="1"/>'''
+trim4 = ''.join(f'<rect x="{M + x}" y="{y}" width="8" height="9" fill="#FFFFFF" stroke="{OL}" stroke-width="1"/>' for x in (70, W - 78) for y in (M - 1, M + H - 8))
 trim5 = ''.join(f'<path d="M{M + x},{M + y} m-7,0 a7,7 0 0 1 14,0 a7,7 0 0 1 -14,0 Z" fill="#FFD166" stroke="{OL}" stroke-width="1.4"/>' for x in (6, W - 6) for y in (6, H - 6)) + \
         ''.join(f'<circle cx="{M + x}" cy="{M + 3}" r="1.6" fill="#FFD166" stroke="{OL}" stroke-width=".8"/><circle cx="{M + x}" cy="{M + H - 3}" r="1.6" fill="#FFD166" stroke="{OL}" stroke-width=".8"/>' for x in range(30, W - 20, 20))
 for i, body in enumerate((trim1, trim2, trim3, trim4, trim5), start=1):

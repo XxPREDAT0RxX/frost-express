@@ -944,12 +944,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
     }
 
-    /** Increases with every evolve; the screen then shows the new train. */
+    /** Increases with every evolve. */
     var evolveSerial by mutableIntStateOf(0); private set
+    /** The "New train!" pop-up is waiting to be seen. */
+    var newTrainPending by mutableStateOf(false); private set
+    fun dismissNewTrain() { newTrainPending = false }
 
     fun evolve() {
         if (!canEvolve) return
         evolveSerial++
+        newTrainPending = true
         audio.play(R.raw.sfx_evolve)
         cores += coreGain
         evolutions++

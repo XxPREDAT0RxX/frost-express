@@ -2333,11 +2333,10 @@ private fun LevelBadge(vm: GameViewModel, onClick: () -> Unit) {
 /** After evolving: which train you got, with a picture of it. */
 @Composable
 private fun NewTrainPopup(vm: GameViewModel) {
-    var seen by remember { mutableIntStateOf(vm.evolveSerial) }
-    if (vm.evolveSerial == seen) return
+    if (!vm.newTrainPending) return
     val idx = vm.tierIndex
     val tier = TIERS[idx]
-    CozyCard("New train!", Color(0xFFDCCBFA), onDismiss = { seen = vm.evolveSerial }) {
+    CozyCard("New train!", Color(0xFFDCCBFA), onDismiss = vm::dismissNewTrain) {
         Text("Your train evolved into", fontSize = 12.sp, color = Muted)
         Text(tier.name, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
         Spacer(Modifier.height(8.dp))
@@ -2348,7 +2347,7 @@ private fun NewTrainPopup(vm: GameViewModel) {
             fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
-        BigButton("All aboard!", { seen = vm.evolveSerial }, Modifier.fillMaxWidth(0.7f))
+        BigButton("All aboard!", vm::dismissNewTrain, Modifier.fillMaxWidth(0.7f))
     }
 }
 
