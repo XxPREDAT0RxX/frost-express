@@ -95,6 +95,8 @@ private fun rememberSceneArt(): SceneArt {
 private var sceneArt: SceneArt? = null
 private var sceneMats: Materials? = null
 private var sceneSprites: GameSprites? = null
+private var shopCocoa = false
+private var shopTurbo = false
 
 /**
  * Fills a rectangle (dp, train or screen space) with a tiled texture of [pxPerDp] texture pixels per dp.
@@ -458,6 +460,8 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneArt = art
         sceneMats = mats
         sceneSprites = sprites
+        shopCocoa = vm.shopIncomeLeft > 0.0
+        shopTurbo = vm.shopSpeedLeft > 0.0
         drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
     }
 }
@@ -563,7 +567,20 @@ private fun DrawScope.drawScene(
         val barY = (h * (npc.camY / npc.trainLen)).coerceIn(0f, h - barH)
         drawRoundRect(Color(0x55203040), Offset(w - 7f * u, barY), Size(4f * u, barH), CornerRadius(2f * u, 2f * u))
     }
-    if (boosting) drawSpeedLines(time, originX, trainPx, w, h, u)
+    if (boosting || shopTurbo) drawSpeedLines(time, originX, trainPx, w, h, u)
+    if (shopCocoa) {
+        // Hot Cocoa Rush: little gold coins float up beside the train
+        for (i in 0 until 10) {
+            val ph = (time * 0.35f + i * 0.1f) % 1f
+            val side = if (i % 2 == 0) originX - 14f * u else originX + trainPx + 14f * u
+            val x = side + sin(time * 2f + i) * 6f * u
+            val y = h * (1f - ph)
+            val a = (1f - ph) * 0.9f
+            drawCircle(Color(0xFF6B4A3A).copy(alpha = a), 5.2f * u, Offset(x, y))
+            drawCircle(Color(0xFFFFC85C).copy(alpha = a), 4f * u, Offset(x, y))
+            drawCircle(Color.White.copy(alpha = a * 0.8f), 1.3f * u, Offset(x - 1.3f * u, y - 1.3f * u))
+        }
+    }
 }
 
 // ---- post-processing helpers (can be switched off in Settings) ----

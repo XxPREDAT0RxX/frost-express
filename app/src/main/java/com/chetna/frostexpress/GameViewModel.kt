@@ -173,7 +173,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         put("totalDist", totalDistance.toString()); put("taps", boostTaps); put("purch", purchases)
         put("streak", dailyStreak); put("dailyDay", lastDailyDay)
         put("ach", unlocked.joinToString(",")); put("unl", unlockedUpgrades.joinToString(","))
-        put("livery", liveryIndex); put("tstage", tutorialStage); put("gems", gems)
+        put("livery", liveryIndex); put("tstage", tutorialStage); put("gems", gems); put("inv", inventory.joinToString(","))
     }.toString()
 
     private fun importProgress(json: String) {
@@ -192,6 +192,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             unlockedUpgrades.clear(); unlockedUpgrades.addAll(o.optString("unl", "").split(",").filter { it.isNotEmpty() })
             liveryIndex = o.optInt("livery", 0)
             gems = max(gems, o.optInt("gems", 0))
+            val inv = o.optString("inv", "").split(",").mapNotNull { it.toIntOrNull() }
+            for (i in inventory.indices) inventory[i] = max(inventory[i], inv.getOrElse(i) { 0 })
             tutorialStage = o.optInt("tstage", 4)
             dailyReady = lastDailyDay != today()
             save()
@@ -425,7 +427,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Wipes all progress (settings stay). */
     fun resetAll() {
         liveryIndex = 0
-        prefs.edit().clear().putInt("gems", gems).putInt("fps", fpsCap).putBoolean("postfx", postFx).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
+        prefs.edit().clear().putInt("gems", gems).putString("inv", inventory.joinToString(",")).putInt("fps", fpsCap).putBoolean("postfx", postFx).putBoolean("sound", soundOn).putFloat("mvol", musicVolume).putFloat("svol", sfxVolume).apply()
         coins = 0.0; runDistance = 0.0; cores = 0; evolutions = 0; coresSpent = 0
         for (i in levels.indices) levels[i] = 0
         for (i in permLevels.indices) permLevels[i] = 0
@@ -544,10 +546,36 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         ShopItem.CLEAR -> stormLeft > 0.0
         else -> shopLeft(item) + item.durationSec <= Balance.SHOP_MAX_SEC
     }
+    /** Boosters you own but have not used yet (bought in the shop with gems). */
+    val inventory = mutableStateListOf<Int>().apply {
+        val saved = prefs.getString("inv", "")?.split(",")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
+        ShopItem.values().indices.forEach { add(saved.getOrElse(it) { 0 }) }
+    }
+    fun owned(item: ShopItem): Int = inventory[item.ordinal]
+    val inventoryCount: Int get() = inventory.sum()
+
+    /** The last booster used, for the on-screen pop-up. Increases with every use. */
+    var usedSerial by mutableIntStateOf(0); private set
+    var lastUsed by mutableStateOf<ShopItem?>(null); private set
+
+    /** Shop: pay gems, the booster goes to the inventory. */
     fun buyShop(item: ShopItem) {
         val cost = shopCost(item)
-        if (gems < cost || !shopAvailable(item)) return
+        if (gems < cost) return
         gems -= cost
+        inventory[item.ordinal] = owned(item) + 1
+        audio.play(R.raw.sfx_buy)
+        showToast("${item.title} added to your bag")
+        save()
+    }
+
+    /** Can this booster be used right now (timed boosters stack up to 30 minutes, the others need a reason)? */
+    fun canUse(item: ShopItem): Boolean = owned(item) > 0 && shopAvailable(item)
+
+    /** Inventory: use one booster. */
+    fun useItem(item: ShopItem) {
+        if (!canUse(item)) return
+        inventory[item.ordinal] = owned(item) - 1
         when (item) {
             ShopItem.COCOA -> shopIncomeLeft += item.durationSec
             ShopItem.TURBO -> shopSpeedLeft += item.durationSec
@@ -555,8 +583,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             ShopItem.TANK -> { boostMeter = 1.0; boostLocked = false }
             ShopItem.CLEAR -> { stormLeft = min(stormLeft, Balance.STORM_FADE_SEC) }
         }
-        audio.play(R.raw.sfx_buy)
-        showToast("${item.title} bought!")
+        lastUsed = item
+        usedSerial++
+        audio.play(R.raw.sfx_evolve, 0.6f)
         save()
     }
 
@@ -713,6 +742,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("ach", unlocked.joinToString(","))
             .putString("unl", unlockedUpgrades.joinToString(","))
             .putInt("gems", gems)
+            .putString("inv", inventory.joinToString(","))
             .putLong("gemDay", gemTradeDay)
             .putInt("gemTraded", gemsTradedToday)
             .putFloat("shopInc", shopIncomeLeft.toFloat())

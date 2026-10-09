@@ -476,6 +476,43 @@ misc('station_roof', 26, 88, f'''<rect x="5" y="6" width="18" height="80" rx="5"
 <path d="M3,8 C3,4 21,4 21,8 L21,30 C17,33 7,33 3,30 Z" fill="#fff" {o(1.8)}/>''', 6)
 
 
+# ---------------- item and menu icons (48 x 48 units) ----------------
+icon = lambda name, body: misc(name, 48, 48, body, 4)
+icon('item_cocoa', f'''{ell_n(24, 42, 15, 3, '#000', .1)}
+<path d="M10,16 L38,16 L35,38 C35,42 13,42 13,38 Z" fill="#F28C8C" {o(2)}/>
+<path d="M37,20 C46,20 46,32 36,32" fill="none" stroke="{OL}" stroke-width="5" stroke-linecap="round"/><path d="M37,20 C46,20 46,32 36,32" fill="none" stroke="#F28C8C" stroke-width="2.4" stroke-linecap="round"/>
+<ellipse cx="24" cy="16" rx="14" ry="4" fill="#8B5E3C" {o(2)}/><circle cx="19" cy="15" r="3" fill="#fff" {o(1.2)}/><circle cx="26" cy="14" r="2.6" fill="#fff" {o(1.2)}/>
+<path d="M18,10 C15,6 21,4 18,0 M28,10 C25,6 31,4 28,0" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M18,26 l3,-3 l3,3 l-3,3 Z" fill="#fff" opacity=".7"/>''')
+icon('item_turbo', f'''{ell_n(24, 42, 15, 3, '#000', .1)}
+<path d="M24,4 C34,12 38,20 36,28 C35,36 30,40 24,40 C18,40 13,36 12,28 C11,22 15,18 18,14 C19,20 22,22 24,20 C22,14 22,8 24,4 Z" fill="url(#glow)" {o(2)}/>
+<path d="M24,22 C29,26 30,32 26,36 C22,37 19,34 20,30 C21,27 23,26 24,22 Z" fill="#FF8F5A"/>
+<ellipse cx="24" cy="40" rx="12" ry="4.5" fill="#4A4550" {o(2)}/><circle cx="18" cy="39" r="1.4" fill="#fff" opacity=".6"/>''')
+icon('item_ticket', f'''{ell_n(24, 42, 16, 3, '#000', .1)}
+<path d="M5,14 L43,14 L43,20 C40,20 40,28 43,28 L43,34 L5,34 L5,28 C8,28 8,20 5,20 Z" fill="url(#gold)" {o(2)}/>
+<line x1="33" y1="16" x2="33" y2="32" stroke="{OL}" stroke-width="1.4" stroke-dasharray="2 2"/>
+<path d="M18,18 l2.2,4.4 l4.8,.6 l-3.5,3.3 l.9,4.7 l-4.4,-2.3 l-4.4,2.3 l.9,-4.7 l-3.5,-3.3 l4.8,-.6 Z" fill="#fff" {o(1.2)}/>''')
+icon('item_tank', f'''{ell_n(24, 42, 14, 3, '#000', .1)}
+<rect x="11" y="10" width="26" height="31" rx="7" fill="#8FC2AE" {o(2)}/><rect x="19" y="5" width="10" height="7" rx="2.5" fill="#B9C8D8" {o(1.8)}/>
+<rect x="16" y="16" width="16" height="20" rx="4" fill="#E8F6F0" {o(1.4)}/><rect x="16" y="24" width="16" height="12" rx="4" fill="#FFC85C"/>
+<path d="M25,17 L20,27 L24,27 L22,35 L28,24 L24,24 Z" fill="#fff" {o(1)}/>''')
+icon('item_clear', f'''{ell_n(24, 42, 16, 3, '#000', .1)}
+<circle cx="30" cy="16" r="9" fill="#FFE49A" {o(2)}/>
+{''.join(f'<line x1="{30 + 12 * math.cos(a)}" y1="{16 + 12 * math.sin(a)}" x2="{30 + 15 * math.cos(a)}" y2="{16 + 15 * math.sin(a)}" stroke="{OL}" stroke-width="2" stroke-linecap="round"/>' for a in [i * math.pi / 4 for i in range(8)])}
+<path d="M8,36 C3,36 3,28 9,28 C9,22 18,20 21,25 C25,21 33,24 32,30 C37,30 37,36 32,36 Z" fill="#FFFFFF" {o(2)}/>
+<path d="M14,40 l-2,4 M22,40 l-2,4" stroke="#8FBCE6" stroke-width="2" stroke-linecap="round"/>''')
+icon('icon_shop', f'''<path d="M9,18 L39,18 L36,41 C36,43 12,43 12,41 Z" fill="#FFC9A0" {o(2.2)}/>
+<path d="M17,18 C17,6 31,6 31,18" fill="none" stroke="{OL}" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="9" y="16" width="30" height="6" rx="3" fill="#F08A5D" {o(1.8)}/><circle cx="24" cy="31" r="4" fill="#FFE49A" {o(1.4)}/>''')
+icon('icon_gems', f'''<path d="M13,10 L35,10 L43,20 L24,42 L5,20 Z" fill="#F49AB2" {o(2.2)}/>
+<path d="M13,10 L35,10 L29,20 L19,20 Z" fill="#FFD6E2"/><path d="M5,20 L43,20 M19,20 L24,42 L29,20" fill="none" stroke="{OL}" stroke-width="1.4"/>
+<circle cx="12" cy="8" r="2" fill="#fff"/><path d="M40,6 l1.2,2.4 l2.4,1.2 l-2.4,1.2 l-1.2,2.4 l-1.2,-2.4 l-2.4,-1.2 l2.4,-1.2 Z" fill="#fff" {o(1)}/>''')
+icon('icon_bag', f'''<path d="M10,20 C10,13 38,13 38,20 L38,38 C38,42 10,42 10,38 Z" fill="#B8D8F2" {o(2.2)}/>
+<path d="M17,15 C17,6 31,6 31,15" fill="none" stroke="{OL}" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="16" y="24" width="16" height="10" rx="3" fill="#8FBCE6" {o(1.6)}/><line x1="24" y1="24" x2="24" y2="28" stroke="{OL}" stroke-width="1.6"/>
+<path d="M10,22 C16,24 32,24 38,22" fill="none" stroke="{OL}" stroke-width="1.4"/>''')
+
+
 # ---------------- tiles (textures) ----------------
 TILES = {}
 

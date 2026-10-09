@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -222,6 +223,14 @@ fun GameScreen(vm: GameViewModel) {
                 else -> null
             }
             if (hint != null) TutorialHint(hint, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp + bottomInset * (1f - sheetP)))
+            ActiveBoosters(
+                vm,
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = 118.dp, end = 10.dp),
+            )
+            BoosterPopup(vm, Modifier.align(Alignment.Center))
             if (vm.event == GameEvent.CRATE) {
                 SupplyCrate(
                     vm::collectCrate,
@@ -237,8 +246,10 @@ fun GameScreen(vm: GameViewModel) {
                     if (!showUpgrades) vm.tutorialAdvance(1)
                     sheet = if (sheet == 1) 0 else 1
                 },
-                shopOpen = sheet == 2,
+                openSheet = sheet,
                 onToggleShop = { sheet = if (sheet == 2) 0 else 2 },
+                onToggleGems = { sheet = if (sheet == 3) 0 else 3 },
+                onToggleBag = { sheet = if (sheet == 4) 0 else 4 },
                 pulseGear = vm.tutorialStage == 1 || (vm.tutorialStage == 2 && !showUpgrades),
                 pulseBoost = vm.tutorialStage == 3,
                 modifier = Modifier
@@ -262,6 +273,8 @@ fun GameScreen(vm: GameViewModel) {
                     ShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onGetGems = { sheet = 3 })
                 } else if (shownSheet[0] == 3) {
                     GemShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onBack = { sheet = 2 })
+                } else if (shownSheet[0] == 4) {
+                    InventorySheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onShop = { sheet = 2 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
@@ -532,21 +545,6 @@ private fun TimeChip(vm: GameViewModel) {
                 color = Ice,
                 modifier = Modifier
                     .background(Ice.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            )
-        }
-        for (item in listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET)) {
-            val left = vm.shopLeft(item)
-            if (left <= 0.0) continue
-            val label = when (item) { ShopItem.COCOA -> "Coins x2"; ShopItem.TURBO -> "Speed x1.5"; else -> "Stations x3" }
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "$label ${left.toInt() / 60}:${(left.toInt() % 60).toString().padStart(2, '0')}",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = GoldText,
-                modifier = Modifier
-                    .background(Gold.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
@@ -880,8 +878,10 @@ private fun BottomBar(
     vm: GameViewModel,
     sheetOpen: Boolean,
     onToggleUpgrades: () -> Unit,
-    shopOpen: Boolean = false,
+    openSheet: Int = 0,
     onToggleShop: () -> Unit = {},
+    onToggleGems: () -> Unit = {},
+    onToggleBag: () -> Unit = {},
     modifier: Modifier = Modifier,
     pulseGear: Boolean = false,
     pulseBoost: Boolean = false,
@@ -911,7 +911,7 @@ private fun BottomBar(
     ) {
         Box(
             Modifier
-                .size(40.dp)
+                .size(38.dp)
                 .border(if (pulseGear) 3.dp else 0.dp, Ember.copy(alpha = pulse), CircleShape)
                 .clip(CircleShape)
                 .background(if (sheetOpen) Color(0xFF9FC5EA) else Color(0xFFCDE7F8))
@@ -931,19 +931,14 @@ private fun BottomBar(
                 )
             }
         }
+        val sprites = rememberGameSprites()
+        Spacer(Modifier.width(6.dp))
+        FooterIcon(sprites.iconShop, openSheet == 2, Color(0xFFFFE1C8), onToggleShop)
+        Spacer(Modifier.width(6.dp))
+        FooterIcon(sprites.iconGems, openSheet == 3, Color(0xFFFFE1EA), onToggleGems)
+        Spacer(Modifier.width(6.dp))
+        FooterIcon(sprites.iconBag, openSheet == 4, Color(0xFFDDEEFB), onToggleBag, badge = vm.inventoryCount)
         Spacer(Modifier.width(8.dp))
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(if (shopOpen) Color(0xFFFFC9A0) else Color(0xFFFFE1C8))
-                .border(2.dp, Ink, CircleShape)
-                .clickable(onClick = onToggleShop),
-            contentAlignment = Alignment.Center,
-        ) {
-            ShopIcon(Ember, Modifier.size(22.dp))
-        }
-        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Box(
                 Modifier
@@ -1632,7 +1627,7 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
                 .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ShopIcon(Ember, Modifier.size(18.dp))
+            rememberGameSprites().iconShop?.let { Image(it, null, Modifier.size(22.dp)) }
             Spacer(Modifier.width(6.dp))
             Text("Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             GemIcon(Modifier.size(16.dp))
@@ -1648,12 +1643,11 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             item {
-                Text("Boosters bought with gems. Timed boosters stack up to 30 minutes.", fontSize = 11.sp, color = Muted)
+                Text("Buy boosters with gems. They go to your bag, use them whenever you like.", fontSize = 11.sp, color = Muted)
             }
             items(ShopItem.values().toList()) { item ->
                 val cost = vm.shopCost(item)
-                val left = vm.shopLeft(item)
-                val avail = vm.shopAvailable(item)
+                val owned = vm.owned(item)
                 UpgradeRow(
                     type = when (item) {
                         ShopItem.COCOA -> UpgradeType.FOOD
@@ -1663,18 +1657,14 @@ private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose:
                         ShopItem.CLEAR -> UpgradeType.PLOW
                     },
                     title = item.title,
-                    level = if (left > 0.0) "Active ${left.toInt() / 60}:${(left.toInt() % 60).toString().padStart(2, '0')}" else "",
+                    level = if (owned > 0) "In bag: $owned" else "",
                     effect = item.desc,
-                    note = when {
-                        item == ShopItem.CLEAR && !avail -> "Only during a snow storm"
-                        item == ShopItem.TANK && !avail -> "Your boost meter is already full"
-                        !avail -> "Maximum 30 minutes stacked"
-                        else -> null
-                    },
+                    note = null,
                     buttonTop = "Buy",
                     buttonBottom = "$cost",
-                    enabled = avail && vm.gems >= cost,
+                    enabled = vm.gems >= cost,
                     onBuy = { vm.buyShop(item) },
+                    icon = { ItemIcon(item, Modifier.size(34.dp)) },
                     priceIcon = 2,
                 )
             }
@@ -1778,5 +1768,191 @@ private fun GemShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClo
                 )
             }
         }
+    }
+}
+
+
+// ---------- footer icons, bag, active booster indicators ----------
+
+@Composable
+private fun FooterIcon(img: androidx.compose.ui.graphics.ImageBitmap?, open: Boolean, bg: Color, onClick: () -> Unit, badge: Int = 0) {
+    Box(
+        Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(if (open) bg.copy(red = bg.red * 0.92f, green = bg.green * 0.88f, blue = bg.blue * 0.86f) else bg)
+            .border(if (open) 3.dp else 2.dp, Ink, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (img != null) Image(img, null, Modifier.size(26.dp))
+        if (badge > 0) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(Ember)
+                    .border(1.5.dp, Ink, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (badge > 9) "9+" else "$badge", fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ItemIcon(item: ShopItem, modifier: Modifier = Modifier) {
+    val img = rememberGameSprites().item[item]
+    if (img != null) Image(img, item.title, modifier) else Box(modifier)
+}
+
+private fun fmtClock(sec: Double): String {
+    val s = sec.toInt().coerceAtLeast(0)
+    return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
+}
+
+@Composable
+private fun InventorySheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit, onShop: () -> Unit) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Panel)
+            .border(OutlineW, Wood, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.horizontalGradient(listOf(Color(0xFFDDEEFB), Color(0xFFEAF6F0))))
+                .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            rememberGameSprites().iconBag?.let { Image(it, null, Modifier.size(22.dp)) }
+            Spacer(Modifier.width(6.dp))
+            Text("My Bag", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            PillButton("Shop", Color(0xFFFFE1C8), Ink, onClick = onShop)
+            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            item {
+                Text(
+                    if (vm.inventoryCount == 0) "Your bag is empty. Buy boosters in the shop with gems." else "Tap Use to switch a booster on. Timed boosters stack up to 30 minutes.",
+                    fontSize = 11.sp, color = Muted,
+                )
+            }
+            items(ShopItem.values().toList()) { item ->
+                val owned = vm.owned(item)
+                val left = vm.shopLeft(item)
+                UpgradeRow(
+                    type = UpgradeType.BOOSTER,
+                    title = item.title,
+                    level = "x$owned",
+                    effect = item.desc,
+                    note = when {
+                        left > 0.0 -> "Active · ${fmtClock(left)} left"
+                        owned > 0 && item == ShopItem.CLEAR && !vm.shopAvailable(item) -> "Use it during a snow storm"
+                        owned > 0 && item == ShopItem.TANK && !vm.shopAvailable(item) -> "Your boost meter is already full"
+                        owned > 0 && !vm.shopAvailable(item) -> "Already stacked to 30 minutes"
+                        else -> null
+                    },
+                    buttonTop = "Use",
+                    buttonBottom = null,
+                    enabled = vm.canUse(item),
+                    onBuy = { vm.useItem(item) },
+                    icon = { ItemIcon(item, Modifier.size(34.dp)) },
+                )
+            }
+        }
+    }
+}
+
+/** Round badges for every booster that is running, with a ring that empties as time runs out. */
+@Composable
+private fun ActiveBoosters(vm: GameViewModel, modifier: Modifier = Modifier) {
+    val running = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET).filter { vm.shopLeft(it) > 0.0 }
+    if (running.isEmpty()) return
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "boostBadge").animateFloat(
+        0.94f, 1.06f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "boostBadgePulse",
+    )
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        for (item in running) {
+            val left = vm.shopLeft(item)
+            val chunk = item.durationSec * kotlin.math.ceil(left / item.durationSec)
+            val frac = (left / chunk).toFloat().coerceIn(0f, 1f)
+            val ring = when (item) { ShopItem.COCOA -> Color(0xFFF28C8C); ShopItem.TURBO -> Color(0xFFFFB86B); else -> Color(0xFFFFC85C) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier
+                        .size(46.dp)
+                        .graphicsLayer { scaleX = pulse; scaleY = pulse },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawCircle(Panel)
+                        drawArc(ring, -90f, 360f * frac, false, style = Stroke(4.dp.toPx(), cap = StrokeCap.Round), topLeft = Offset(3.dp.toPx(), 3.dp.toPx()), size = Size(size.width - 6.dp.toPx(), size.height - 6.dp.toPx()))
+                        drawCircle(Ink, style = Stroke(2.dp.toPx()))
+                    }
+                    ItemIcon(item, Modifier.size(28.dp))
+                }
+                Text(
+                    fmtClock(left), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Panel)
+                        .border(1.5.dp, Ink, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
+        }
+    }
+}
+
+/** A big friendly pop-up in the middle of the screen right after a booster is used. */
+@Composable
+private fun BoosterPopup(vm: GameViewModel, modifier: Modifier = Modifier) {
+    val anim = remember { Animatable(0f) }
+    var shown by remember { mutableStateOf<ShopItem?>(null) }
+    LaunchedEffect(vm.usedSerial) {
+        if (vm.usedSerial == 0) return@LaunchedEffect
+        shown = vm.lastUsed
+        anim.snapTo(0f)
+        anim.animateTo(1f, tween(1700))
+        shown = null
+    }
+    val item = shown ?: return
+    val p = anim.value
+    val scale = if (p < 0.2f) p / 0.2f * 1.15f else if (p < 0.3f) 1.15f - (p - 0.2f) * 1.5f else 1f
+    val alpha = if (p > 0.8f) (1f - p) / 0.2f else 1f
+    Column(
+        modifier.graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha; translationY = -40f * p },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .size(96.dp)
+                .clip(CircleShape)
+                .background(Panel)
+                .border(3.dp, Ink, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { ItemIcon(item, Modifier.size(70.dp)) }
+        Text(
+            "${item.title}!", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFFFE49A))
+                .border(2.dp, Ink, RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+        )
     }
 }

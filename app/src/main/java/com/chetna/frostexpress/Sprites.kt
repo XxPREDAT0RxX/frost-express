@@ -60,6 +60,10 @@ class GameSprites(ctx: Context) {
     val npc = load("npc_front")
     val npcSleep = load("npc_sleep")
     val stationRoof = load("station_roof")
+    val item: Map<ShopItem, ImageBitmap> = ShopItem.values().mapNotNull { i -> load("item_" + i.name.lowercase())?.let { i to it } }.toMap()
+    val iconShop = load("icon_shop")
+    val iconGems = load("icon_gems")
+    val iconBag = load("icon_bag")
 }
 
 /** Loads the sprites once (can be warmed up on a background thread at start). */
