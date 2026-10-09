@@ -84,6 +84,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         for (spec in UPGRADES) {
             if (isUnlocked(spec)) continue
             val req = spec.unlockType ?: continue
+            if (carOf(spec.type) >= maxCars && level(spec.type) == 0) continue // that car needs a later train
             if (level(spec.type) > 0) {
                 unlockedUpgrades.add(spec.type.name) // old saves: already owned
             } else if (level(req) >= spec.unlockLevel) {
@@ -295,11 +296,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Called by the scene when a station reaches the train. */
-    fun collectStation() {
-        val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION))
+    fun collectStation(shelter: Boolean = false) {
+        val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION)) *
+            (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0)
         coins += gain
         audio.play(R.raw.sfx_buy)
-        showToast("Station: passengers paid +${fmt(gain)} coins")
+        showToast(
+            if (shelter) "Storm shelter: the train waits at the station. +${fmt(gain)} coins"
+            else "Station: passengers paid +${fmt(gain)} coins"
+        )
     }
 
     private fun tickEvents(dt: Double) {
@@ -312,6 +317,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 nextStormIn = Balance.STORM_MIN_GAP + Math.random() * (Balance.STORM_MAX_GAP - Balance.STORM_MIN_GAP)
                 stormTotal = Balance.STORM_MIN_SEC + Math.random() * (Balance.STORM_MAX_SEC - Balance.STORM_MIN_SEC)
                 stormLeft = stormTotal
+                stormStationSerial++
                 showToast("Snow storm! Speed -25% for ${stormTotal.toInt()}s")
             }
         }
@@ -424,6 +430,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         unlocked.clear(); achievementPopup = null
         event = GameEvent.NONE; eventLeft = 0.0; adBoostLeft = 0.0; toast = null
         stormLeft = 0.0
+        shopIncomeLeft = 0.0; shopSpeedLeft = 0.0; shopTicketLeft = 0.0
         nextStationAt = (floor(0.0 / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
@@ -470,7 +477,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val tierIndex: Int get() = min(evolutions, TIERS.lastIndex)
 
-    val speed: Double
+    /** Speed from upgrades and weather, without shop boosts or station stops. */
+    val cruiseSpeed: Double
         get() = (Balance.BASE_SPEED + Balance.SPEED_PER_ENGINE * level(UpgradeType.ENGINE)) *
             milestoneMult(UpgradeType.ENGINE) *
             (1.0 + Balance.PLOW_BONUS * level(UpgradeType.PLOW)) *
@@ -493,20 +501,74 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
+    /** Visual travel speed for the scene (station stops are applied by the scene itself). */
+    val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
+    val speed: Double get() = travelSpeed * moveFactor
     val coinsPerSec: Double get() = speed * coinsPerMeter * incomeMultiplier
-    /** Steady income without boost, aurora or ad multipliers; used to size one-off rewards. */
-    private val baseCoinsPerSec: Double get() = speed * coinsPerMeter
+    /** Steady income without boosts, shop items or stops; used to size rewards and shop prices. */
+    private val baseCoinsPerSec: Double get() = cruiseSpeed * coinsPerMeter
+
+    // ---- train stops at a station during storms (driven by the scene) ----
+    private var moveFactorRaw = 1.0
+    private var moveFactorAt = 0L
+    /** 0 = standing at a station, 1 = full speed. Falls back to 1 if the scene stops reporting (app in background). */
+    val moveFactor: Double
+        get() = if (System.currentTimeMillis() - moveFactorAt > 2500L) 1.0 else moveFactorRaw
+    fun setMoveFactor(f: Float) {
+        moveFactorRaw = f.toDouble().coerceIn(0.0, 1.0)
+        moveFactorAt = System.currentTimeMillis()
+    }
+    /** Increases when a storm starts; the scene then brings in a shelter station and stops the train there. */
+    var stormStationSerial by mutableIntStateOf(0); private set
+
+    // ---- shop ----
+    var shopIncomeLeft by mutableDoubleStateOf(prefs.getFloat("shopInc", 0f).toDouble()); private set
+    var shopSpeedLeft by mutableDoubleStateOf(prefs.getFloat("shopSpd", 0f).toDouble()); private set
+    var shopTicketLeft by mutableDoubleStateOf(prefs.getFloat("shopTix", 0f).toDouble()); private set
+    val shopSpeedMult: Double get() = if (shopSpeedLeft > 0.0) 1.5 else 1.0
+    private val shopIncomeMult: Double get() = if (shopIncomeLeft > 0.0) 2.0 else 1.0
+    fun shopCost(item: ShopItem): Double = floor(max(100.0, baseCoinsPerSec * item.costSec))
+    fun shopLeft(item: ShopItem): Double = when (item) {
+        ShopItem.COCOA -> shopIncomeLeft
+        ShopItem.TURBO -> shopSpeedLeft
+        ShopItem.TICKET -> shopTicketLeft
+        else -> 0.0
+    }
+    fun shopAvailable(item: ShopItem): Boolean = when (item) {
+        ShopItem.TANK -> boostMeter < 0.999
+        ShopItem.CLEAR -> stormLeft > 0.0
+        else -> shopLeft(item) + item.durationSec <= Balance.SHOP_MAX_SEC
+    }
+    fun buyShop(item: ShopItem) {
+        val cost = shopCost(item)
+        if (coins < cost || !shopAvailable(item)) return
+        coins -= cost
+        when (item) {
+            ShopItem.COCOA -> shopIncomeLeft += item.durationSec
+            ShopItem.TURBO -> shopSpeedLeft += item.durationSec
+            ShopItem.TICKET -> shopTicketLeft += item.durationSec
+            ShopItem.TANK -> { boostMeter = 1.0; boostLocked = false }
+            ShopItem.CLEAR -> { stormLeft = min(stormLeft, Balance.STORM_FADE_SEC) }
+        }
+        audio.play(R.raw.sfx_buy)
+        showToast("${item.title} bought!")
+    }
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL)) * (1.0 + effSum(Eff.RECHARGE))
     private val offlineRate: Double
         get() = min(1.0, Balance.OFFLINE_BASE + Balance.CONDUCTOR_BONUS * level(UpgradeType.CONDUCTOR) +
             Balance.PERM_OFFLINE * permLevel(PermType.OFFLINE) + effSum(Eff.OFFLINE))
 
-    val evolveDistance: Double get() = Balance.EVOLVE_BASE_DISTANCE * Balance.EVOLVE_GROWTH.pow(evolutions)
-    val canEvolve: Boolean get() = runDistance >= evolveDistance
-    val coreGain: Int get() = max(1, floor(sqrt(runDistance / 1000.0)).toInt())
+    /** Upgrade levels bought in this run; evolving needs [evolveLevels] of them. */
+    val runLevels: Int get() = levels.sum()
+    val evolveLevels: Int get() = Balance.evolveLevels(evolutions)
+    val canEvolve: Boolean get() = runLevels >= evolveLevels
+    val coreGain: Int get() = max(1, runLevels / 50)
+    /** Cars this train tier can have; more unlock with every evolve. */
+    val maxCars: Int get() = Balance.maxCars(evolutions)
+    fun blockedByTier(spec: UpgradeSpec): Boolean = carOf(spec.type) >= maxCars && !isUnlocked(spec)
 
     fun upgradeCost(spec: UpgradeSpec): Double =
         floor(spec.baseCost * spec.growth.pow(level(spec.type)))
@@ -571,6 +633,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         cores += coreGain
         evolutions++
         for (i in levels.indices) levels[i] = 0 // temporary upgrades reset; permanent ones stay
+        unlockedUpgrades.clear()                // the unlock chain (and the extra cars) start again
         coins = startCoins
         runDistance = 0.0
         boostMeter = 1.0
@@ -606,6 +669,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putLong("dailyDay", lastDailyDay)
             .putString("ach", unlocked.joinToString(","))
             .putString("unl", unlockedUpgrades.joinToString(","))
+            .putFloat("shopInc", shopIncomeLeft.toFloat())
+            .putFloat("shopSpd", shopSpeedLeft.toFloat())
+            .putFloat("shopTix", shopTicketLeft.toFloat())
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -633,7 +699,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val last = prefs.getLong("last", 0L)
         if (last > 0L) {
             val secs = ((System.currentTimeMillis() - last) / 1000).coerceIn(0L, Balance.OFFLINE_CAP_SEC)
-            val meters = speed * secs * offlineRate
+            val meters = cruiseSpeed * secs * offlineRate
             val gain = meters * coinsPerMeter
             if (gain >= 1.0) {
                 runDistance += meters
@@ -658,6 +724,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         checkUnlocks()
         tickEvents(dt)
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
+        if (shopIncomeLeft > 0.0) shopIncomeLeft = max(0.0, shopIncomeLeft - dt)
+        if (shopSpeedLeft > 0.0) shopSpeedLeft = max(0.0, shopSpeedLeft - dt)
+        if (shopTicketLeft > 0.0) shopTicketLeft = max(0.0, shopTicketLeft - dt)
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)
         if (boostLocked && boostMeter >= 1.0) boostLocked = false

@@ -118,10 +118,10 @@ fun effText(e: Eff, per: Double): String {
 
 /** To add an upgrade: add an UpgradeType, an entry here, and its formula in GameViewModel. */
 private val CORE_UPGRADES = listOf(
-    UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.18, gadget = Gadget.ENGINE),
-    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+60% coins per metre", 50.0, 1.45, 40, UpgradeType.ENGINE, 5, gadget = Gadget.CRATE),
-    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+8% income, warm passengers pay more", 150.0, 1.30, Int.MAX_VALUE, UpgradeType.WAGON, 3, gadget = Gadget.FLAME),
-    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+6% income", 400.0, 1.32, Int.MAX_VALUE, UpgradeType.HEAT, 5, gadget = Gadget.CUP),
+    UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.25, gadget = Gadget.ENGINE),
+    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+30% coins per metre", 50.0, 1.7, 40, UpgradeType.ENGINE, 5, gadget = Gadget.CRATE),
+    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+6% income, warm passengers pay more", 150.0, 1.45, Int.MAX_VALUE, UpgradeType.WAGON, 3, gadget = Gadget.FLAME),
+    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+5% income", 400.0, 1.5, Int.MAX_VALUE, UpgradeType.HEAT, 5, gadget = Gadget.CUP),
     UpgradeSpec(UpgradeType.PLOW, "Ice Plow", "+5% speed", 600.0, 1.35, 60, UpgradeType.FOOD, 3, gadget = Gadget.PLOW),
     UpgradeSpec(UpgradeType.COAL, "Coal Stoker", "+8% faster boost recharge", 300.0, 1.30, 30, UpgradeType.PLOW, 5, gadget = Gadget.COALPILE),
     UpgradeSpec(UpgradeType.BOOSTER, "Boost Core", "+0.2 boost multiplier", 800.0, 1.40, 20, UpgradeType.COAL, 5, gadget = Gadget.COIL),
@@ -134,13 +134,34 @@ private val EXTRA_UPGRADES: List<UpgradeSpec> by lazy {
         val (id, title, gadget) = a
         val (eff, per, max) = b
         val type = UpgradeType.valueOf(id)
-        val spec = UpgradeSpec(type, title, effText(eff, per), Math.floor(1500.0 * Math.pow(1.28, i.toDouble())), 1.35, max, prev, 3, gadget, eff, per)
+        val spec = UpgradeSpec(type, title, effText(eff, per), Math.floor(2500.0 * Math.pow(1.55, i.toDouble())), 1.55, minOf(max, 10), prev, 3, gadget, eff, per)
         prev = type
         spec
     }
 }
 
 val UPGRADES: List<UpgradeSpec> = CORE_UPGRADES + EXTRA_UPGRADES
+
+/** Five upgrades per car: car 0 is the engine car, car 1 the utility car, every later car holds five more devices. */
+val CAR_LAYOUT: List<List<UpgradeType>> by lazy {
+    val extras = EXTRA_UPGRADES.map { it.type }
+    listOf(
+        listOf(UpgradeType.ENGINE, UpgradeType.COAL, UpgradeType.BOOSTER, UpgradeType.CONDUCTOR, UpgradeType.PLOW),
+        listOf(UpgradeType.HEAT, UpgradeType.FOOD, UpgradeType.WAGON, extras[0], extras[1]),
+    ) + extras.drop(2).chunked(5)
+}
+
+/** Which car an upgrade's device sits in. */
+fun carOf(t: UpgradeType): Int = CAR_LAYOUT.indexOfFirst { t in it }.coerceAtLeast(0)
+
+/** Shop boosters, bought with coins. Prices scale with your steady income ([costSec] seconds of it). */
+enum class ShopItem(val title: String, val desc: String, val costSec: Double, val durationSec: Double) {
+    COCOA("Hot Cocoa Rush", "Coins x2 for 5 minutes", 120.0, 300.0),
+    TURBO("Turbo Coal", "Train speed x1.5 for 5 minutes", 100.0, 300.0),
+    TICKET("Golden Ticket", "Stations pay x3 for 10 minutes", 90.0, 600.0),
+    TANK("Full Boost Tank", "Refill the boost meter right now", 25.0, 0.0),
+    CLEAR("Storm Breaker", "End the current snow storm", 40.0, 0.0),
+}
 
 /** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
 enum class PermType { INCOME, SPEED, START, OFFLINE, BOOST, CREW }
@@ -200,13 +221,20 @@ object Balance {
     const val BASE_SPEED = 2.0            // metres per second
     const val SPEED_PER_ENGINE = 0.5
     const val PLOW_BONUS = 0.05
-    const val WAGON_BONUS = 0.6
-    const val HEAT_BONUS = 0.08
-    const val FOOD_BONUS = 0.06
+    const val WAGON_BONUS = 0.3
+    const val HEAT_BONUS = 0.06
+    const val FOOD_BONUS = 0.05
     const val TIER_SPEED_BONUS = 0.2      // +20% speed per tier
-    const val TIER_INCOME = 3.0           // coins x3 per tier
-    val MILESTONES = listOf(25, 50, 100, 200, 300) // each doubles that upgrade's effect
-    const val CORE_BONUS = 0.25           // each core = +25% coins (permanent)
+    const val TIER_INCOME = 1.6           // coins x1.6 per tier
+    val MILESTONES = listOf(25, 50, 100) // each doubles that upgrade's effect
+    const val CORE_BONUS = 0.10           // each core = +10% coins (permanent)
+
+    /** Evolve needs this many upgrade levels bought in the current run (grows with every evolve). */
+    fun evolveLevels(evolutions: Int): Int = 100 + 120 * evolutions + 10 * evolutions * (evolutions - 1)
+    /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
+    fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
+    const val SHOP_MAX_SEC = 1800.0       // timed shop boosters stack up to 30 minutes
+    const val STATION_STOP_SEC = 8.0      // storm shelter: the train waits this long at the station
 
     const val EVOLVE_BASE_DISTANCE = 20000.0 // metres for the first evolve (about 15 to 25 minutes), x4 after each evolve
     const val EVOLVE_GROWTH = 4.0

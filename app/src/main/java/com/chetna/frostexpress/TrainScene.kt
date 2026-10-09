@@ -46,14 +46,7 @@ private const val PITCH = CAR_H + GAP
 private const val NOSE = 26f
 private const val AISLE_X = 95f
 
-/** Five upgrades per car: car 0 is the engine car, car 1 the utility car, every later car holds five more devices. */
-private val CAR_DEFS: List<List<UpgradeType>> by lazy {
-    val extras = UPGRADES.filter { it.eff != null }.map { it.type }
-    listOf(
-        listOf(UpgradeType.ENGINE, UpgradeType.COAL, UpgradeType.BOOSTER, UpgradeType.CONDUCTOR, UpgradeType.PLOW),
-        listOf(UpgradeType.HEAT, UpgradeType.FOOD, UpgradeType.WAGON, extras[0], extras[1]),
-    ) + extras.drop(2).chunked(5)
-}
+private val CAR_DEFS: List<List<UpgradeType>> get() = CAR_LAYOUT
 
 /** A car appears once its first upgrade is unlocked. */
 private fun carCount(vm: GameViewModel): Int {
@@ -86,7 +79,10 @@ private class Look(
 )
 
 /** A station scrolling past the train. [y] is in screen dp; [paid] once the bonus was given. */
-private class Station(var y: Float, var paid: Boolean = false)
+private class Station(var y: Float, var paid: Boolean = false, val stop: Boolean = false) {
+    var dwell = 0f   // seconds spent standing at this station
+    var done = false // the train has left again
+}
 
 private class Decor(val side: Int, val fx: Float, val y: Float, val r: Float, val kind: Int)
 
@@ -169,9 +165,12 @@ private class Npc {
     var manualLeft = 0f     // seconds left before the camera follows the worker again
     var viewH = 600f // visible height in train-space dp, set from the canvas every frame
     var trainLen = NOSE + 2 * PITCH
-    /** Camera range: a little extra room at both ends so the HUD never hides the first or last car. */
-    val camLo: Float get() = if (trainLen + 90f > viewH) -90f else 0f
-    val camHi: Float get() = max(camLo, trainLen - viewH + 24f)
+    /** Hand scrolling can bring the first or the last car all the way to the middle of the screen. */
+    val camLo: Float get() = NOSE + CAR_H / 2f - viewH / 2f
+    val camHi: Float get() = max(camLo, trainLen - CAR_H / 2f - viewH / 2f)
+    /** Automatic camera: a short train sits in the middle; a long one follows the worker. */
+    private val autoLo: Float get() = if (trainLen <= viewH) (trainLen - viewH) / 2f else -60f
+    private val autoHi: Float get() = if (trainLen <= viewH) autoLo else trainLen - viewH + 30f
     var working = false
     var cycle: List<Step> = emptyList()
     var idx = 0
@@ -262,7 +261,7 @@ private class Npc {
             manualLeft -= dt
             camY += (manualCam - camY) * min(1f, dt * 12f)
         } else {
-            val target = (y - viewH / 2f).coerceIn(camLo, camHi)
+            val target = (y - viewH / 2f).coerceIn(autoLo, autoHi)
             camY += (target - camY) * min(1f, dt * 3f)
         }
     }
@@ -274,7 +273,10 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val stations = remember { ArrayList<Station>() }
     val halfH = remember { floatArrayOf(300f) }
+    val stopFactor = remember { floatArrayOf(1f) }
+    val shelterDwell = remember { floatArrayOf(-1f) }
     var seenStations by remember { mutableIntStateOf(vm.stationSerial) }
+    var seenStorms by remember { mutableIntStateOf(vm.stormStationSerial) }
     var time by remember { mutableFloatStateOf(0f) }
     var scroll by remember { mutableFloatStateOf(0f) }
 
@@ -290,14 +292,33 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     acc = 0f
                     val boosting = vm.isBoosting
                     time += dt
-                    val ds = (40f + 26f * sqrt(vm.speed.toFloat())) * (if (boosting) 1.6f else 1f) * dt
-                    scroll += ds
                     while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(-110f)) }
+                    while (seenStorms < vm.stormStationSerial) { seenStorms++; stations.add(Station(-260f, stop = true)) }
+                    // Storm shelter: slow down, stand at the station for a while, then pull away.
+                    var factor = 1f
+                    val shelter = stations.firstOrNull { it.stop && !it.done }
+                    if (shelter != null) {
+                        val dist = halfH[0] - shelter.y
+                        if (!shelter.paid && dist > 0f) {
+                            factor = (dist / 170f).coerceIn(0.07f, 1f)
+                        } else {
+                            if (!shelter.paid) { shelter.paid = true; vm.collectStation(shelter = true) }
+                            shelter.dwell += dt
+                            val wait = Balance.STATION_STOP_SEC.toFloat()
+                            factor = if (shelter.dwell < wait) 0f else ((shelter.dwell - wait) / 2.5f).coerceIn(0f, 1f)
+                            if (factor >= 1f) shelter.done = true
+                        }
+                    }
+                    vm.setMoveFactor(factor)
+                    stopFactor[0] = factor
+                    shelterDwell[0] = shelter?.takeIf { it.paid && !it.done }?.dwell ?: -1f
+                    val ds = (40f + 26f * sqrt(vm.travelSpeed.toFloat())) * (if (boosting) 1.6f else 1f) * dt * factor
+                    scroll += ds
                     for (st in stations) {
                         st.y += ds
-                        if (!st.paid && st.y >= halfH[0]) { st.paid = true; vm.collectStation() }
+                        if (!st.stop && !st.paid && st.y >= halfH[0]) { st.paid = true; vm.collectStation() }
                     }
-                    stations.removeAll { it.y > halfH[0] * 2f + 200f }
+                    stations.removeAll { it.y > halfH[0] * 2f + 260f }
                     npc.sync(
                         heat = vm.level(UpgradeType.HEAT) > 0,
                         food = vm.level(UpgradeType.FOOD) > 0,
@@ -411,7 +432,7 @@ private fun DrawScope.drawScene(
     fxDark = dark
     val trainPx = CAR_W * u * z
     val originX = (w - trainPx) / 2f
-    val centerOff = max(0f, (npc.viewH - npc.trainLen) / 2f)
+    val centerOff = 0f
     npc.originXpx = originX
     npc.centerOffDp = centerOff
     drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
@@ -567,13 +588,27 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     // shelter roof with snow
     drawRoundRect(Color(0xFF8A5F3A), Offset(x + 4f * u, y - 40f * u), Size(18f * u, 80f * u), CornerRadius(3f * u, 3f * u))
     drawRoundRect(Color(0xFFF4F9FC), Offset(x + 5f * u, y - 38f * u), Size(16f * u, 30f * u), CornerRadius(3f * u, 3f * u))
-    // passengers seen from above
+    if (st.stop) {
+        // storm shelter: a warm lamp and a red sign
+        drawCircle(
+            Brush.radialGradient(listOf(Color(0x99FFC46B), Color.Transparent), Offset(x + 12f * u, y + 52f * u), 46f * u),
+            46f * u, Offset(x + 12f * u, y + 52f * u), blendMode = BlendMode.Plus,
+        )
+        drawCircle(Color(0xFF3A3F47), 4.5f * u, Offset(x + 12f * u, y + 52f * u))
+        drawCircle(Color(0xFFFFE680), 3f * u, Offset(x + 12f * u, y + 52f * u))
+        drawRoundRect(Color(0xFFE5484D), Offset(x + 4f * u, y + 68f * u), Size(26f * u, 12f * u), CornerRadius(2f * u, 2f * u))
+        drawRect(Color.White, Offset(x + 8f * u, y + 73f * u), Size(18f * u, 2f * u))
+    }
+    // passengers seen from above; at a storm stop they walk over and board the train
     val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C))
     for (i in 0 until 4) {
         val py = y - 70f * u + i * 22f * u
-        drawCircle(Color(0x33000000), 5.5f * u, Offset(x + 25f * u, py + 1.5f * u))
-        drawCircle(cols[i], 5f * u, Offset(x + 25f * u, py))
-        drawCircle(Color(0xFFF2C9A0), 2.6f * u, Offset(x + 25f * u, py - 0.5f * u))
+        val prog = if (st.stop && st.dwell > 0f) ((st.dwell - 0.6f - i * 0.9f) / 2.2f).coerceIn(0f, 1f) else 0f
+        if (prog >= 1f) continue
+        val px = x + 25f * u + (originX + 4f * u - (x + 25f * u)) * prog
+        drawCircle(Color(0x33000000), 5.5f * u, Offset(px, py + 1.5f * u))
+        drawCircle(cols[i], 5f * u, Offset(px, py))
+        drawCircle(Color(0xFFF2C9A0), 2.6f * u, Offset(px, py - 0.5f * u))
     }
 }
 

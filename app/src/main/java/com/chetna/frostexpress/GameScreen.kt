@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
@@ -418,7 +419,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 
 @Composable
 private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}) {
-    val progress = (vm.runDistance / vm.evolveDistance).toFloat().coerceIn(0f, 1f)
+    val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
     Column(
         modifier
             .fillMaxWidth()
@@ -458,7 +459,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Text(fmtDistance(vm.runDistance), fontSize = 10.sp, color = Muted)
+            Text("Evolve ${vm.runLevels}/${vm.evolveLevels}", fontSize = 10.sp, color = Muted)
         }
         TimeChip(vm)
     }
@@ -495,6 +496,21 @@ private fun TimeChip(vm: GameViewModel) {
                 color = Ice,
                 modifier = Modifier
                     .background(Ice.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+        for (item in listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET)) {
+            val left = vm.shopLeft(item)
+            if (left <= 0.0) continue
+            val label = when (item) { ShopItem.COCOA -> "Coins x2"; ShopItem.TURBO -> "Speed x1.5"; else -> "Stations x3" }
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "$label ${left.toInt() / 60}:${(left.toInt() % 60).toString().padStart(2, '0')}",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = GoldText,
+                modifier = Modifier
+                    .background(Gold.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
@@ -635,8 +651,9 @@ private fun SettingsCard(title: String, content: @Composable androidx.compose.fo
             .background(PanelHi.copy(alpha = 0.7f))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(title.uppercase(), fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = Wood)
+        Text(title.uppercase(), fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = Wood, textAlign = TextAlign.Center)
         content()
     }
 }
@@ -657,8 +674,9 @@ private fun PillButton(text: String, bg: Color, fg: Color, modifier: Modifier = 
 
 @Composable
 private fun SettingToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Text(label, fontSize = 13.sp)
+        Spacer(Modifier.width(12.dp))
         androidx.compose.material3.Switch(
             checked, onChange,
             colors = SwitchDefaults.colors(
@@ -671,10 +689,10 @@ private fun SettingToggle(label: String, checked: Boolean, onChange: (Boolean) -
 
 @Composable
 private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 12.sp, color = Muted, modifier = Modifier.width(58.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center)
         androidx.compose.material3.Slider(
-            value, onChange, modifier = Modifier.weight(1f),
+            value, onChange, modifier = Modifier.fillMaxWidth(),
             colors = SliderDefaults.colors(thumbColor = Ember, activeTrackColor = Ember, inactiveTrackColor = Track),
         )
     }
@@ -686,11 +704,12 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     FrostAlert(
         onDismissRequest = onClose,
-        title = { Text("Settings", fontWeight = FontWeight.Bold) },
+        title = { Text("Settings", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
         text = {
             Column(
                 Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 SettingsCard("Sound") {
                     SettingToggle("Sound on", vm.soundOn) { vm.toggleSound() }
@@ -715,9 +734,9 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                             }
                         }
                     }
-                    Text("Your phone may cap this at its screen refresh rate. Lower values save battery.", fontSize = 10.sp, color = Muted)
+                    Text("Your phone may cap this at its screen refresh rate. Lower values save battery.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
                     SettingToggle("Post-processing", vm.postFx) { vm.changePostFx(it) }
-                    Text("Light bloom, colour grading and vignette. Turn off on slow phones.", fontSize = 10.sp, color = Muted)
+                    Text("Light bloom, colour grading and vignette. Turn off on slow phones.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
                 }
                 SettingsCard("Train paint") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -737,16 +756,16 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                             }
                         }
                     }
-                    Text("A new paint unlocks with each evolve.", fontSize = 10.sp, color = Muted)
+                    Text("A new paint unlocks with each evolve.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
                 }
                 SettingsCard("Google Play") {
-                    if (vm.cloudStatus.isNotEmpty()) Text(vm.cloudStatus, fontSize = 11.sp, color = Ice)
+                    if (vm.cloudStatus.isNotEmpty()) Text(vm.cloudStatus, fontSize = 11.sp, color = Ice, textAlign = TextAlign.Center)
                     PillButton(
                         if (vm.cloudSignedIn) "Save to cloud now" else "Sign in with Google Play",
                         Ice, Color.White,
                     ) { if (vm.cloudSignedIn) vm.cloudSaveNow() else vm.cloudSignIn() }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                     PillButton("Privacy policy", Track, Ink) {
                         context.startActivity(
                             android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))
@@ -757,7 +776,9 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                 Text("Frost Express v${BuildConfigVersion}", fontSize = 10.sp, color = Muted)
             }
         },
-        confirmButton = { PillButton("Done", Ice, Color.White, onClick = onClose) },
+        confirmButton = {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { PillButton("Done", Ice, Color.White, onClick = onClose) }
+        },
     )
     if (confirmReset) {
         FrostAlert(
@@ -975,7 +996,7 @@ private fun UpgradesSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Upgrades", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (tab == 0) {
+            if (tab != 1) {
                 CoinIcon(Modifier.size(16.dp))
                 Spacer(Modifier.width(5.dp))
                 Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
@@ -994,7 +1015,38 @@ private fun UpgradesSheet(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (tab == 2) {
+            if (tab == 3) {
+                item {
+                    Text("Boosters bought with coins. Prices follow your income. Timed boosters stack up to 30 minutes.", fontSize = 11.sp, color = Muted)
+                }
+                items(ShopItem.values().toList()) { item ->
+                    val cost = vm.shopCost(item)
+                    val left = vm.shopLeft(item)
+                    val avail = vm.shopAvailable(item)
+                    UpgradeRow(
+                        type = when (item) {
+                            ShopItem.COCOA -> UpgradeType.FOOD
+                            ShopItem.TURBO -> UpgradeType.ENGINE
+                            ShopItem.TICKET -> UpgradeType.CONDUCTOR
+                            ShopItem.TANK -> UpgradeType.BOOSTER
+                            ShopItem.CLEAR -> UpgradeType.PLOW
+                        },
+                        title = item.title,
+                        level = if (left > 0.0) "Active ${left.toInt() / 60}:${(left.toInt() % 60).toString().padStart(2, '0')}" else "",
+                        effect = item.desc,
+                        note = when {
+                            item == ShopItem.CLEAR && !avail -> "Only during a snow storm"
+                            item == ShopItem.TANK && !avail -> "Your boost meter is already full"
+                            !avail -> "Maximum 30 minutes stacked"
+                            else -> null
+                        },
+                        buttonTop = "Buy",
+                        buttonBottom = fmt(cost),
+                        enabled = avail && vm.coins >= cost,
+                        onBuy = { vm.buyShop(item) },
+                    )
+                }
+            } else if (tab == 2) {
                 item {
                     Text(
                         "${vm.unlocked.size}/${ACHIEVEMENTS.size} unlocked. Rewards: coins, or Frost Cores for the big ones.",
@@ -1046,7 +1098,7 @@ private fun UpgradesSheet(
                     type = spec.type,
                     title = spec.title,
                     level = if (locked) "Locked" else "Lv $lvl${if (spec.maxLevel != Int.MAX_VALUE) "/${spec.maxLevel}" else ""}",
-                    effect = if (locked) "Reach ${req?.title} Lv ${spec.unlockLevel} (now Lv ${if (req != null) vm.level(req.type) else 0})" else spec.effect,
+                    effect = if (locked && vm.blockedByTier(spec)) "Evolve your train to add the next car" else if (locked) "Reach ${req?.title} Lv ${spec.unlockLevel} (now Lv ${if (req != null) vm.level(req.type) else 0})" else spec.effect,
                     note = if (locked) null else when {
                         mult > 1.0 && next != null -> "Bonus x${fmt(mult)} · next x2 at Lv $next"
                         mult > 1.0 -> "Bonus x${fmt(mult)}"
@@ -1111,7 +1163,7 @@ private fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Run upgrades", "Permanent", "Awards").forEachIndexed { i, label ->
+        listOf("Upgrades", "Permanent", "Awards", "Shop").forEachIndexed { i, label ->
             val on = selected == i
             Box(
                 Modifier
@@ -1271,7 +1323,7 @@ private fun UpgradeRow(
 @Composable
 private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
     val next = TIERS[min(vm.evolutions + 1, TIERS.lastIndex)]
-    val progress = (vm.runDistance / vm.evolveDistance).toFloat().coerceIn(0f, 1f)
+    val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
     Column(
         Modifier
             .fillMaxWidth()
@@ -1282,7 +1334,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
     ) {
         Text("Evolve", fontWeight = FontWeight.Bold, fontSize = 13.sp)
         Text(
-            "${TIERS[vm.tierIndex].name} (Tier ${vm.tierIndex + 1}) · Frost Cores ${vm.cores} (+${vm.cores * 25}% coins)",
+            "${TIERS[vm.tierIndex].name} (Tier ${vm.tierIndex + 1}) · Frost Cores ${vm.cores} (+${(vm.cores * Balance.CORE_BONUS * 100).toInt()}% coins) · ${vm.maxCars} cars",
             fontSize = 11.sp,
             color = Muted,
         )
@@ -1300,7 +1352,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
                     .background(Brush.horizontalGradient(listOf(Ice, Color(0xFFB197FC))))
             )
         }
-        Text("${fmtDistance(vm.runDistance)} / ${fmtDistance(vm.evolveDistance)}", fontSize = 10.sp, color = Muted)
+        Text("Upgrade levels bought: ${vm.runLevels} / ${vm.evolveLevels}" + (if (vm.maxCars < 11) ". The next train gets ${minOf(vm.maxCars + 2, 11) - vm.maxCars} more cars." else ""), fontSize = 10.sp, color = Muted)
         Box(
             Modifier
                 .fillMaxWidth()
@@ -1311,7 +1363,7 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (vm.canEvolve) "Evolve to ${next.name}  (+${vm.coreGain} cores)" else "Travel further to evolve",
+                if (vm.canEvolve) "Evolve to ${next.name}  (+${vm.coreGain} cores)" else "Buy more upgrades to evolve",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (vm.canEvolve) Ink else Muted,
@@ -1448,7 +1500,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
             Spacer(Modifier.height(8.dp))
             if (locked) {
                 val req = UPGRADES.firstOrNull { it.type == spec.unlockType }
-                Text("Reach ${req?.title} Lv ${spec.unlockLevel} to unlock.", fontSize = 12.sp, color = Muted)
+                Text(if (vm.blockedByTier(spec)) "This car comes with a bigger train. Evolve to unlock it." else "Reach ${req?.title} Lv ${spec.unlockLevel} to unlock.", fontSize = 12.sp, color = Muted)
             } else {
                 val eff = spec.eff
                 if (eff != null) {
