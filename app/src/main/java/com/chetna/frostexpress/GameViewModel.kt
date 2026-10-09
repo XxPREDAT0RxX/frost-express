@@ -889,6 +889,19 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Old name kept for the footer button. */
     fun watchAdBoost() = watchAd(AdReward.COINS)
 
+    /** Watch an ad to double what the train earned while you were away. */
+    fun doubleOfflineWithAd() {
+        if (!Balance.ADS_ENABLED || offlineCoins <= 0.0) return
+        if (!adReady) { showToast("The ad is still loading, try again in a moment"); return }
+        val extra = offlineCoins
+        ads.showRewarded {
+            coins += extra
+            showToast("Doubled! +${fmt(extra)} coins")
+            dismissOffline()
+            save()
+        }
+    }
+
     fun dismissOffline() {
         offlineCoins = 0.0
         offlineMeters = 0.0

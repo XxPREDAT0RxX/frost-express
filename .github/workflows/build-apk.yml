@@ -46,6 +46,30 @@ jobs:
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
 
+      # Screenshots of the game on several phone sizes (does not block the APK above).
+      - name: Render screenshots on several screen sizes
+        id: shots
+        continue-on-error: true
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          gradle testDebugUnitTest --tests "com.chetna.frostexpress.ScreenshotTest" --no-daemon 2>&1 | tee test.log
+          cd app/build/screens && zip -q ../../../screens.zip *.png
+
+      - name: Publish screenshots
+        if: steps.shots.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: screens.zip
+
+      - name: Publish screenshot test log
+        if: steps.shots.outcome != 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: test.log
+
       # If the build breaks, publish the full build log so the error can be read without logging in.
       - name: Publish build log on failure
         if: failure()

@@ -415,6 +415,10 @@ def misc(name, w, h, body, scale=4):
     MISC[name] = (w, h, body, scale)
 
 
+def misc_body(name):
+    return MISC[name][2]
+
+
 misc('spr_pine_a', 64, 64, f'''<ellipse cx="34" cy="52" rx="22" ry="6" fill="#C9DCEC"/>
 <rect x="29" y="44" width="6" height="9" rx="2.5" fill="#B9876A" {o(2)}/>
 <path d="M32,6 C40,14 45,22 41,25 C49,29 53,37 48,40 C56,44 57,50 51,51 L13,51 C7,50 8,44 16,40 C11,37 15,29 23,25 C19,22 24,14 32,6 Z" fill="#8FCBA6" {o(2.4)}/>
@@ -526,6 +530,54 @@ icon('icon_gift', f'''<rect x="8" y="20" width="32" height="22" rx="4" fill="#F7
 <path d="M24,14 C18,4 10,8 16,13 Z M24,14 C30,4 38,8 32,13 Z" fill="#FFE49A" {o(1.8)}/>''')
 icon('icon_evolve', f'''<circle cx="24" cy="24" r="17" fill="#DCCBFA" {o(2.2)}/>
 <path d="M24,10 L33,22 L28,22 L28,34 L20,34 L20,22 L15,22 Z" fill="#B9A2EE" {o(2)}/><circle cx="35" cy="12" r="2" fill="#fff"/><circle cx="12" cy="34" r="1.6" fill="#fff"/>''')
+
+
+# ---------------- the opening screen illustration (portrait, 360 x 640 units) ----------------
+def side_car(x, y, w, body, roof, windows=3):
+    out = f'<rect x="{x}" y="{y}" width="{w}" height="46" rx="10" fill="{body}" {o(3)}/>'
+    out += f'<rect x="{x - 4}" y="{y - 8}" width="{w + 8}" height="14" rx="7" fill="{roof}" {o(3)}/>'
+    out += f'<path d="M{x + 2},{y - 8} C{x + w * 0.3},{y - 16} {x + w * 0.7},{y - 16} {x + w - 2},{y - 8}" fill="#FFFFFF" {o(2.4)}/>'
+    for i in range(windows):
+        wx = x + 10 + i * (w - 20) / windows
+        out += f'<rect x="{wx}" y="{y + 10}" width="{(w - 20) / windows - 8}" height="16" rx="5" fill="#FFE9A8" {o(2.4)}/>'
+    for wx in (x + 14, x + w - 14):
+        out += f'<circle cx="{wx}" cy="{y + 48}" r="8" fill="#7C8FA8" {o(3)}/><circle cx="{wx}" cy="{y + 48}" r="2.6" fill="#FFF6E9"/>'
+    return out
+
+
+SPLASH = f'''<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BFD9F2"/><stop offset=".55" stop-color="#F8D9E3"/><stop offset="1" stop-color="#FFE9D6"/></linearGradient></defs>
+<rect width="360" height="640" fill="url(#sky)"/>
+<circle cx="270" cy="250" r="38" fill="#FFF3C4" opacity=".9"/>
+<g fill="#FFFFFF" opacity=".85"><ellipse cx="70" cy="120" rx="40" ry="12"/><ellipse cx="100" cy="112" rx="26" ry="12"/><ellipse cx="290" cy="160" rx="36" ry="10"/><ellipse cx="312" cy="152" rx="20" ry="10"/></g>
+<path d="M-20,380 L60,250 L110,320 L170,220 L240,330 L300,260 L380,380 Z" fill="#B8CCE6" {o(3)}/>
+<path d="M60,250 L78,280 L66,276 L56,290 L44,276 Z M170,220 L194,256 L178,252 L168,268 L156,250 L146,258 Z M300,260 L318,288 L306,284 L296,296 L284,282 Z" fill="#FFFFFF"/>
+<path d="M-20,420 C60,380 140,400 200,385 C260,370 320,390 380,380 L380,640 L-20,640 Z" fill="#F4F9FD" {o(3)}/>
+<g transform="translate(40 360) scale(.9)">{misc_body('spr_pine_a')}</g><g transform="translate(270 350) scale(1.1)">{misc_body('spr_pine_b')}</g>
+<g transform="translate(300 400) scale(.7)">{misc_body('spr_pine_c')}</g><g transform="translate(-6 400) scale(.75)">{misc_body('spr_pine_b')}</g>
+<rect x="-10" y="476" width="380" height="8" rx="4" fill="#B98A68" {o(2.6)}/>
+{''.join(f'<rect x="{-6 + i * 26}" y="482" width="16" height="7" rx="3" fill="#C7976E" {o(2)}/>' for i in range(15))}
+<g transform="translate(0 0)">
+  <path d="M232,470 L232,420 C232,406 242,398 256,398 L300,398 C318,398 330,412 330,430 L330,470 Z" fill="#F4A7A0" {o(3)}/>
+  <rect x="236" y="384" width="40" height="22" rx="6" fill="#E8897F" {o(3)}/>
+  <rect x="300" y="380" width="14" height="22" rx="4" fill="#7C8FA8" {o(3)}/>
+  <rect x="242" y="408" width="26" height="20" rx="5" fill="#FFE9A8" {o(2.4)}/>
+  <circle cx="326" cy="446" r="7" fill="#FFF3C4" {o(2.4)}/>
+  <path d="M330,462 L346,474 L330,474 Z" fill="#A9DDF2" {o(2.4)}/>
+  <circle cx="250" cy="472" r="10" fill="#7C8FA8" {o(3)}/><circle cx="250" cy="472" r="3" fill="#FFF6E9"/>
+  <circle cx="300" cy="472" r="10" fill="#7C8FA8" {o(3)}/><circle cx="300" cy="472" r="3" fill="#FFF6E9"/>
+  <g fill="#FFFFFF" {o(2)}><circle cx="310" cy="366" r="8"/><circle cx="296" cy="346" r="11"/><circle cx="312" cy="322" r="14"/></g>
+  {side_car(128, 424, 96, '#9FD3C7', '#F4A7A0')}
+  {side_car(20, 424, 100, '#FFD6A5', '#9FC5EA')}
+  <rect x="220" y="450" width="12" height="8" rx="3" fill="#A9B4BE" {o(2)}/><rect x="116" y="450" width="12" height="8" rx="3" fill="#A9B4BE" {o(2)}/>
+</g>
+<g fill="#FFFFFF" stroke="#DCE9F4" stroke-width="1"><circle cx="30" cy="200" r="3"/><circle cx="120" cy="60" r="2.4"/><circle cx="210" cy="140" r="3"/><circle cx="330" cy="90" r="2.4"/><circle cx="90" cy="300" r="2.6"/><circle cx="200" cy="320" r="2"/><circle cx="340" cy="220" r="3"/><circle cx="160" cy="180" r="2"/></g>
+<g font-family="DejaVu Sans, sans-serif" font-weight="bold" text-anchor="middle">
+  <text x="180" y="132" font-size="46" fill="#FFF6E9" stroke="{OL}" stroke-width="9" paint-order="stroke" stroke-linejoin="round">Frost</text>
+  <text x="180" y="184" font-size="46" fill="#FFB86B" stroke="{OL}" stroke-width="9" paint-order="stroke" stroke-linejoin="round">Express</text>
+  <text x="180" y="212" font-size="14" fill="{OL}">a cozy idle train adventure</text>
+</g>'''
+
+misc('splash_art', 360, 640, SPLASH, 3)
 
 
 # ---------------- tiles (textures) ----------------

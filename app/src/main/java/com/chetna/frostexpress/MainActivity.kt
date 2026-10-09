@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
         if (Balance.IAP_ENABLED) game.store = PlayBilling(this, game::onStorePrices, game::grantProduct)
         setContent {
             FrostTheme {
-                GameScreen(vm)
+                FrostRoot(vm)
             }
         }
     }

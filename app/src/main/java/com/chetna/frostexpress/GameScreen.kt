@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -169,14 +170,14 @@ private fun FrostAlert(
 }
 
 @Composable
-fun GameScreen(vm: GameViewModel) {
+fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeType? = null) {
     // 0 = no sheet, 1 = upgrades, 2 = shop. Both slide up over the bottom of the running scene.
-    var sheet by remember { mutableIntStateOf(0) }
+    var sheet by remember { mutableIntStateOf(initialSheet) }
     val shownSheet = remember { intArrayOf(1) }
     if (sheet != 0) shownSheet[0] = sheet
     val showUpgrades = sheet == 1
     var showSettings by remember { mutableStateOf(false) }
-    var detail by remember { mutableStateOf<UpgradeType?>(null) }
+    var detail by remember { mutableStateOf(initialDetail) }
     var sheetTab by remember { mutableIntStateOf(0) }
     val link = remember { SceneLink() }
     // the tutorial's last card appears right after the last step is done
@@ -324,28 +325,9 @@ fun GameScreen(vm: GameViewModel) {
             onSkip = vm::finishTutorial,
         )
     } else if (vm.tutorialDone && vm.dailyReady) {
-        val streak = vm.dailyNextStreak
-        FrostAlert(
-            onDismissRequest = {},
-            title = { Text("Daily reward · Day $streak") },
-            text = {
-                Text(
-                    "${fmt(vm.dailyCoins(streak))} coins" +
-                        (if (vm.dailyGivesCore(streak)) ", 1 Frost Core" else "") + ", ${vm.dailyGems(streak)} gems" +
-                        "\nCome back every day to grow your streak. Every 7th day gives a Frost Core."
-                )
-            },
-            confirmButton = { TextButton(onClick = { UiSound.click(); vm.claimDaily() }) { Text("Claim") } },
-        )
+        DailyGiftCard(vm)
     } else if (vm.tutorialDone && vm.offlineCoins > 0.0) {
-        FrostAlert(
-            onDismissRequest = vm::dismissOffline,
-            title = { Text("Welcome back!") },
-            text = {
-                Text("Your train travelled ${fmtDistance(vm.offlineMeters)} while you were away and earned ${fmt(vm.offlineCoins)} coins.")
-            },
-            confirmButton = { TextButton(onClick = { UiSound.click(); vm.dismissOffline() }) { Text("Collect") } },
-        )
+        WelcomeBackCard(vm)
     }
 
     vm.cloudConflict?.let { cloudJson ->
@@ -2740,5 +2722,239 @@ private fun TutorialGuide(vm: GameViewModel, sheetOpen: Boolean, modifier: Modif
                 drawPath(arrow, Ink, style = Stroke(2.5.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
             }
         }
+    }
+}
+
+
+// ---------- opening screen ----------
+
+/** Shows the loading screen while the art is decoded, then fades into the game. */
+@Composable
+fun FrostRoot(vm: GameViewModel) {
+    var ready by remember { mutableStateOf(false) }
+    val progress = remember { Animatable(0f) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        val load = async(kotlinx.coroutines.Dispatchers.Default) { SpriteBank.get(ctx) }
+        progress.animateTo(0.85f, tween(1400, easing = FastOutSlowInEasing))
+        load.await()
+        progress.animateTo(1f, tween(250))
+        kotlinx.coroutines.delay(200)
+        ready = true
+    }
+    androidx.compose.animation.Crossfade(ready, animationSpec = tween(450), label = "opening") { done ->
+        if (done) GameScreen(vm) else LoadingScreen(progress.value)
+    }
+}
+
+@Composable
+fun LoadingScreen(progress: Float) {
+    val tips = listOf(
+        "Warming up the engine...",
+        "Shovelling coal into the boiler...",
+        "Brewing hot cocoa for the crew...",
+        "Checking the snow chains...",
+        "All aboard!",
+    )
+    val tip = tips[(progress * (tips.size - 1)).toInt().coerceIn(0, tips.size - 1)]
+    Box(Modifier.fillMaxSize().background(Color(0xFFF4F9FD))) {
+        Image(
+            androidx.compose.ui.res.painterResource(R.drawable.splash_art), "Frost Express",
+            Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alignment = Alignment.TopCenter,
+        )
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(bottom = 90.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(tip, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth(0.72f)
+                    .height(26.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Panel)
+                    .border(3.dp, Ink, RoundedCornerShape(13.dp))
+                    .padding(4.dp),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(progress.coerceIn(0.05f, 1f))
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Brush.horizontalGradient(listOf(Color(0xFFFFC98A), Color(0xFFFFA65C)))),
+                ) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        var x = -size.height
+                        while (x < size.width) {
+                            drawLine(Color.White.copy(alpha = 0.35f), Offset(x, size.height), Offset(x + size.height, 0f), size.height * 0.35f)
+                            x += size.height * 1.1f
+                        }
+                        drawRect(Color.White.copy(alpha = 0.35f), size = Size(size.width, size.height * 0.3f))
+                    }
+                }
+            }
+            Text("${(progress * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Muted, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+// ---------- cozy cards: daily gift and welcome back ----------
+
+@Composable
+private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    val enter = remember { Animatable(0.85f) }
+    LaunchedEffect(Unit) { enter.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 400f)) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxWidth(0.9f).widthIn(max = 390.dp).graphicsLayer { scaleX = enter.value; scaleY = enter.value }) {
+            Column(
+                Modifier
+                    .padding(top = 18.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Panel)
+                    .border(3.dp, Ink, RoundedCornerShape(28.dp))
+                    .padding(start = 16.dp, end = 16.dp, top = 30.dp, bottom = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                content = content,
+            )
+            Text(
+                title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(ribbon)
+                    .border(3.dp, Ink, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 22.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, colors: List<Color> = listOf(Color(0xFFFFC98A), Color(0xFFFFA65C))) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.verticalGradient(colors))
+            .border(2.5.dp, Ink, RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 11.dp, horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center) }
+}
+
+@Composable
+private fun DailyGiftCard(vm: GameViewModel) {
+    val next = vm.dailyNextStreak
+    val weekStart = ((next - 1) / 7) * 7 + 1
+    val sp = rememberGameSprites()
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "daily").animateFloat(
+        1f, 1.07f,
+        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "dailyPulse",
+    )
+    CozyCard("Daily Gift", Color(0xFFFFC9D6), onDismiss = {}) {
+        Text("Day $next in a row", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Muted)
+        Spacer(Modifier.height(10.dp))
+        // a week of gifts: claimed days are ticked, today glows, the 7th day has a Frost Core
+        for (row in 0..1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                val days = if (row == 0) (0..3) else (4..6)
+                for (k in days) {
+                    val day = weekStart + k
+                    val claimed = day < next
+                    val today = day == next
+                    val big = k == 6
+                    Column(
+                        Modifier
+                            .width(if (big) 120.dp else 66.dp)
+                            .graphicsLayer { if (today) { scaleX = pulse; scaleY = pulse } }
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (today) Color(0xFFFFE49A) else if (claimed) PanelHi else Color.White.copy(alpha = 0.7f))
+                            .border(if (today) 3.dp else 2.dp, Ink.copy(alpha = if (claimed) 0.4f else 1f), RoundedCornerShape(14.dp))
+                            .padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("Day $day", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = if (claimed) Muted else Ink)
+                        Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                            if (big) Row { CoreIcon(Ice, Modifier.size(22.dp)); GemIcon(Modifier.size(22.dp)) }
+                            else if (k % 2 == 1) GemIcon(Modifier.size(22.dp)) else CoinIcon(Modifier.size(24.dp))
+                            if (claimed) {
+                                Canvas(Modifier.size(22.dp)) {
+                                    drawCircle(Mint)
+                                    drawCircle(Ink, style = Stroke(1.5.dp.toPx()))
+                                    val p = Path().apply { moveTo(size.width * 0.28f, size.height * 0.52f); lineTo(size.width * 0.45f, size.height * 0.7f); lineTo(size.width * 0.74f, size.height * 0.34f) }
+                                    drawPath(p, Color.White, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                }
+                            }
+                        }
+                        Text(
+                            if (big) "+${vm.dailyGems(day)} gems, core" else if (k % 2 == 1) "+${vm.dailyGems(day)} gems" else "coins",
+                            fontSize = 9.sp, color = Muted, fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("Today", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            CoinIcon(Modifier.size(18.dp)); Spacer(Modifier.width(4.dp))
+            Text(fmt(vm.dailyCoins(next)), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
+            Spacer(Modifier.width(12.dp))
+            GemIcon(Modifier.size(16.dp)); Spacer(Modifier.width(4.dp))
+            Text("${vm.dailyGems(next)}", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = GemPink)
+            if (vm.dailyGivesCore(next)) {
+                Spacer(Modifier.width(12.dp)); CoreIcon(Ice, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp))
+                Text("1", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Ice)
+            }
+        }
+        Text("+20 XP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = XpPurple)
+        Spacer(Modifier.height(12.dp))
+        BigButton("Claim my gift", vm::claimDaily, Modifier.fillMaxWidth(0.8f))
+        Text("Come back tomorrow to keep your streak going.", fontSize = 10.sp, color = Muted, modifier = Modifier.padding(top = 8.dp))
+    }
+}
+
+@Composable
+private fun WelcomeBackCard(vm: GameViewModel) {
+    val sp = rememberGameSprites()
+    var t by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) { while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f } }
+    CozyCard("Welcome back!", Color(0xFFCDE7F8), onDismiss = vm::dismissOffline) {
+        Box(Modifier.size(130.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val r = size.minDimension / 2f
+                drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF0D2), Color(0xFFDCCBFA)), center, r), r)
+                for (i in 0 until 3) {
+                    val ph = (t * 0.4f + i / 3f) % 1f
+                    val c = center + Offset(r * 0.25f + ph * r * 0.3f, -r * 0.2f - ph * r * 0.45f)
+                    drawCircle(Ink.copy(alpha = 1f - ph), (5f + i * 2f) * density * 0.6f, c, style = Stroke(1.6.dp.toPx()))
+                }
+                drawCircle(Ink, r - 1.5.dp.toPx(), style = Stroke(3.dp.toPx()))
+            }
+            sp.npcSleep?.let { Image(it, null, Modifier.size(72.dp, 90.dp)) }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("While you were away, your train kept rolling", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        Text(fmtDistance(vm.offlineMeters), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ice)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CoinIcon(Modifier.size(26.dp)); Spacer(Modifier.width(6.dp))
+            Text("+${fmt(vm.offlineCoins)}", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
+        }
+        Spacer(Modifier.height(12.dp))
+        if (Balance.ADS_ENABLED) {
+            BigButton(if (vm.adReady) "Watch an ad: double it!" else "Loading ad...", vm::doubleOfflineWithAd, Modifier.fillMaxWidth(0.85f), listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)))
+            Spacer(Modifier.height(8.dp))
+        }
+        BigButton("Collect", vm::dismissOffline, Modifier.fillMaxWidth(0.85f))
     }
 }
