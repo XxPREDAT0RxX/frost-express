@@ -23,6 +23,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Create the ViewModel here, never lazily inside snapshotFlow (that runs in a read-only snapshot).
+        val game = vm
+
         // Crash recovery: if the last run crashed (or died without a clean exit), start in safe mode
         // (no post-processing, 60 fps). A recorded crash is shown on screen so it can be reported.
         val prefs = getSharedPreferences("frost_express", MODE_PRIVATE)
@@ -55,7 +58,7 @@ class MainActivity : ComponentActivity() {
         }
         // Ask the display for the frame rate chosen in Settings (a hint; the device may cap it).
         lifecycleScope.launch {
-            snapshotFlow { vm.fpsCap }.collect { fps ->
+            snapshotFlow { game.fpsCap }.collect { fps ->
                 val lp = window.attributes
                 lp.preferredRefreshRate = fps.toFloat()
                 window.attributes = lp
