@@ -1,6 +1,7 @@
 package com.chetna.frostexpress
 
 import android.os.Build
+import java.io.File
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -21,6 +22,29 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Crash recovery: if the last run crashed (or died without a clean exit), start in safe mode
+        // (no post-processing, 60 fps). A recorded crash is shown on screen so it can be reported.
+        val prefs = getSharedPreferences("frost_express", MODE_PRIVATE)
+        val crashFile = File(filesDir, FrostApp.CRASH_FILE)
+        if (crashFile.exists() || prefs.getBoolean("running", false)) {
+            prefs.edit().putBoolean("postfx", false).putInt("fps", 60).putBoolean("running", false).apply()
+        }
+        if (crashFile.exists()) {
+            val report = try { crashFile.readText() } catch (e: Exception) { "Could not read the crash report." }
+            enableEdgeToEdge()
+            setContent {
+                FrostTheme {
+                    CrashScreen(
+                        report,
+                        onContinue = { crashFile.delete(); recreate() },
+                        onReset = { crashFile.delete(); prefs.edit().clear().apply(); recreate() },
+                    )
+                }
+            }
+            crashMode = true
+            return
+        }
         enableEdgeToEdge()
         // Draw under the camera cutout as well, for a true full screen.
         if (Build.VERSION.SDK_INT >= 28) {
@@ -47,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemBars()
+        if (hasFocus && !crashMode) hideSystemBars()
     }
 
     // Immersive mode: system bars stay hidden and appear only briefly on a swipe from the edge.
@@ -59,17 +83,23 @@ class MainActivity : ComponentActivity() {
 
     // A crisp click on every touch, anywhere on the screen.
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN) vm.audio.play(R.raw.sfx_click, 0.7f)
+        if (!crashMode && ev.actionMasked == MotionEvent.ACTION_DOWN) vm.audio.play(R.raw.sfx_click, 0.7f)
         return super.dispatchTouchEvent(ev)
     }
 
+    private var crashMode = false
+
     override fun onStart() {
         super.onStart()
+        if (crashMode) return
+        getSharedPreferences("frost_express", MODE_PRIVATE).edit().putBoolean("running", true).apply()
         vm.audio.startMusic()
     }
 
     override fun onStop() {
         super.onStop()
+        if (crashMode) return
+        getSharedPreferences("frost_express", MODE_PRIVATE).edit().putBoolean("running", false).apply()
         vm.audio.pauseMusic()
         vm.save()
         vm.cloudSaveNow()

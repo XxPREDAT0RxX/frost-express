@@ -1278,3 +1278,49 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
         }
     }
 }
+
+
+/** Shown instead of the game when the previous run crashed, so the error can be copied and reported. */
+@Composable
+fun CrashScreen(report: String, onContinue: () -> Unit, onReset: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Snow)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Frost Express crashed last time", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Sorry about that! Please copy this report (or take a screenshot) and send it to the developer. " +
+                "Safe mode is on: post-processing is off and the frame rate is 60.",
+            fontSize = 12.sp, color = Muted,
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Panel)
+                .padding(10.dp)
+        ) {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(
+                    report,
+                    fontSize = 9.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillButton("Copy report", Wood, Color.White) {
+                clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+            }
+            PillButton("Continue", Ice, Color.White, onClick = onContinue)
+            PillButton("Reset save", Color(0xFFF3D3CF), Color(0xFFB03A2E), onClick = onReset)
+        }
+    }
+}

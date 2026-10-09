@@ -379,7 +379,7 @@ private fun DrawScope.drawScene(
     npc.centerOffDp = centerOff
     drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
     drawDecor(scroll, originX, trainPx, h, u)
-    if (fx) drawGroundFx(time, scroll, w, h, u, dark, storm)
+    if (fx) safeFx { drawGroundFx(time, scroll, w, h, u, dark, storm) }
     for (st in stations) drawStation(st, originX, u)
     translate(left = originX, top = (centerOff - npc.camY) * u * z) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
@@ -402,7 +402,7 @@ private fun DrawScope.drawScene(
     }
     if (aurora) drawAurora(time, w, h)
     drawSnowfall(time, w, h, u, storm)
-    if (fx) drawPostFx(w, h, dark, storm)
+    if (fx && w > 4f && h > 4f) safeFx { drawPostFx(w, h, dark, storm) }
     if (npc.trainLen > npc.viewH + 1f) { // scroll bar: the train is taller than the screen
         val frac = npc.viewH / npc.trainLen
         val barH = h * frac
@@ -415,16 +415,28 @@ private fun DrawScope.drawScene(
 // ---- post-processing helpers (can be switched off in Settings) ----
 private var fxOn = true
 private var fxDark = 0f
+private var fxBroken = false // set if a post-processing effect ever throws, so it is skipped from then on
+
+private inline fun DrawScope.safeFx(block: () -> Unit) {
+    if (!fxOn || fxBroken) return
+    try {
+        block()
+    } catch (e: Exception) {
+        fxBroken = true
+    }
+}
 
 /** Additive light bloom around a light source, in train-space dp. */
 private fun DrawScope.glow(x: Float, y: Float, r: Float, color: Color, strength: Float) {
-    if (!fxOn || strength <= 0.01f) return
-    val u = density
-    val c = Offset(x * u, y * u)
-    drawCircle(
-        Brush.radialGradient(listOf(color.copy(alpha = strength.coerceAtMost(1f)), Color.Transparent), center = c, radius = r * u),
-        radius = r * u, center = c, blendMode = BlendMode.Plus,
-    )
+    if (strength <= 0.01f || r <= 0f) return
+    safeFx {
+        val u = density
+        val c = Offset(x * u, y * u)
+        drawCircle(
+            Brush.radialGradient(listOf(color.copy(alpha = strength.coerceIn(0f, 1f)), Color.Transparent), center = c, radius = r * u),
+            radius = r * u, center = c, blendMode = BlendMode.Plus,
+        )
+    }
 }
 
 /** Cloud shadows drifting over the snow, and twinkling snow crystals in daylight. */
