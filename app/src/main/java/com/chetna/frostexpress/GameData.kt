@@ -175,10 +175,22 @@ enum class ShopItem(val title: String, val desc: String, val gems: Int, val dura
     TICKET("Golden Ticket", "Stations pay x3 for 10 minutes", 8, 600.0),
     TANK("Endless Fuel", "BOOST never runs out of fuel for 2 minutes", 6, 120.0),
     CLEAR("Storm Breaker", "End the current snow storm", 4, 0.0),
+    RUSH5("Gold Rush x5", "Coins x5 for 5 minutes", 40, 300.0),
+    RUSH10("Gold Rush x10", "Coins x10 for 3 minutes", 90, 180.0),
+    RUSH100("Jackpot x100", "Coins x100 for 1 minute", 300, 60.0),
+}
+
+/** How much each coin booster multiplies income (only the strongest running one counts). */
+fun coinBoost(item: ShopItem): Double = when (item) {
+    ShopItem.COCOA -> 2.0
+    ShopItem.RUSH5 -> 5.0
+    ShopItem.RUSH10 -> 10.0
+    ShopItem.RUSH100 -> 100.0
+    else -> 1.0
 }
 
 /** Boosters that run for a while (the others act at once). */
-val TIMED_ITEMS = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET, ShopItem.TANK)
+val TIMED_ITEMS = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET, ShopItem.TANK, ShopItem.RUSH5, ShopItem.RUSH10, ShopItem.RUSH100)
 
 /** Real-money gem packs (Google Play in-app products, consumable). Create these ids in Play Console. */
 enum class GemPack(val title: String, val gems: Int, val productId: String) {
@@ -322,7 +334,8 @@ object Balance {
     const val CORE_BONUS = 0.10           // each core = +10% coins (permanent)
 
     /** Evolve needs this many upgrade levels bought in the current run (grows with every evolve). */
-    fun evolveLevels(evolutions: Int): Int = 100 + 120 * evolutions + 10 * evolutions * (evolutions - 1)
+    /** Upgrade levels needed to evolve (20% fewer than the first balance, so evolving comes sooner). */
+    fun evolveLevels(evolutions: Int): Int = ((100 + 120 * evolutions + 10 * evolutions * (evolutions - 1)) * 0.8).toInt()
     /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
     fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
     const val GEM_TRADE_PER_DAY = 30         // gems you can buy with coins each day

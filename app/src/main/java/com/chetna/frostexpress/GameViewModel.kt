@@ -323,20 +323,39 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         showToast("Supply crate: +${fmt(gain)} coins")
     }
 
-    /** Called by the scene when a station reaches the train. */
-    fun collectStation(shelter: Boolean = false) {
+    // ---- passengers: they get on and off at every station; more on board = a bigger (random) coin bonus ----
+    var passengers by mutableIntStateOf(prefs.getInt("pax", 0)); private set
+    /** Income multiplier from the passengers on board, rolled again at every station. */
+    var paxMult by mutableDoubleStateOf(prefs.getFloat("paxMult", 1f).toDouble()); private set
+    /** Seats: four per car. */
+    val seats: Int get() = 4 * carsNow
+
+    /**
+     * Called by the scene when the train stops at a station. Returns (got off, got on) for the animation.
+     * Fares: the station pays more for every passenger who boards.
+     */
+    fun collectStation(shelter: Boolean = false, waiting: Int = 6): IntArray {
+        val off = if (passengers > 0) (0..(passengers + 1) / 2).random() else 0
+        val left = passengers - off
+        val on = (1..max(1, waiting)).random().coerceAtMost(max(0, seats - left))
+        passengers = left + on
+        // every passenger adds 2% to 6% income, rolled again at each stop
+        paxMult = 1.0 + passengers * (0.02 + Math.random() * 0.04)
         val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION)) *
-            (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0)
+            (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0) * (1.0 + 0.15 * on)
         coins += gain
         stationsVisited++
         if (shelter) stormsSheltered++
-        // stopping at a shelter: brakes hiss and a soft station bell; passing a station: a crossing bell going by
-        if (shelter) audio.play(R.raw.sfx_brake, 0.85f) else audio.play(R.raw.sfx_pass, 0.6f)
+        audio.play(R.raw.sfx_brake, 0.8f)
         showToast(
-            if (shelter) "Storm shelter: the train waits at the station. +${fmt(gain)} coins"
-            else "Station: passengers paid +${fmt(gain)} coins"
+            if (shelter) "Storm shelter: +${fmt(gain)} coins · $on aboard, $off off"
+            else "Station: +${fmt(gain)} coins · $on aboard, $off off · passengers x${fmt(paxMult, 2)}"
         )
+        return intArrayOf(off, on)
     }
+
+    /** The scene tells the game which part of the frozen world the train is passing. */
+    fun enterZone(name: String) { showToast("Now passing: $name") }
 
     private fun tickEvents(dt: Double) {
         dayTime = (dayTime + dt) % cycleSec
@@ -621,6 +640,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         event = GameEvent.NONE; eventLeft = 0.0; adBoostLeft = 0.0; toast = null
         stormLeft = 0.0
         shopIncomeLeft = 0.0; shopSpeedLeft = 0.0; shopTicketLeft = 0.0; shopFuelLeft = 0.0
+        for (i in rushLeft.indices) rushLeft[i] = 0.0
+        passengers = 0; paxMult = 1.0
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
         tutorialStage = 0
@@ -631,6 +652,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         save()
     }
     var soundOn by mutableStateOf(prefs.getBoolean("sound", true)); private set
+    var vibrationOn by mutableStateOf(prefs.getBoolean("vibrate", true).also { Haptics.enabled = it }); private set
+    fun toggleVibration() { vibrationOn = !vibrationOn; Haptics.enabled = vibrationOn; prefs.edit().putBoolean("vibrate", vibrationOn).apply(); if (vibrationOn) Haptics.confirm() }
+    /** Reminders while the game is closed (daily gift ready, idle earnings full). */
+    var remindersOn by mutableStateOf(prefs.getBoolean("remind", true)); private set
+    fun toggleReminders() { remindersOn = !remindersOn; prefs.edit().putBoolean("remind", remindersOn).apply() }
     private var hornIn = 40.0
     private var wolfIn = 25.0
     private var birdIn = 4.0
@@ -680,6 +706,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** The app went to the background or came back: no sound at all while it is in the background. */
     fun setForeground(on: Boolean) {
         audio.foreground = on
+        Haptics.foreground = on
         if (on) { audio.startMusic(); ambienceIn = 0.0 }
     }
 
@@ -738,7 +765,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -766,6 +793,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var shopTicketLeft by mutableDoubleStateOf(prefs.getFloat("shopTix", 0f).toDouble()); private set
     /** Endless Fuel: BOOST taps use no fuel while this runs. */
     var shopFuelLeft by mutableDoubleStateOf(prefs.getFloat("shopFuel", 0f).toDouble()); private set
+    /** Gold Rush x5 / x10 and Jackpot x100 timers. */
+    val rushLeft = mutableStateListOf(prefs.getFloat("rush5", 0f).toDouble(), prefs.getFloat("rush10", 0f).toDouble(), prefs.getFloat("rush100", 0f).toDouble())
+    private fun rushIndex(item: ShopItem): Int = when (item) { ShopItem.RUSH5 -> 0; ShopItem.RUSH10 -> 1; ShopItem.RUSH100 -> 2; else -> -1 }
     val endlessFuel: Boolean get() = shopFuelLeft > 0.0
     /** Timed boosters that are running right now. */
     val activeBoosters: List<ShopItem> get() = TIMED_ITEMS.filter { shopLeft(it) > 0.0 }
@@ -776,19 +806,23 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             ShopItem.TURBO -> shopSpeedLeft = 0.0
             ShopItem.TICKET -> shopTicketLeft = 0.0
             ShopItem.TANK -> shopFuelLeft = 0.0
+            ShopItem.RUSH5, ShopItem.RUSH10, ShopItem.RUSH100 -> rushLeft[rushIndex(item)] = 0.0
             else -> return
         }
         showToast("${item.title} stopped")
         save()
     }
     val shopSpeedMult: Double get() = if (shopSpeedLeft > 0.0) 1.5 else 1.0
-    private val shopIncomeMult: Double get() = if (shopIncomeLeft > 0.0) 2.0 else 1.0
+    /** The strongest coin booster running right now (Hot Cocoa x2, Gold Rush x5/x10, Jackpot x100). */
+    private val shopIncomeMult: Double
+        get() = listOf(ShopItem.COCOA, ShopItem.RUSH5, ShopItem.RUSH10, ShopItem.RUSH100).filter { shopLeft(it) > 0.0 }.maxOfOrNull { coinBoost(it) } ?: 1.0
     fun shopCost(item: ShopItem): Int = item.gems
     fun shopLeft(item: ShopItem): Double = when (item) {
         ShopItem.COCOA -> shopIncomeLeft
         ShopItem.TURBO -> shopSpeedLeft
         ShopItem.TICKET -> shopTicketLeft
         ShopItem.TANK -> shopFuelLeft
+        ShopItem.RUSH5, ShopItem.RUSH10, ShopItem.RUSH100 -> rushLeft[rushIndex(item)]
         else -> 0.0
     }
     fun shopAvailable(item: ShopItem): Boolean = when (item) {
@@ -840,6 +874,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             ShopItem.TICKET -> shopTicketLeft += item.durationSec
             ShopItem.TANK -> { shopFuelLeft += item.durationSec; boostMeter = 1.0; boostLocked = false }
             ShopItem.CLEAR -> { stormLeft = min(stormLeft, Balance.STORM_FADE_SEC) }
+            ShopItem.RUSH5, ShopItem.RUSH10, ShopItem.RUSH100 -> rushLeft[rushIndex(item)] += item.durationSec
         }
         lastUsed = item
         usedSerial++
@@ -1080,6 +1115,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putFloat("shopSpd", shopSpeedLeft.toFloat())
             .putFloat("shopTix", shopTicketLeft.toFloat())
             .putFloat("shopFuel", shopFuelLeft.toFloat())
+            .putFloat("rush5", rushLeft[0].toFloat()).putFloat("rush10", rushLeft[1].toFloat()).putFloat("rush100", rushLeft[2].toFloat())
+            .putInt("pax", passengers).putFloat("paxMult", paxMult.toFloat())
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -1146,6 +1183,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (shopIncomeLeft > 0.0) shopIncomeLeft = max(0.0, shopIncomeLeft - dt)
         if (shopSpeedLeft > 0.0) shopSpeedLeft = max(0.0, shopSpeedLeft - dt)
         if (shopTicketLeft > 0.0) shopTicketLeft = max(0.0, shopTicketLeft - dt)
+        for (i in rushLeft.indices) if (rushLeft[i] > 0.0) rushLeft[i] = max(0.0, rushLeft[i] - dt)
         if (shopFuelLeft > 0.0) { shopFuelLeft = max(0.0, shopFuelLeft - dt); boostMeter = 1.0; boostLocked = false }
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)

@@ -226,6 +226,86 @@ for i, body in enumerate((trim1, trim2, trim3, trim4, trim5), start=1):
     art(f'car_trim{i}', W + 2 * M, H + 2 * M, body, 4)
 
 
+# ---------------- more of the frozen world: one set per region the train passes ----------------
+# Wind farm / industry
+art('spr_turbine', 64, 64, f"""<ellipse cx="30" cy="57" rx="12" ry="3.5" fill="{SNOW_SH}"/>
+<path d="M28,57 L30,18 L33,18 L35,57 Z" fill="#E6ECF2" {o(1.8)}/>
+<g transform="rotate(25 31 18)"><path d="M31,18 L29,2 C31,0 33,1 33,3 Z" fill="#F4F7FA" {o(1.4)}/>
+<path d="M31,18 L46,25 C46,28 44,28 43,28 Z" fill="#F4F7FA" {o(1.4)}/>
+<path d="M31,18 L17,27 C15,25 16,23 18,23 Z" fill="#F4F7FA" {o(1.4)}/></g>
+<circle cx="31" cy="18" r="3" fill="#C9D3DC" {o(1.4)}/>
+{icicles([24, 38], 26, 3)}<path d="M20,58 C24,52 38,52 42,58 Z" fill="#FFFFFF" {o(1.4)}/>""")
+art('spr_tank', 64, 64, f"""<ellipse cx="32" cy="56" rx="26" ry="5" fill="{SNOW_SH}"/>
+<rect x="10" y="22" width="44" height="34" rx="4" fill="{RUST}" {o(2.2)}/>
+<ellipse cx="32" cy="22" rx="22" ry="6" fill="#D9A68E" {o(2)}/>
+<path d="M10,34 L54,34 M10,46 L54,46" stroke="{RUST_D}" stroke-width="1.6"/>
+<path d="M44,22 L44,56 M48,24 L48,56" stroke="{OL}" stroke-width="1.2"/>
+{''.join(f'<path d="M44,{y} L48,{y}" stroke="{OL}" stroke-width="1.2"/>' for y in range(26, 56, 5))}
+{snowcap("M10,22 C14,15 50,15 54,22 C44,26 20,26 10,22 Z")}{icicles([14, 20, 26, 38], 55, 3)}
+<path d="M2,59 C8,52 22,52 28,58 C36,52 52,52 62,59 Z" fill="#FFFFFF" {o(1.4)}/>""")
+art('spr_crane', 64, 64, f"""<ellipse cx="22" cy="57" rx="14" ry="3.5" fill="{SNOW_SH}"/>
+<path d="M18,57 L22,8 L26,57 Z" fill="none" stroke="{OL}" stroke-width="5"/><path d="M18,57 L22,8 L26,57" fill="none" stroke="#FFD166" stroke-width="2.6"/>
+<path d="M14,10 L58,10" stroke="{OL}" stroke-width="5" stroke-linecap="round"/><path d="M14,10 L58,10" stroke="#FFD166" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M50,10 L50,34" stroke="{OL}" stroke-width="1.4"/><rect x="45" y="34" width="10" height="7" rx="1.5" fill="#8F99A4" {o(1.4)}/>
+<rect x="10" y="8" width="7" height="8" rx="1.5" fill="#6F7E8C" {o(1.4)}/>
+{snowcap("M13,9 C20,6 52,6 59,9 C48,11 24,11 13,9 Z")}<path d="M8,59 C12,52 30,52 36,59 Z" fill="#FFFFFF" {o(1.4)}/>""")
+art('spr_container', 64, 64, f"""<ellipse cx="32" cy="55" rx="28" ry="5" fill="{SNOW_SH}"/>
+<rect x="5" y="30" width="34" height="24" rx="2" fill="#5E9CCF" {o(2)}/>{''.join(f'<path d="M{x},32 L{x},52" stroke="#3F7DAF" stroke-width="1.4"/>' for x in range(9, 38, 5))}
+<g transform="rotate(-8 44 40)"><rect x="28" y="16" width="32" height="22" rx="2" fill="#E8890C" {o(2)}/>{''.join(f'<path d="M{x},18 L{x},36" stroke="#C26F08" stroke-width="1.4"/>' for x in range(32, 58, 5))}
+{snowcap("M27,17 C32,12 56,12 61,17 C52,19 36,19 27,17 Z")}</g>
+{snowcap("M4,31 C8,26 36,26 40,31 C30,33 14,33 4,31 Z")}<path d="M0,59 C6,50 24,50 30,58 C40,50 56,52 64,59 Z" fill="#FFFFFF" {o(1.4)}/>""")
+# Frozen harbour
+art('spr_ship', 64, 64, f"""<ellipse cx="32" cy="55" rx="30" ry="5" fill="{SNOW_SH}"/>
+<g transform="rotate(-10 32 40)"><path d="M4,36 L60,36 L52,52 L12,52 Z" fill="#B98375" {o(2.2)}/>
+<path d="M4,36 L60,36 L58,40 L6,40 Z" fill="#E5484D"/><path d="M4,36 L60,36" stroke="{OL}" stroke-width="2"/>
+<rect x="30" y="22" width="18" height="14" rx="2" fill="#F4F7FA" {o(1.8)}/>{''.join(f'<rect x="{x}" y="26" width="3.5" height="4" rx=".8" fill="{FROST}" {o(.9)}/>' for x in (33, 38, 43))}
+<rect x="40" y="12" width="5" height="10" fill="{RUST}" {o(1.6)}/><path d="M18,36 L18,14 M18,16 L28,30" stroke="{OL}" stroke-width="1.6"/>
+{snowcap("M29,23 C33,18 45,18 49,23 C42,25 36,25 29,23 Z")}{icicles([14, 20, 44, 50], 52, 3)}</g>
+<path d="M0,60 C6,48 20,46 30,52 C40,46 58,48 64,58 L64,60 Z" fill="#DDF3FF" {o(1.6)}/><path d="M10,56 L18,54 M40,55 L50,53" stroke="#8EC3E3" stroke-width="1.2"/>""")
+art('spr_lighthouse', 64, 64, f"""<ellipse cx="32" cy="57" rx="14" ry="4" fill="{SNOW_SH}"/>
+<path d="M24,57 L27,18 L37,18 L40,57 Z" fill="#F4F7FA" {o(2)}/><path d="M25,46 L39,46 L38.4,38 L25.6,38 Z M26.3,30 L37.7,30 L37.2,24 L26.8,24 Z" fill="#E5484D"/>
+<rect x="25" y="12" width="14" height="7" rx="1.5" fill="#FFE49A" {o(1.6)}/><path d="M24,12 L32,5 L40,12 Z" fill="#E5484D" {o(1.6)}/>
+<rect x="30" y="48" width="5" height="9" rx="1" fill="#8C6A5A" {o(1.2)}/>
+{snowcap("M23,12 C26,9 38,9 41,12 C36,13 28,13 23,12 Z")}<path d="M14,59 C18,52 44,51 50,59 Z" fill="#FFFFFF" {o(1.4)}/>""")
+art('spr_buoy', 48, 48, f"""<ellipse cx="24" cy="40" rx="16" ry="4" fill="#DDF3FF" {o(1.4)}/>
+<path d="M16,40 L18,22 L30,22 L32,40 Z" fill="#E5484D" {o(1.8)}/><path d="M17,31 L31,31" stroke="#fff" stroke-width="3"/>
+<path d="M24,22 L24,12" stroke="{OL}" stroke-width="1.6"/><circle cx="24" cy="11" r="3" fill="#FFE49A" {o(1.4)}/>
+{snowcap("M17,23 C20,19 28,19 31,23 C27,24 21,24 17,23 Z")}""")
+# Survivor camps in the mountains
+art('spr_tent', 64, 64, f"""<ellipse cx="32" cy="56" rx="26" ry="4.5" fill="{SNOW_SH}"/>
+<path d="M8,54 L32,16 L56,54 Z" fill="#E8890C" {o(2.2)}/><path d="M32,16 L26,54 L38,54 Z" fill="#5A4636" {o(1.6)}/>
+<path d="M32,16 L32,10" stroke="{OL}" stroke-width="1.8"/><path d="M32,10 L40,12 L32,14 Z" fill="#E5484D" {o(1)}/>
+{snowcap("M20,34 C25,26 30,18 32,16 C34,18 39,26 44,34 C39,32 25,32 20,34 Z")}
+<path d="M2,59 C8,52 22,52 26,57 C34,52 52,52 62,59 Z" fill="#FFFFFF" {o(1.4)}/>""")
+art('spr_campfire', 48, 48, f"""<ellipse cx="24" cy="39" rx="16" ry="4" fill="{SNOW_SH}"/>
+<path d="M12,38 L36,30 M12,30 L36,38" stroke="{OL}" stroke-width="5.4" stroke-linecap="round"/>
+<path d="M12,38 L36,30 M12,30 L36,38" stroke="#B9876A" stroke-width="3.2" stroke-linecap="round"/>
+<path d="M24,10 C30,18 32,24 29,30 C27,34 21,34 19,30 C16,25 19,20 22,24 C21,18 22,14 24,10 Z" fill="url(#glow)" {o(1.8)}/>
+<path d="M24,20 C27,24 27,28 25,31 C23,32 21,30 22,27 Z" fill="#FF8F5A"/>
+{''.join(f'<ellipse cx="{x}" cy="{y}" rx="3.2" ry="2.4" fill="#A3ABB5" {o(1)}/>' for x, y in ((10, 36), (14, 40), (24, 42), (34, 40), (38, 36)))}""")
+art('spr_cliff', 64, 64, f"""<ellipse cx="32" cy="56" rx="30" ry="5" fill="{SNOW_SH}"/>
+<path d="M2,56 L8,30 L18,22 L24,10 L34,14 L42,6 L50,18 L58,24 L62,56 Z" fill="#9AA6B4" {o(2.2)}/>
+<path d="M24,10 L28,56 M42,6 L40,56 M18,22 L14,56 M50,18 L52,56" stroke="#7C8794" stroke-width="1.4"/>
+{snowcap("M8,30 L18,22 L24,10 L34,14 L42,6 L50,18 L58,24 C50,30 44,22 38,26 C30,30 24,22 18,30 C14,34 10,32 8,30 Z")}
+<path d="M0,60 C6,52 22,52 30,57 C40,52 56,52 64,60 Z" fill="#FFFFFF" {o(1.4)}/>""")
+# frozen lake: a flat patch on the ground (seen from above)
+art('spr_lake', 96, 64, f"""<ellipse cx="48" cy="32" rx="44" ry="26" fill="#DDF3FF" {o(2)}/>
+<ellipse cx="48" cy="32" rx="34" ry="18" fill="#C6E8FA"/>
+<path d="M22,24 L36,30 L44,26 L58,36 M50,30 L56,22 M36,30 L32,42" fill="none" stroke="#8EC3E3" stroke-width="1.4" stroke-linecap="round"/>
+<path d="M60,20 C66,18 72,20 74,24" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>""")
+
+# ---------------- coin booster icons (48 x 48, like the other shop items) ----------------
+def coin_stack(n, label, ring):
+    coins = ''.join(f'<ellipse cx="24" cy="{36 - k * 5}" rx="13" ry="5" fill="url(#gold)" {o(1.8)}/>' for k in range(n))
+    return f"""<ellipse cx="24" cy="42" rx="15" ry="3" fill="#000" opacity=".1"/>{coins}
+<path d="M18,{34 - (n - 1) * 5} l3,-2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+<rect x="22" y="2" width="24" height="15" rx="7.5" fill="{ring}" {o(1.8)}/>
+<text x="34" y="13.6" text-anchor="middle" font-family="Inter Display, Inter, sans-serif" font-weight="900" font-size="{11 if len(label) < 4 else 9}" fill="#fff" stroke="{OL}" stroke-width="2.2" paint-order="stroke">{label}</text>"""
+art('item_rush5', 48, 48, coin_stack(3, 'x5', '#F08A5D'))
+art('item_rush10', 48, 48, coin_stack(4, 'x10', '#D6336C'))
+art('item_rush100', 48, 48, coin_stack(5, 'x100', '#8E6FD8'))
+
+
 # ---------------- rendering ----------------
 async def render(only):
     from playwright.async_api import async_playwright

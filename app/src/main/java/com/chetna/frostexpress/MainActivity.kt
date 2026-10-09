@@ -64,6 +64,13 @@ class MainActivity : ComponentActivity() {
                 window.attributes = lp
             }
         }
+        Haptics.view = window.decorView
+        Reminders.createChannel(this)
+        // ask once for permission to post reminders (Android 13+)
+        if (Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("askedNotify", false)) {
+            prefs.edit().putBoolean("askedNotify", true).apply()
+            notifyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         vm.attachCloud(if (Balance.PLAY_GAMES_ENABLED) PlayGamesCloud(this) else NoCloud)
         if (Balance.ADS_ENABLED) game.ads = AdMobRewarded(this, game::onAdReady)
         if (Balance.IAP_ENABLED) game.store = PlayBilling(this, game::onStorePrices, game::grantProduct)
@@ -92,6 +99,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private var crashMode = false
+    private val notifyPermission = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
 
     override fun onDestroy() {
         if (!crashMode) vm.store.release()
@@ -103,6 +111,7 @@ class MainActivity : ComponentActivity() {
         if (crashMode) return
         getSharedPreferences("frost_express", MODE_PRIVATE).edit().putBoolean("running", true).apply()
         vm.setForeground(true)
+        Reminders.cancel(this)
     }
 
     override fun onStop() {
@@ -110,6 +119,7 @@ class MainActivity : ComponentActivity() {
         if (crashMode) return
         getSharedPreferences("frost_express", MODE_PRIVATE).edit().putBoolean("running", false).apply()
         vm.setForeground(false)
+        if (vm.remindersOn) Reminders.schedule(this, vm.offlineCapSec)
         vm.save()
         vm.cloudSaveNow()
     }

@@ -71,7 +71,28 @@ private class SceneArt(
     val dead: List<ImageBitmap>,
     val wrecks: List<ImageBitmap>,
     val ice: ImageBitmap,
+    /** Every scenery sprite by name, for the regions below. */
+    val byName: Map<String, ImageBitmap> = emptyMap(),
 )
+
+/**
+ * The regions the train passes, one after another. Each slot kind of the roadside scenery
+ * (0 small, 1 landmark, 3 tall, 5 accent, 6 low) gets its own sprites per region; [lakes] turns snow drifts into frozen lakes.
+ */
+private class Zone(val name: String, val slots: Map<Int, List<String>>, val lakes: Boolean = false)
+
+private val ZONES = listOf(
+    Zone("the Frozen Forest", mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("pine_a", "pine_b"), 3 to listOf("dead_a", "dead_b"), 5 to listOf("pine_c"), 6 to listOf("shrub"))),
+    Zone("a Buried Town", mapOf(0 to listOf("lamp", "sign", "pole"), 1 to listOf("ruin_a", "ruin_b", "car", "bus"), 3 to listOf("dead_a", "lamp"), 5 to listOf("car", "sign"), 6 to listOf("shrub"))),
+    Zone("the Ice Fields", mapOf(0 to listOf("ice"), 1 to listOf("cliff", "ice"), 3 to listOf("ice", "dead_b"), 5 to listOf("ice"), 6 to listOf("rock_a", "rock_b")), lakes = true),
+    Zone("the Old Wind Farm", mapOf(0 to listOf("turbine", "pole"), 1 to listOf("tank", "crane", "container"), 3 to listOf("turbine"), 5 to listOf("container", "pole"), 6 to listOf("shrub"))),
+    Zone("the Frozen Harbour", mapOf(0 to listOf("buoy"), 1 to listOf("ship", "lighthouse", "container"), 3 to listOf("buoy", "lamp"), 5 to listOf("ship"), 6 to listOf("rock_a")), lakes = true),
+    Zone("the Survivor Camps", mapOf(0 to listOf("pine_a", "pine_b"), 1 to listOf("cliff", "tent"), 3 to listOf("tent", "campfire"), 5 to listOf("campfire", "dead_a"), 6 to listOf("shrub", "rock_b"))),
+)
+/** Distance (dp of scenery) the train spends in each region. */
+private const val ZONE_LEN = 2600f
+
+private fun zoneAt(key: Float): Int = Math.floorMod(kotlin.math.floor(key / ZONE_LEN).toInt(), ZONES.size)
 
 private fun tiled(img: ImageBitmap) = ShaderBrush(ImageShader(img, TileMode.Repeated, TileMode.Repeated))
 
@@ -100,10 +121,21 @@ private fun rememberSceneArt(): SceneArt {
     val w6 = ImageBitmap.imageResource(R.drawable.spr_lamp)
     val w7 = ImageBitmap.imageResource(R.drawable.spr_sign)
     val ic = ImageBitmap.imageResource(R.drawable.spr_ice)
+    val more = listOf(
+        "turbine" to R.drawable.spr_turbine, "tank" to R.drawable.spr_tank, "crane" to R.drawable.spr_crane,
+        "container" to R.drawable.spr_container, "ship" to R.drawable.spr_ship, "lighthouse" to R.drawable.spr_lighthouse,
+        "buoy" to R.drawable.spr_buoy, "tent" to R.drawable.spr_tent, "campfire" to R.drawable.spr_campfire,
+        "cliff" to R.drawable.spr_cliff, "lake" to R.drawable.spr_lake,
+    ).map { (n, id) -> n to ImageBitmap.imageResource(id) }
     return remember(snow, track, wood) {
         SceneArt(
             tiled(snow), tiled(track), tiled(wood), tiled(metal), tiled(grime), tiled(concrete),
             listOf(pa, pb, pc), listOf(ra, rb), sh, listOf(da, db, da), listOf(w1, w3, w2, w5, w4, w6, w7), ic,
+            mapOf(
+                "pine_a" to pa, "pine_b" to pb, "pine_c" to pc, "rock_a" to ra, "rock_b" to rb, "shrub" to sh,
+                "dead_a" to da, "dead_b" to db, "ruin_a" to w1, "car" to w3, "ruin_b" to w2, "pole" to w5, "bus" to w4,
+                "lamp" to w6, "sign" to w7, "ice" to ic,
+            ) + more,
         )
     }
 }
@@ -173,7 +205,15 @@ private class Look(
 private class Station(var y: Float, var paid: Boolean = false, val stop: Boolean = false) {
     var dwell = 0f   // seconds spent standing at this station
     var done = false // the train has left again
+    /** People waiting on the platform; [on] of them board, [off] passengers get off the train. */
+    val waiting = (3..7).random()
+    var on = 0
+    var off = 0
+    val seed = (Math.random() * 1000).toInt()
 }
+
+/** How long the train stands at a normal station (a storm shelter waits longer). */
+private const val STATION_DWELL = 4.6f
 
 private class Decor(val side: Int, val fx: Float, val y: Float, val r: Float, val kind: Int)
 
@@ -410,9 +450,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     var seenStorms by remember { mutableIntStateOf(vm.stormStationSerial) }
     // supply crate beside the track: [active, y in dp, side, x px, y px]
     val crate = remember { floatArrayOf(0f, 0f, 0f, 0f, 0f) }
+    val zoneSeen = remember { intArrayOf(-1) }
     var seenCrates by remember { mutableIntStateOf(vm.crateSerial) }
     var time by remember { mutableFloatStateOf(0f) }
-    var scroll by remember { mutableFloatStateOf(0f) }
+    // start where the last ride left off, so a new session does not always begin in the same region
+    var scroll by remember { mutableFloatStateOf((vm.totalDistance % (ZONE_LEN * ZONES.size).toDouble()).toFloat()) }
 
     LaunchedEffect(Unit) {
         var last = 0L
@@ -428,17 +470,22 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     time += dt
                     while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(if (vm.debugStationAt.isNaN()) -160f else vm.debugStationAt)) }
                     while (seenStorms < vm.stormStationSerial) { seenStorms++; stations.add(Station(-260f, stop = true)) }
-                    // Storm shelter: slow down, stand at the station for a while, then pull away.
+                    // Every station: slow down, stand while passengers get off and on, then pull away.
+                    // A storm shelter keeps the train waiting longer.
                     var factor = 1f
-                    val shelter = stations.firstOrNull { it.stop && !it.done }
+                    val shelter = stations.firstOrNull { !it.done }
                     if (shelter != null) {
                         val dist = halfH[0] - shelter.y
                         if (!shelter.paid && dist > 0f) {
                             factor = (dist / 170f).coerceIn(0.07f, 1f)
                         } else {
-                            if (!shelter.paid) { shelter.paid = true; vm.collectStation(shelter = true) }
+                            if (!shelter.paid) {
+                                shelter.paid = true
+                                val r = vm.collectStation(shelter = shelter.stop, waiting = shelter.waiting)
+                                shelter.off = r[0]; shelter.on = r[1]
+                            }
                             shelter.dwell += dt
-                            val wait = Balance.STATION_STOP_SEC.toFloat()
+                            val wait = if (shelter.stop) Balance.STATION_STOP_SEC.toFloat() else STATION_DWELL
                             factor = if (shelter.dwell < wait) 0f else ((shelter.dwell - wait) / 2.5f).coerceIn(0f, 1f)
                             if (factor >= 1f) shelter.done = true
                         }
@@ -448,6 +495,9 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     shelterDwell[0] = shelter?.takeIf { it.paid && !it.done }?.dwell ?: -1f
                     val ds = (40f + 26f * sqrt(vm.travelSpeed.toFloat())) * (if (boosting) 1.6f else 1f) * dt * factor
                     scroll += ds
+                    // a new region of the frozen world reaches the train
+                    val zoneNow = zoneAt(scroll - halfH[0])
+                    if (zoneNow != zoneSeen[0]) { if (zoneSeen[0] >= 0) vm.enterZone(ZONES[zoneNow].name); zoneSeen[0] = zoneNow }
                     if (seenCrates < vm.crateSerial) {
                         seenCrates = vm.crateSerial
                         crate[0] = 1f; crate[1] = -70f; crate[2] = if (Math.random() < 0.5) 0f else 1f
@@ -461,7 +511,6 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     }
                     for (st in stations) {
                         st.y += ds
-                        if (!st.stop && !st.paid && st.y >= halfH[0]) { st.paid = true; vm.collectStation() }
                     }
                     stations.removeAll { it.y > halfH[0] * 2f + 260f }
                     npc.sync(
@@ -639,6 +688,7 @@ private fun DrawScope.drawScene(
     npc.originXpx = originX
     // how far the player has scrolled away from the automatic camera (dp on screen)
     val worldDp = (npc.camAuto - npc.camY) * z
+    sceneStationNear = stations.any { kotlin.math.abs(it.y + worldDp - h / u / 2f) < ST_LEN }
     npc.centerOffDp = centerOff
     val art = sceneArt
     if (art != null) {
@@ -720,6 +770,7 @@ private var sceneGfx = 2
 private var sceneFlashCar = -1
 private var sceneTier = 0
 private var sceneStorm = 0f
+private var sceneStationNear = false
 /** Train-space (x, y) of everyone walking inside the train, so the glass doors can open for them. */
 private var sceneWalkers = FloatArray(0)
 private var sceneFlash = 0f
@@ -855,19 +906,39 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         drawRoundRect(Color(0xFFE5484D), Offset(x + 4f * u, y + 52f * u), Size(26f * u, 12f * u), CornerRadius(2f * u, 2f * u))
         drawRect(Color.White, Offset(x + 8f * u, y + 57f * u), Size(18f * u, 2f * u))
     }
-    // passengers seen from above; at a storm stop they walk over and board the train
-    val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C), Color(0xFFB9A2EE), Color(0xFF8FC2AE))
-    for (i in 0 until 6) {
-        val py = y - 100f * u + i * 38f * u + (if (i % 2 == 0) 0f else 8f * u)
-        val prog = if (st.stop && st.dwell > 0f) ((st.dwell - 0.6f - i * 0.7f) / 2.2f).coerceIn(0f, 1f) else 0f
+    // passengers seen from above: those who board walk from the platform to the train and step inside
+    // (only the rescued survivors are drawn inside the cars); those getting off walk out and away
+    val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C), Color(0xFFB9A2EE), Color(0xFF8FC2AE), Color(0xFFF49AB2))
+    val door = originX + 2f * u
+    for (i in 0 until st.waiting) {
+        val py = y - 100f * u + i * 32f * u + (if (i % 2 == 0) 0f else 8f * u)
+        val boards = i < st.on
+        val prog = if (boards && st.dwell > 0f) ((st.dwell - 1.0f - i * 0.45f) / 1.5f).coerceIn(0f, 1f) else 0f
         if (prog >= 1f) continue
         val sx = x + 42f * u - (if (i % 3 == 1) 4f * u else 0f)
-        val px = sx + (originX + 4f * u - sx) * prog
-        drawCircle(Color(0x33000000), 5.5f * u, Offset(px, py + 1.5f * u))
-        drawCircle(Color(0xFF6B4A3A), 5.6f * u, Offset(px, py))
-        drawCircle(cols[i], 4.6f * u, Offset(px, py))
-        drawCircle(Color(0xFFF2C9A0), 2.4f * u, Offset(px, py - 0.5f * u))
+        val px = sx + (door - sx) * prog
+        val bob = if (prog > 0f) kotlin.math.abs(sin(st.dwell * 14f + i)) * 1.2f * u else 0f
+        passenger(px, py - bob, cols[(i + st.seed) % cols.size], 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u)
     }
+    for (i in 0 until st.off) {
+        val t = ((st.dwell - 0.2f - i * 0.4f) / 2.6f)
+        if (t <= 0f || t >= 1f) continue
+        val py = y - 60f * u + i * 26f * u
+        // out of the train to the platform, then along it and away
+        val px = if (t < 0.5f) door + (x + 30f * u - door) * (t / 0.5f) else x + 30f * u
+        val yy = if (t < 0.5f) py else py + (t - 0.5f) / 0.5f * 120f * u
+        val alpha = if (t < 0.12f) t / 0.12f else 1f - ((t - 0.75f) / 0.25f).coerceIn(0f, 1f)
+        passenger(px, yy, cols[(i + st.seed + 3) % cols.size], alpha, u)
+    }
+}
+
+/** One person seen from above: a coat with a head. */
+private fun DrawScope.passenger(px: Float, py: Float, coat: Color, alpha: Float, u: Float) {
+    if (alpha <= 0.01f) return
+    drawCircle(Color(0x33000000).copy(alpha = 0.2f * alpha), 5.5f * u, Offset(px, py + 1.5f * u))
+    drawCircle(Color(0xFF6B4A3A).copy(alpha = alpha), 5.6f * u, Offset(px, py))
+    drawCircle(coat.copy(alpha = alpha), 4.6f * u, Offset(px, py))
+    drawCircle(Color(0xFFF2C9A0).copy(alpha = alpha), 2.4f * u, Offset(px, py - 0.5f * u))
 }
 
 /** Lamp light and warm windows; drawn after the night tint so they really glow. [on] 0..1. */
@@ -881,7 +952,7 @@ private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, o
     for (ly in ST_LAMPS) {
         val c = Offset(x + pw - 14f * u, y + ly * u)
         val r = 38f * u
-        drawCircle(Brush.radialGradient(listOf(warm.copy(alpha = 0.55f * on), Color.Transparent), c, r), r, c, blendMode = BlendMode.Plus)
+        drawCircle(Brush.radialGradient(listOf(warm.copy(alpha = 0.3f * on), Color.Transparent), c, r), r, c, blendMode = BlendMode.Plus)
         drawCircle(Color(0xFFFFF3C4).copy(alpha = on), 3f * u, c)
     }
     // light from the station windows spilling onto the platform
@@ -889,7 +960,7 @@ private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, o
         val c = Offset(x + 38f * u, y + wy * u)
         val r = 28f * u
         drawOval(
-            Brush.radialGradient(listOf(warm.copy(alpha = 0.5f * on), Color.Transparent), c, r),
+            Brush.radialGradient(listOf(warm.copy(alpha = 0.26f * on), Color.Transparent), c, r),
             Offset(c.x - r, c.y - r * 0.8f), Size(r * 2f, r * 1.6f), blendMode = BlendMode.Plus,
         )
     }
@@ -906,7 +977,7 @@ private fun DrawScope.drawDecor(scroll: Float, originX: Float, trainPx: Float, h
         while (true) {
             val y = (base + k * DECOR_PERIOD) * u
             if (y > h + r) break
-            if (y > -r) drawDecorItem(d.kind, x, y, r)
+            if (y > -r) drawDecorItem(d.kind, x, y, r, zoneAt(scroll - y / u))
             k++
         }
     }
@@ -925,9 +996,33 @@ private fun DrawScope.starPath(cx: Float, cy: Float, rOut: Float, rIn: Float, n:
     return p
 }
 
-private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float) {
+private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zone: Int = 0) {
     val seed = (x * 0.013f + r)
     val art = sceneArt
+    val z = ZONES[zone]
+    if (art != null && kind == 4 && z.lakes) {
+        art.byName["lake"]?.let { lake ->
+            val w = r * 4.2f
+            drawImage(lake, dstOffset = IntOffset((x - w / 2f).toInt(), (y - w / 3f).toInt()), dstSize = IntSize(w.toInt(), (w * 2f / 3f).toInt()))
+            return
+        }
+    }
+    val names = z.slots[kind]
+    if (art != null && kind != 4 && names != null && art.byName.isNotEmpty()) {
+        val pick = ((x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
+        val name = names[(pick / 3) % names.size]
+        val img = art.byName[name]
+        if (img != null) {
+            val side = when (kind) { 1 -> r / 0.4f; 2, 6 -> r / 0.31f; else -> r / 0.35f }
+            sprite(img, x, y, side)
+            if (name == "campfire" && fxDark > 0.02f) {
+                val c = Offset(x, y)
+                val rr = side * 0.9f
+                drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB066).copy(alpha = 0.5f * (fxDark / 0.42f).coerceIn(0f, 1f)), Color.Transparent), c, rr), rr, c, blendMode = BlendMode.Plus)
+            }
+            return
+        }
+    }
     if (art != null && kind != 4) {
         val pick = ((x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
         when (kind) {
@@ -1409,7 +1504,9 @@ private fun DrawScope.drawWindowLight(cars: Int, dark: Float) {
         while (wy < top + CAR_H - 20f) {
             for (wx in listOf(-2f, CAR_W + 2f)) {
                 val c = Offset(wx * density, (wy + 7f) * density)
-                drawCircle(Brush.radialGradient(listOf(warm.copy(alpha = 0.55f * a), Color.Transparent), c, r), r, c, blendMode = BlendMode.Plus)
+                // next to a lit station platform the left windows glow less, so the two lights don't add up
+                val k = if (wx < 0f && sceneStationNear) 0.25f else 1f
+                drawCircle(Brush.radialGradient(listOf(warm.copy(alpha = 0.45f * a * k), Color.Transparent), c, r), r, c, blendMode = BlendMode.Plus)
             }
             wy += 24f
         }

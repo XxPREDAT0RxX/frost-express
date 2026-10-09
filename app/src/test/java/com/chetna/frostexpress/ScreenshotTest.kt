@@ -64,6 +64,7 @@ class ScreenshotTest {
             "upgrades" -> { playing(); val v = vm(); shot("${size}_3_upgrades") { GameScreen(v, initialSheet = 1) } }
             "device" -> { playing(); val v = vm(); shot("${size}_4_device") { GameScreen(v, initialDetail = UpgradeType.ENGINE) } }
             "welcome" -> { prefs { }; val v = vm(); shot("${size}_5_welcome") { GameScreen(v) } }
+            "evolve" -> { playing(); val v = vm(); shot("${size}_14_evolve") { GameScreen(v, initialSheet = 6) } }
             "shop" -> { playing(); val v = vm(); shot("${size}_11_shop") { GameScreen(v, initialSheet = 2) } }
             "gems" -> { playing(); val v = vm(); shot("${size}_12_gems") { GameScreen(v, initialSheet = 3) } }
             "bag" -> { playing(); prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("inv", "2,1,0,3,1"); putFloat("shopInc", 200f); putFloat("shopFuel", 90f) }; val v = vm(); shot("${size}_13_bag") { GameScreen(v, initialSheet = 4) } }
@@ -115,6 +116,7 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_daily() = runAll("normal", "daily")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_quests() = runAll("normal", "quests")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_shop() = runAll("normal", "shop")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_evolve() = runAll("normal", "evolve")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_gems() = runAll("normal", "gems")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bag() = runAll("normal", "bag")
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_shop() = runAll("small", "shop")

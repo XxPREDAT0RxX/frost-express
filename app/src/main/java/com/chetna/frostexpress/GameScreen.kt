@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -124,6 +125,13 @@ private val Mint = Color(0xFF3F9E74)
 private val Muted = Color(0xFF9A7A64)
 private val Glass = Color(0xFFFFF6E9).copy(alpha = 0.97f)
 private val OutlineW = 2.5.dp
+/** The game's display font (Poppins): titles, tutorial, pop-up messages. */
+private val CozyFont = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(R.font.poppins_regular, FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(R.font.poppins_medium, FontWeight.Medium),
+    androidx.compose.ui.text.font.Font(R.font.poppins_bold, FontWeight.Bold),
+    androidx.compose.ui.text.font.Font(R.font.poppins_bold, FontWeight.ExtraBold),
+)
 
 private fun upgradeColor(t: UpgradeType): Color = when (t) {
     UpgradeType.ENGINE -> Color(0xFFE8890C)
@@ -260,7 +268,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                RightRail(vm, link, onEvolve = { sheetTab = 0; sheet = 1 })
+                RightRail(vm, link, onEvolve = { sheet = if (sheet == 6) 0 else 6 })
                 ActiveBoosters(vm)
             }
             if (vm.tutorialStage in 1..3) {
@@ -313,12 +321,15 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     InventorySheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 }, onShop = { sheet = 2 })
                 } else if (shownSheet[0] == 5) {
                     QuestSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                } else if (shownSheet[0] == 6) {
+                    EvolveSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
                         focus = if (vm.tutorialStage == 2) UpgradeType.ENGINE else null, onFocusDone = {},
                         startTab = sheetTab, onTabShown = { sheetTab = 0 },
                         onOpenDetail = { detail = it },
+                        onOpenEvolve = { sheet = 6 },
                         onClose = { sheet = 0 },
                     )
                 }
@@ -488,7 +499,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
     val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
     val shape = RoundedCornerShape(20.dp)
     // a frosted wooden sign: snow on top, icicles below
-    Column(modifier.fillMaxWidth()) {
+    Column(modifier.widthIn(max = 560.dp).fillMaxWidth()) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -512,6 +523,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                             .border(1.8.dp, Ink, RoundedCornerShape(14.dp))
                             .padding(start = 5.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
                     ) {
                         CoinIcon(Modifier.size(22.dp))
                         Spacer(Modifier.width(5.dp))
@@ -524,18 +536,20 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                     Spacer(Modifier.width(5.dp))
                     MenuButton(onOpenSettings)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally)) {
                     StatChip("${fmt(vm.speed, 1)} m/s", Ice)
                     StatChip("+${fmt(vm.coinsPerSec, 1)}/s", Mint)
+                    PassengerChip(vm)
                     val temp = (-38f - 14f * (vm.darkness / 0.42f) - 22f * vm.stormLevel).toInt()
                     StatChip("$temp°C", Color(0xFF4C8DB8))
-                    Spacer(Modifier.weight(1f))
-                    TimeChip(vm)
                 }
-                // evolve progress, label inside the bar
+                // time of day and the evolve progress (label inside the bar)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                TimeChip(vm)
+                Spacer(Modifier.width(6.dp))
                 Box(
                     Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .height(14.dp)
                         .clip(RoundedCornerShape(7.dp))
                         .background(Track)
@@ -554,9 +568,28 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                         fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false,
                     )
                 }
+                }
             }
         }
         Icicles(Modifier.padding(horizontal = 18.dp))
+    }
+}
+
+/** Passengers on board and the coin bonus they give (rolled again at every station). */
+@Composable
+private fun PassengerChip(vm: GameViewModel) {
+    val c = Color(0xFFB0578A)
+    Row(
+        Modifier.background(c.copy(alpha = 0.13f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Canvas(Modifier.size(10.dp)) {
+            val s = size.minDimension
+            drawCircle(c, s * 0.22f, Offset(s * 0.5f, s * 0.24f))
+            drawRoundRect(c, Offset(s * 0.18f, s * 0.52f), Size(s * 0.64f, s * 0.48f), CornerRadius(s * 0.3f))
+        }
+        Spacer(Modifier.width(3.dp))
+        Text("${vm.passengers} · x${fmt(vm.paxMult, 2)}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1, softWrap = false)
     }
 }
 
@@ -624,14 +657,16 @@ private fun AchievementBanner(title: String?, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = title != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
         Row(
             Modifier
+                .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Wood)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .background(Color(0xFFFFE49A).copy(alpha = 0.82f))
+                .border(2.dp, Ink.copy(alpha = 0.85f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StarIcon(Color.White, Modifier.size(16.dp))
+            StarIcon(GoldText, Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Achievement: $shown", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Award: $shown", fontSize = 13.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
         }
     }
 }
@@ -666,13 +701,18 @@ private fun ToastBanner(text: String?, modifier: Modifier = Modifier) {
     AnimatedVisibility(visible = text != null, modifier = modifier, enter = fadeIn() + slideInVertically { -it }, exit = fadeOut()) {
         Text(
             shown,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
+            fontSize = 13.sp,
+            lineHeight = 17.sp,
+            fontFamily = CozyFont,
+            fontWeight = FontWeight.Medium,
+            color = Ink,
+            textAlign = TextAlign.Center,
             modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(Ice)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 24.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Panel.copy(alpha = 0.78f))
+                .border(2.dp, Ink.copy(alpha = 0.8f), RoundedCornerShape(18.dp))
+                .padding(horizontal = 14.dp, vertical = 7.dp),
         )
     }
 }
@@ -795,6 +835,9 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                     SettingToggle("Sound on", vm.soundOn) { vm.toggleSound() }
                     LabeledSlider("Music", vm.musicVolume, vm::changeMusicVolume)
                     LabeledSlider("Effects", vm.sfxVolume, vm::changeSfxVolume)
+                    SettingToggle("Vibration", vm.vibrationOn) { vm.toggleVibration() }
+                    SettingToggle("Reminders", vm.remindersOn) { vm.toggleReminders() }
+                    Text("A note when your daily gift is ready or idle earnings are full.", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
                 }
                 SettingsCard("Graphics") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1077,6 +1120,7 @@ private fun UpgradesSheet(
     onOpenDetail: (UpgradeType) -> Unit = {},
     startTab: Int = 0,
     onTabShown: () -> Unit = {},
+    onOpenEvolve: () -> Unit = {},
     onClose: () -> Unit,
 ) {
     var confirmEvolve by remember { mutableStateOf(false) }
@@ -1203,7 +1247,7 @@ private fun UpgradesSheet(
                 Text("${chain.size - firstLocked - 1} more upgrades to discover...", fontSize = 11.sp, color = Muted)
             }
         }
-            if (tab == 0) item { EvolveCard(vm, onEvolve = { confirmEvolve = true }) }
+            if (tab == 0) item { EvolveCard(vm, onEvolve = onOpenEvolve) }
         }
     }
 
@@ -1465,12 +1509,12 @@ private fun EvolveCard(vm: GameViewModel, onEvolve: () -> Unit) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .background(if (vm.canEvolve) Color(0xFFB197FC) else PanelHi)
-                .clickable(enabled = vm.canEvolve, onClick = onEvolve)
+                .clickable(onClick = onEvolve)
                 .padding(vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (vm.canEvolve) "Evolve to ${next.name}  (+${vm.coreGain} cores)" else "Buy more upgrades to evolve",
+                if (vm.canEvolve) "Evolve to ${next.name}  (+${vm.coreGain} cores)" else "Open the Evolve menu",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (vm.canEvolve) Ink else Muted,
@@ -1871,6 +1915,9 @@ private fun itemColor(item: ShopItem): Color = when (item) {
     ShopItem.TICKET -> Color(0xFFFFE49A)
     ShopItem.TANK -> Color(0xFFBFE0D2)
     ShopItem.CLEAR -> Color(0xFFB8D8F2)
+    ShopItem.RUSH5 -> Color(0xFFFFC98A)
+    ShopItem.RUSH10 -> Color(0xFFF49AB2)
+    ShopItem.RUSH100 -> Color(0xFFC9B6F2)
 }
 
 /** A shop booster as a card: the item on a sunburst, what it does, how many are in the bag and the gem price. */
@@ -2838,7 +2885,7 @@ private fun TutorialCard(title: String, step: Int, text: String, button: String,
                     sp.npc?.let { Image(it, "Conductor", Modifier.size(84.dp, 105.dp).graphicsLayer { translationY = -hop }) }
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(text, fontSize = 13.sp, color = Ink, textAlign = TextAlign.Center, lineHeight = 18.sp)
+                Text(text, fontSize = 15.sp, fontFamily = CozyFont, color = Ink, textAlign = TextAlign.Center, lineHeight = 22.sp)
                 Spacer(Modifier.height(14.dp))
                 Box(
                     Modifier
@@ -2849,16 +2896,16 @@ private fun TutorialCard(title: String, step: Int, text: String, button: String,
                         .clickable(onClick = onButton)
                         .padding(vertical = 11.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(button, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+                ) { Text(button, fontSize = 18.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink) }
                 if (onSkip != null) {
                     Text(
-                        "Skip tutorial", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold,
+                        "Skip tutorial", fontSize = 12.sp, fontFamily = CozyFont, color = Muted, fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(top = 10.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onSkip).padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
             }
             Text(
-                title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                title, fontSize = 21.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .clip(RoundedCornerShape(18.dp))
@@ -2928,11 +2975,11 @@ private fun TutorialGuide(vm: GameViewModel, sheetOpen: Boolean, modifier: Modif
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.weight(1f, fill = false))
+                    Text(title, fontSize = 15.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f, fill = false))
                     Spacer(Modifier.width(8.dp))
                     TutorialSteps(stage)
                 }
-                Text(text, fontSize = 12.sp, color = Ink, lineHeight = 16.sp)
+                Text(text, fontSize = 14.sp, fontFamily = CozyFont, color = Ink, lineHeight = 19.sp)
             }
         }
         if (showArrow) {
@@ -3056,7 +3103,7 @@ private fun CozyCard(title: String, ribbon: Color, onDismiss: () -> Unit, closab
                 content = content,
             )
             Text(
-                title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                title, fontSize = 19.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .clip(RoundedCornerShape(18.dp))
@@ -3079,7 +3126,7 @@ private fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
             .clickable(onClick = onClick)
             .padding(vertical = 11.dp, horizontal = 16.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center) }
+    ) { Text(text, fontSize = 16.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center) }
 }
 
 @Composable
@@ -3400,7 +3447,7 @@ private fun SheetFrame(
                     contentAlignment = Alignment.Center,
                 ) { if (icon != null) Image(icon, null, Modifier.size(26.dp)) }
                 Spacer(Modifier.width(8.dp))
-                Text(title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
+                Text(title, fontSize = 19.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f))
                 right()
                 Spacer(Modifier.width(6.dp))
                 CloseButton(onClose)
@@ -3472,5 +3519,157 @@ private fun SectionTitle(text: String, color: Color = Ink, note: String? = null)
         Spacer(Modifier.width(8.dp))
         if (note != null) Text(note, fontSize = 10.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         else Box(Modifier.weight(1f).height(2.dp).background(color.copy(alpha = 0.35f)))
+    }
+}
+
+
+// ---------- evolve menu ----------
+
+/** Everything about evolving: this train and the next, progress, what you get, what resets, and every train tier. */
+@Composable
+private fun EvolveSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+    val sp = rememberGameSprites()
+    val cur = vm.tierIndex
+    val top = cur >= TIERS.lastIndex
+    val next = min(cur + 1, TIERS.lastIndex)
+    val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
+    var confirm by remember { mutableStateOf(false) }
+    LaunchedEffect(confirm) { if (confirm) { kotlinx.coroutines.delay(3500); confirm = false } }
+    SheetFrame(
+        "Evolve", sp.iconEvolve, Color(0xFFE3D6FB), onClose, modifier,
+        right = { CurrencyPill({ CoreIcon(Ice, Modifier.size(15.dp)) }, "${vm.cores}", Ice) },
+    ) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // this train -> the next one
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.verticalGradient(listOf(Color(0xFFF1EAFF), Color(0xFFDCEEF9))))
+                        .border(2.dp, Ink, RoundedCornerShape(20.dp))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("NOW", fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = Muted)
+                        TrainPicture(cur, Modifier.fillMaxWidth().height(120.dp))
+                        Text(TIERS[cur].name, fontSize = 13.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
+                    }
+                    Canvas(Modifier.size(28.dp)) {
+                        val w = size.width
+                        val p = Path().apply { moveTo(w * 0.2f, w * 0.2f); lineTo(w * 0.7f, w * 0.5f); lineTo(w * 0.2f, w * 0.8f) }
+                        drawPath(p, Ink, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                        drawPath(p, Color(0xFFB9A2EE), style = Stroke(2.6.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                    }
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (top) "TOP TRAIN" else "NEXT", fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = XpPurple)
+                        TrainPicture(next, Modifier.fillMaxWidth().height(120.dp).graphicsLayer { alpha = if (vm.canEvolve || top) 1f else 0.85f })
+                        Text(TIERS[next].name, fontSize = 13.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
+                    }
+                }
+            }
+            // progress
+            item {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        Modifier.fillMaxWidth().height(20.dp).clip(RoundedCornerShape(10.dp)).background(Track).border(2.dp, Ink, RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(progress).background(Brush.horizontalGradient(listOf(Color(0xFFB8D8F2), Color(0xFFB9A2EE)))))
+                        Text("${vm.runLevels} / ${vm.evolveLevels} upgrade levels", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    }
+                    Text(
+                        if (vm.canEvolve) "Ready! Evolve whenever you like." else "Buy ${vm.evolveLevels - vm.runLevels} more upgrade levels to evolve.",
+                        fontSize = 11.sp, color = Muted, modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+            // rewards
+            item {
+                SectionTitle("You get", XpPurple)
+                val carsNext = Balance.maxCars(vm.evolutions + 1)
+                val rewards = listOf(
+                    "+${vm.coreGain} Frost Core${if (vm.coreGain > 1) "s" else ""}" to "+${(Balance.CORE_BONUS * 100).toInt()}% coins each, forever",
+                    "Speed +${(Balance.TIER_SPEED_BONUS * 100).toInt()}%" to "a faster train",
+                    "Coins x${fmt(Balance.TIER_INCOME, 1)}" to "every metre pays more",
+                    (if (carsNext > vm.maxCars) "+${carsNext - vm.maxCars} cars" else "All cars") to "room for $carsNext cars",
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    rewards.chunked(2).forEach { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            pair.forEach { (big, small) ->
+                                Column(
+                                    Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.7f)).border(1.8.dp, Ink, RoundedCornerShape(14.dp)).padding(8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(big, fontSize = 14.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
+                                    Text(small, fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFE1E1).copy(alpha = 0.7f)).padding(8.dp)) {
+                        Text("Starts over", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        Text("Coins, run upgrades and the unlock chain.", fontSize = 10.sp, color = Muted)
+                    }
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFFE2F3EA).copy(alpha = 0.8f)).padding(8.dp)) {
+                        Text("You keep", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        Text("Frost Cores, permanent upgrades, gems, bag, awards, level.", fontSize = 10.sp, color = Muted)
+                    }
+                }
+            }
+            item {
+                ChunkyButton(
+                    vm.canEvolve && !top,
+                    if (confirm) listOf(Color(0xFFFFB9B0), Color(0xFFEF7B72)) else listOf(Color(0xFFE3D6FB), Color(0xFFB9A2EE)),
+                    { if (confirm) { vm.evolve(); confirm = false; onClose() } else confirm = true },
+                    Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        when {
+                            top -> "You have the top train"
+                            !vm.canEvolve -> "Keep upgrading to evolve"
+                            confirm -> "Tap again to evolve now"
+                            else -> "Evolve to ${TIERS[next].name}"
+                        },
+                        fontSize = 16.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = if (vm.canEvolve && !top) Ink else Muted,
+                    )
+                }
+            }
+            // every train
+            item {
+                SectionTitle("All trains", Ice, "${cur + 1} of ${TIERS.size}")
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TIERS.forEachIndexed { i, t ->
+                        val owned = i <= cur
+                        Column(
+                            Modifier
+                                .width(92.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (i == cur) Color(0xFFFFE49A) else Color.White.copy(alpha = 0.6f))
+                                .border(if (i == cur) 2.5.dp else 1.5.dp, Ink.copy(alpha = if (owned) 1f else 0.4f), RoundedCornerShape(14.dp))
+                                .padding(6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            TrainPicture(i, Modifier.size(70.dp, 80.dp).graphicsLayer { alpha = if (owned) 1f else 0.35f })
+                            Text(t.name, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = if (owned) Ink else Muted, textAlign = TextAlign.Center, maxLines = 2, lineHeight = 12.sp)
+                            Text("Tier ${i + 1}", fontSize = 9.sp, color = Muted)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

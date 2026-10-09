@@ -62,6 +62,7 @@ class GameAudio(private val ctx: Context) {
 
     /** [rate] changes the pitch (0.5..2), used to give repeated sounds some variety. [pan] -1 left .. 1 right. */
     fun play(res: Int, volume: Float = 1f, rate: Float = 1f, pan: Float = 0f) {
+        Haptics.forSound(res)
         if (!enabled || !foreground) return
         val v = (volume * sfxVolume).coerceIn(0f, 1f)
         val l = v * (1f - pan.coerceIn(0f, 1f))
@@ -165,4 +166,38 @@ class GameAudio(private val ctx: Context) {
 object UiSound {
     var audio: GameAudio? = null
     fun click() { audio?.play(R.raw.sfx_click, 0.45f) }
+}
+
+/**
+ * Light vibrations for taps, purchases and big moments. Uses the view's haptic feedback (no permission needed,
+ * follows the phone's touch-feedback setting) and can be switched off in Settings.
+ */
+object Haptics {
+    var view: android.view.View? = null
+    var enabled = true
+    var foreground = true
+
+    private fun feel(constant: Int) {
+        if (!enabled || !foreground) return
+        view?.performHapticFeedback(constant)
+    }
+
+    /** A soft tick for buttons. */
+    fun tick() = feel(android.view.HapticFeedbackConstants.CLOCK_TICK)
+    /** A firmer tap: upgrades, BOOST. */
+    fun tap() = feel(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+    /** A confirm buzz: installing, claiming, rewards. */
+    fun confirm() = feel(if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM else android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+    /** A long buzz: evolving, level up. */
+    fun big() = feel(android.view.HapticFeedbackConstants.LONG_PRESS)
+
+    /** Pick the feeling that goes with a sound effect. */
+    fun forSound(res: Int) {
+        when (res) {
+            R.raw.sfx_click -> tick()
+            R.raw.sfx_upgrade, R.raw.sfx_boost, R.raw.sfx_coin -> tap()
+            R.raw.sfx_buy, R.raw.sfx_install -> confirm()
+            R.raw.sfx_evolve -> big()
+        }
+    }
 }
