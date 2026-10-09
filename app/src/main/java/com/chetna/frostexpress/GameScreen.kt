@@ -164,14 +164,18 @@ private fun FrostAlert(
 
 @Composable
 fun GameScreen(vm: GameViewModel) {
-    var showUpgrades by remember { mutableStateOf(false) }
+    // 0 = no sheet, 1 = upgrades, 2 = shop. Both slide up over the bottom of the running scene.
+    var sheet by remember { mutableIntStateOf(0) }
+    val shownSheet = remember { intArrayOf(1) }
+    if (sheet != 0) shownSheet[0] = sheet
+    val showUpgrades = sheet == 1
     var showSettings by remember { mutableStateOf(false) }
     var detail by remember { mutableStateOf<UpgradeType?>(null) }
-    BackHandler(enabled = showUpgrades) { showUpgrades = false }
+    BackHandler(enabled = sheet != 0) { sheet = 0 }
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.52f).dp
     val sheetPx = with(LocalDensity.current) { sheetHeight.roundToPx() }
     // One progress value drives the sheet height, so opening and closing never jump.
-    val sheetP by animateFloatAsState(if (showUpgrades) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "sheet")
+    val sheetP by animateFloatAsState(if (sheet != 0) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "sheet")
     val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
 
     Column(
@@ -179,7 +183,7 @@ fun GameScreen(vm: GameViewModel) {
             .fillMaxSize()
             .background(Snow)
     ) {
-        // The running scene takes whatever space the upgrades sheet leaves free.
+        // The running scene takes whatever space the sheet leaves free; the footer floats on top of it.
         Box(Modifier.weight(1f).fillMaxWidth()) {
             TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
@@ -214,7 +218,7 @@ fun GameScreen(vm: GameViewModel) {
                 vm.tutorialStage == 3 -> "Now tap BOOST a few times for bonus income"
                 else -> null
             }
-            if (hint != null) TutorialHint(hint, Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp))
+            if (hint != null) TutorialHint(hint, Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp + bottomInset * (1f - sheetP)))
             if (vm.event == GameEvent.CRATE) {
                 SupplyCrate(
                     vm::collectCrate,
@@ -223,19 +227,23 @@ fun GameScreen(vm: GameViewModel) {
                         .padding(start = 20.dp),
                 )
             }
+            BottomBar(
+                vm,
+                sheetOpen = showUpgrades,
+                onToggleUpgrades = {
+                    if (!showUpgrades) vm.tutorialAdvance(1)
+                    sheet = if (sheet == 1) 0 else 1
+                },
+                shopOpen = sheet == 2,
+                onToggleShop = { sheet = if (sheet == 2) 0 else 2 },
+                pulseGear = vm.tutorialStage == 1 || (vm.tutorialStage == 2 && !showUpgrades),
+                pulseBoost = vm.tutorialStage == 3,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 10.dp)
+                    .padding(top = 6.dp, bottom = 6.dp + bottomInset * (1f - sheetP)),
+            )
         }
-        BottomBar(
-            vm,
-            sheetOpen = showUpgrades,
-            onToggleUpgrades = {
-                if (!showUpgrades) vm.tutorialAdvance(1)
-                showUpgrades = !showUpgrades
-            },
-            pulseGear = vm.tutorialStage == 1 || (vm.tutorialStage == 2 && !showUpgrades),
-            pulseBoost = vm.tutorialStage == 3,
-            modifier = Modifier
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-        )
         if (sheetP > 0.001f) {
             Box(
                 Modifier
@@ -247,15 +255,18 @@ fun GameScreen(vm: GameViewModel) {
                     }
                     .clipToBounds(),
             ) {
-                UpgradesSheet(
-                    vm, Modifier.height(sheetHeight),
-                    focus = null, onFocusDone = {},
-                    onOpenDetail = { detail = it },
-                    onClose = { showUpgrades = false },
-                )
+                if (shownSheet[0] == 2) {
+                    ShopSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                } else {
+                    UpgradesSheet(
+                        vm, Modifier.height(sheetHeight),
+                        focus = null, onFocusDone = {},
+                        onOpenDetail = { detail = it },
+                        onClose = { sheet = 0 },
+                    )
+                }
             }
         }
-        Spacer(Modifier.height(bottomInset * (1f - sheetP)))
     }
 
     detail?.let { UpgradeDialog(vm, it, onClose = { detail = null }) }
@@ -843,6 +854,8 @@ private fun BottomBar(
     vm: GameViewModel,
     sheetOpen: Boolean,
     onToggleUpgrades: () -> Unit,
+    shopOpen: Boolean = false,
+    onToggleShop: () -> Unit = {},
     modifier: Modifier = Modifier,
     pulseGear: Boolean = false,
     pulseBoost: Boolean = false,
@@ -865,7 +878,7 @@ private fun BottomBar(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Panel)
+            .background(Panel.copy(alpha = 0.95f))
             .border(1.5.dp, Wood.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -890,6 +903,17 @@ private fun BottomBar(
                         .border(1.5.dp, Panel, CircleShape)
                 )
             }
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(if (shopOpen) Ember else PanelHi)
+                .clickable(onClick = onToggleShop),
+            contentAlignment = Alignment.Center,
+        ) {
+            ShopIcon(if (shopOpen) Color.White else Ember, Modifier.size(22.dp))
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1015,38 +1039,7 @@ private fun UpgradesSheet(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (tab == 3) {
-                item {
-                    Text("Boosters bought with coins. Prices follow your income. Timed boosters stack up to 30 minutes.", fontSize = 11.sp, color = Muted)
-                }
-                items(ShopItem.values().toList()) { item ->
-                    val cost = vm.shopCost(item)
-                    val left = vm.shopLeft(item)
-                    val avail = vm.shopAvailable(item)
-                    UpgradeRow(
-                        type = when (item) {
-                            ShopItem.COCOA -> UpgradeType.FOOD
-                            ShopItem.TURBO -> UpgradeType.ENGINE
-                            ShopItem.TICKET -> UpgradeType.CONDUCTOR
-                            ShopItem.TANK -> UpgradeType.BOOSTER
-                            ShopItem.CLEAR -> UpgradeType.PLOW
-                        },
-                        title = item.title,
-                        level = if (left > 0.0) "Active ${left.toInt() / 60}:${(left.toInt() % 60).toString().padStart(2, '0')}" else "",
-                        effect = item.desc,
-                        note = when {
-                            item == ShopItem.CLEAR && !avail -> "Only during a snow storm"
-                            item == ShopItem.TANK && !avail -> "Your boost meter is already full"
-                            !avail -> "Maximum 30 minutes stacked"
-                            else -> null
-                        },
-                        buttonTop = "Buy",
-                        buttonBottom = fmt(cost),
-                        enabled = avail && vm.coins >= cost,
-                        onBuy = { vm.buyShop(item) },
-                    )
-                }
-            } else if (tab == 2) {
+            if (tab == 2) {
                 item {
                     Text(
                         "${vm.unlocked.size}/${ACHIEVEMENTS.size} unlocked. Rewards: coins, or Frost Cores for the big ones.",
@@ -1163,7 +1156,7 @@ private fun CoreIcon(color: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Upgrades", "Permanent", "Awards", "Shop").forEachIndexed { i, label ->
+        listOf("Upgrades", "Permanent", "Awards").forEachIndexed { i, label ->
             val on = selected == i
             Box(
                 Modifier
@@ -1549,6 +1542,83 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+
+// ---------- shop: its own sheet, opened from the footer ----------
+
+@Composable
+private fun ShopIcon(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        drawRoundRect(color, Offset(.14f * s, .34f * s), Size(.72f * s, .56f * s), CornerRadius(.1f * s))
+        drawArc(color, 180f, 180f, false, Offset(.3f * s, .1f * s), Size(.4f * s, .44f * s), style = Stroke(.09f * s))
+        drawCircle(Color.White.copy(alpha = .85f), .07f * s, Offset(.5f * s, .6f * s))
+    }
+}
+
+@Composable
+private fun ShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .background(Panel)
+            .border(1.5.dp, Ember.copy(alpha = 0.55f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.horizontalGradient(listOf(Color(0xFFFFE3C2), Color(0xFFFFF1DC))))
+                .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ShopIcon(Ember, Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Shop", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            CoinIcon(Modifier.size(16.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(fmt(vm.coins), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GoldText)
+            TextButton(onClick = onClose) { Text("Close", fontSize = 12.sp) }
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            item {
+                Text("Boosters bought with coins. Prices follow your income. Timed boosters stack up to 30 minutes.", fontSize = 11.sp, color = Muted)
+            }
+            items(ShopItem.values().toList()) { item ->
+                val cost = vm.shopCost(item)
+                val left = vm.shopLeft(item)
+                val avail = vm.shopAvailable(item)
+                UpgradeRow(
+                    type = when (item) {
+                        ShopItem.COCOA -> UpgradeType.FOOD
+                        ShopItem.TURBO -> UpgradeType.ENGINE
+                        ShopItem.TICKET -> UpgradeType.CONDUCTOR
+                        ShopItem.TANK -> UpgradeType.BOOSTER
+                        ShopItem.CLEAR -> UpgradeType.PLOW
+                    },
+                    title = item.title,
+                    level = if (left > 0.0) "Active ${left.toInt() / 60}:${(left.toInt() % 60).toString().padStart(2, '0')}" else "",
+                    effect = item.desc,
+                    note = when {
+                        item == ShopItem.CLEAR && !avail -> "Only during a snow storm"
+                        item == ShopItem.TANK && !avail -> "Your boost meter is already full"
+                        !avail -> "Maximum 30 minutes stacked"
+                        else -> null
+                    },
+                    buttonTop = "Buy",
+                    buttonBottom = fmt(cost),
+                    enabled = avail && vm.coins >= cost,
+                    onBuy = { vm.buyShop(item) },
+                )
             }
         }
     }
