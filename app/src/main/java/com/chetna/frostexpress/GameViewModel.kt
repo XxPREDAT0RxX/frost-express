@@ -216,7 +216,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var toast by mutableStateOf<String?>(null); private set
     private var toastLeft = 0.0
     var stationSerial by mutableIntStateOf(0); private set
-    private var nextStationAt = Balance.STATION_EVERY_M
+    private var nextStationIn = Balance.STATION_MIN_GAP
 
     private fun showToast(text: String) {
         toast = text
@@ -288,7 +288,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun collectCrate() {
         if (event != GameEvent.CRATE) return
-        val gain = max(50.0, baseCoinsPerSec * 60.0) * (1.0 + effSum(Eff.CRATE))
+        val gain = max(50.0, baseCoinsPerSec * 30.0) * (1.0 + effSum(Eff.CRATE))
         coins += gain
         event = GameEvent.NONE
         eventLeft = 0.0
@@ -301,7 +301,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION)) *
             (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0)
         coins += gain
-        audio.play(R.raw.sfx_buy)
+        audio.play(R.raw.sfx_coin, 0.35f)
         showToast(
             if (shelter) "Storm shelter: the train waits at the station. +${fmt(gain)} coins"
             else "Station: passengers paid +${fmt(gain)} coins"
@@ -336,8 +336,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
                 startRandomEvent()
             }
         }
-        if (totalDistance >= nextStationAt) {
-            nextStationAt = (floor(totalDistance / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
+        nextStationIn -= dt
+        if (nextStationIn <= 0.0) {
+            nextStationIn = Balance.STATION_MIN_GAP + Math.random() * (Balance.STATION_MAX_GAP - Balance.STATION_MIN_GAP)
             stationSerial++
         }
     }
@@ -434,7 +435,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         event = GameEvent.NONE; eventLeft = 0.0; adBoostLeft = 0.0; toast = null
         stormLeft = 0.0
         shopIncomeLeft = 0.0; shopSpeedLeft = 0.0; shopTicketLeft = 0.0
-        nextStationAt = (floor(0.0 / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         offlineCoins = 0.0; offlineMeters = 0.0
         tutorialStage = 0
@@ -641,7 +641,6 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.sfxVolume = sfxVolume
         load()
         dailyReady = lastDailyDay != today()
-        nextStationAt = (floor(totalDistance / Balance.STATION_EVERY_M) + 1) * Balance.STATION_EVERY_M
         startLoop()
     }
 
@@ -663,7 +662,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Each Boost tap costs 10% of the meter and grants 3 seconds of income multiplier. */
     fun boost() {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
-        audio.play(R.raw.sfx_boost, 0.7f)
+        if (boostTimeLeft <= 0.0) audio.play(R.raw.sfx_boost, 0.55f) // only when a boost starts, not on every tap
         boostTaps++
         boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         val extraLen = effSum(Eff.BOOSTLEN)

@@ -10,6 +10,8 @@ import java.io.StringWriter
 class FrostApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // decode the game sprites in the background so the first frame does not wait for them
+        Thread { try { SpriteBank.get(this) } catch (_: Throwable) {} }.start()
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {

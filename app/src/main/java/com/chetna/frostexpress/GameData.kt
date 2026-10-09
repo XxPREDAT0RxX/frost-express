@@ -118,10 +118,10 @@ fun effText(e: Eff, per: Double): String {
 
 /** To add an upgrade: add an UpgradeType, an entry here, and its formula in GameViewModel. */
 private val CORE_UPGRADES = listOf(
-    UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.5 m/s speed", 20.0, 1.25, gadget = Gadget.ENGINE),
-    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+30% coins per metre", 50.0, 1.7, 40, UpgradeType.ENGINE, 5, gadget = Gadget.CRATE),
-    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+6% income, warm passengers pay more", 150.0, 1.45, Int.MAX_VALUE, UpgradeType.WAGON, 3, gadget = Gadget.FLAME),
-    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+5% income", 400.0, 1.5, Int.MAX_VALUE, UpgradeType.HEAT, 5, gadget = Gadget.CUP),
+    UpgradeSpec(UpgradeType.ENGINE, "Engine Power", "+0.4 m/s speed", 30.0, 1.32, gadget = Gadget.ENGINE),
+    UpgradeSpec(UpgradeType.WAGON, "Cargo Wagon", "+30% coins per metre", 50.0, 1.85, 40, UpgradeType.ENGINE, 5, gadget = Gadget.CRATE),
+    UpgradeSpec(UpgradeType.HEAT, "Heat Generator", "+6% income, warm passengers pay more", 150.0, 1.55, Int.MAX_VALUE, UpgradeType.WAGON, 3, gadget = Gadget.FLAME),
+    UpgradeSpec(UpgradeType.FOOD, "Food Car", "+5% income", 400.0, 1.6, Int.MAX_VALUE, UpgradeType.HEAT, 5, gadget = Gadget.CUP),
     UpgradeSpec(UpgradeType.PLOW, "Ice Plow", "+5% speed", 600.0, 1.35, 60, UpgradeType.FOOD, 3, gadget = Gadget.PLOW),
     UpgradeSpec(UpgradeType.COAL, "Coal Stoker", "+8% faster boost recharge", 300.0, 1.30, 30, UpgradeType.PLOW, 5, gadget = Gadget.COALPILE),
     UpgradeSpec(UpgradeType.BOOSTER, "Boost Core", "+0.2 boost multiplier", 800.0, 1.40, 20, UpgradeType.COAL, 5, gadget = Gadget.COIL),
@@ -134,7 +134,7 @@ private val EXTRA_UPGRADES: List<UpgradeSpec> by lazy {
         val (id, title, gadget) = a
         val (eff, per, max) = b
         val type = UpgradeType.valueOf(id)
-        val spec = UpgradeSpec(type, title, effText(eff, per), Math.floor(2500.0 * Math.pow(1.55, i.toDouble())), 1.55, minOf(max, 10), prev, 3, gadget, eff, per)
+        val spec = UpgradeSpec(type, title, effText(eff, per), Math.floor(5000.0 * Math.pow(1.6, i.toDouble())), 1.65, minOf(max, 10), prev, 3, gadget, eff, per)
         prev = type
         spec
     }
@@ -232,7 +232,7 @@ enum class GameEvent { NONE, AURORA, CRATE }
 
 object Balance {
     const val BASE_SPEED = 2.0            // metres per second
-    const val SPEED_PER_ENGINE = 0.5
+    const val SPEED_PER_ENGINE = 0.4
     const val PLOW_BONUS = 0.05
     const val WAGON_BONUS = 0.3
     const val HEAT_BONUS = 0.06
@@ -280,8 +280,9 @@ object Balance {
     const val AURORA_SEC = 30.0
     const val AURORA_INCOME = 1.5
     const val CRATE_SEC = 12.0
-    const val STATION_EVERY_M = 400.0     // a station passes every 400 m
-    const val STATION_BONUS_SEC = 45.0    // bonus = 45 seconds of income
+    const val STATION_MIN_GAP = 90.0      // a station passes every 90..150 seconds (time based, so fast trains do not farm them)
+    const val STATION_MAX_GAP = 150.0
+    const val STATION_BONUS_SEC = 20.0    // bonus = 20 seconds of income
 
     // Boost
     const val BOOST_BASE_MULT = 2.0

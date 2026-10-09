@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sprites are looked up by name (dev_<upgrade>, rot_<upgrade>), so keep them when resources are shrunk. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/dev_*,@drawable/rot_*,@drawable/core_*,@drawable/car_*,@drawable/npc_*,@drawable/loco_*,@drawable/station_*" />

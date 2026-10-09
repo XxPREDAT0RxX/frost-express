@@ -93,6 +93,7 @@ private fun rememberSceneArt(): SceneArt {
 /** Set before each frame is drawn; null falls back to the plain vector look. */
 private var sceneArt: SceneArt? = null
 private var sceneMats: Materials? = null
+private var sceneSprites: GameSprites? = null
 
 /**
  * Fills a rectangle (dp, train or screen space) with a tiled texture of [pxPerDp] texture pixels per dp.
@@ -414,6 +415,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
 
     val art = rememberSceneArt()
     val mats = rememberMaterials()
+    val sprites = rememberGameSprites()
     val base = TIERS[vm.tierIndex]
     val lv = LIVERIES[vm.liveryIndex.coerceIn(0, LIVERIES.lastIndex)]
     val tier = if (vm.liveryIndex > 0 && vm.liveryUnlocked(vm.liveryIndex)) TrainTier(base.name, lv.body, lv.accent) else base
@@ -454,6 +456,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         halfH[0] = size.height / density / 2f
         sceneArt = art
         sceneMats = mats
+        sceneSprites = sprites
         drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.postFx)
     }
 }
@@ -673,8 +676,13 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     }
     drawRect(Color(0xFFF2C94C), Offset(x + pw - 5f * u, y - len / 2f), Size(3f * u, len)) // safety line
     // shelter roof with snow
-    drawRoundRect(Color(0xFF8A5F3A), Offset(x + 4f * u, y - 40f * u), Size(18f * u, 80f * u), CornerRadius(3f * u, 3f * u))
-    drawRoundRect(Color(0xFFF4F9FC), Offset(x + 5f * u, y - 38f * u), Size(16f * u, 30f * u), CornerRadius(3f * u, 3f * u))
+    val roof = sceneSprites?.stationRoof
+    if (roof != null) {
+        drawSprite(roof, x, y - 44f * u, 26f * u, 88f * u)
+    } else {
+        drawRoundRect(Color(0xFF8A5F3A), Offset(x + 4f * u, y - 40f * u), Size(18f * u, 80f * u), CornerRadius(3f * u, 3f * u))
+        drawRoundRect(Color(0xFFF4F9FC), Offset(x + 5f * u, y - 38f * u), Size(16f * u, 30f * u), CornerRadius(3f * u, 3f * u))
+    }
     if (st.stop) {
         // storm shelter: a warm lamp and a red sign
         drawCircle(
@@ -837,12 +845,8 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         }
         drawCarShell(top, body, accent, floor, plank, metal = i == 0)
         when (i) {
-            0 -> withMaterial(sceneMats?.paint, 0f, top * density, CAR_W * density, CAR_H * density, density / 4f) {
-                drawEngineCar(top, look, npc, time, boosting)
-            }
-            1 -> withMaterial(sceneMats?.paint, 0f, top * density, CAR_W * density, CAR_H * density, density / 4f) {
-                drawUtilityCar(top, look, npc, time)
-            }
+            0 -> drawEngineCar(top, look, npc, time, boosting)
+            1 -> drawUtilityCar(top, look, npc, time)
             else -> drawModuleCar(top, i, look, time)
         }
         glow(AISLE_X, top + CAR_H / 2f, 90f, Color(0xFFFFD9A0), fxDark * 1.1f) // warm ceiling lamp at night
@@ -852,6 +856,15 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
 
 private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     val u = density
+    val noseImg = sceneSprites?.nose
+    if (noseImg != null) {
+        drawSprite(noseImg, -6f * u, -6f * u, 202f * u, 42f * u, tint = body)
+        glow(56f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
+        glow(134f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
+        box(accent, 70f, 10f, 50f, 3f, 1.5f)
+        if (plow > 0) box(Color(0xFF9FD8F0), 38f, 0f, 114f, 5f, 2.5f)
+        return
+    }
     val p = Path().apply {
         moveTo(16f * u, (NOSE + 2f) * u)
         lineTo(46f * u, 4f * u)
@@ -872,6 +885,19 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
 }
 
 private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor: Color, plank: Color, metal: Boolean = false) {
+    val walls = sceneSprites?.carWalls
+    val tex = sceneArt
+    if (walls != null && tex != null) {
+        // textured floor, then the 3D-shaded walls (tinted with the train colour) with glass windows
+        texRect(if (metal) tex.metal else tex.wood, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f, ax = 7f, ay = top + 7f, r = 4f)
+        box(floor.copy(alpha = if (metal) 0.25f else 0.38f), 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f)
+        val u = density
+        drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
+        sceneSprites?.carGlass?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
+        box(accent.copy(alpha = 0.9f), 16f, top + 1.6f, CAR_W - 32f, 1.8f, 1f)
+        box(accent.copy(alpha = 0.9f), 16f, top + CAR_H - 3.4f, CAR_W - 32f, 1.8f, 1f)
+        return
+    }
     // layered soft shadow on the ground
     box(Color(0x1A101820), 8f, top + 10f, CAR_W, CAR_H, 14f)
     box(Color(0x26101820), 4f, top + 5f, CAR_W, CAR_H, 12f)
@@ -928,6 +954,8 @@ private fun DrawScope.drawVestibule(y: Float) {
 
 private fun DrawScope.drawEngineCar(top: Float, look: Look, npc: Npc, time: Float, boosting: Boolean) {
     val act = npc.act
+    val sp = sceneSprites
+    if (sp?.boiler != null) { drawEngineCarSprites(sp, top, look, npc, time, boosting); return }
 
     // Boiler with a glowing furnace door
     box(Color(0xFF3A3F47), 10f, top + 10f, 60f, 54f, 8f)
@@ -987,6 +1015,8 @@ private fun DrawScope.drawEngineCar(top: Float, look: Look, npc: Npc, time: Floa
 
 private fun DrawScope.drawUtilityCar(top: Float, look: Look, npc: Npc, time: Float) {
     val act = npc.act
+    val sp = sceneSprites
+    if (sp?.heater != null) { drawUtilityCarSprites(sp, top, look, npc, time); return }
 
     // Heat generator with a valve wheel the worker turns
     if (look.heat > 0) {
@@ -1067,8 +1097,10 @@ private fun DrawScope.crate(x: Float, y: Float, sz: Float = 20f) {
 private fun DrawScope.overheadDevice(type: UpgradeType, y: Float, look: Look, time: Float) {
     val lv = look.lv[type.ordinal]
     if (lv > 0) {
-        dot(Color(0x26000000), AISLE_X, y + 18f, 17f)
         val u = density
+        val sp = sceneSprites
+        if (sp != null && drawDeviceSprite(sp, type, (AISLE_X - 20f) * u, (y - 3f) * u, 40f * u, time, (fxDark / 0.42f).coerceIn(0f, 1f))) return
+        dot(Color(0x26000000), AISLE_X, y + 18f, 17f)
         withMaterial(sceneMats?.forType(type), (AISLE_X - 27f) * u, (y - 10f) * u, 54f * u, 54f * u, u / 4f) {
             drawDevice(type, (AISLE_X - 17f) * u, y * u, 34f * u, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
         }
@@ -1080,8 +1112,10 @@ private fun DrawScope.overheadDevice(type: UpgradeType, y: Float, look: Look, ti
 private fun DrawScope.floorDevice(type: UpgradeType, x: Float, y: Float, look: Look, time: Float) {
     val lv = look.lv[type.ordinal]
     if (lv > 0) {
-        box(Color(0x1F000000), x + 1f, y + 2f, 66f, 44f, 8f)
         val u = density
+        val sp = sceneSprites
+        if (sp != null && drawDeviceSprite(sp, type, (x + 34f - 25f) * u, (y + 23f - 25f) * u, 50f * u, time, (fxDark / 0.42f).coerceIn(0f, 1f))) return
+        box(Color(0x1F000000), x + 1f, y + 2f, 66f, 44f, 8f)
         withMaterial(sceneMats?.forType(type), (x - 2f) * u, (y - 8f) * u, 72f * u, 62f * u, u / 4f) {
             drawDevice(type, (x + 13f) * u, (y + 2f) * u, 42f * u, time, lv, 0f, (fxDark / 0.42f).coerceIn(0f, 1f))
         }
@@ -1229,18 +1263,29 @@ private fun DrawScope.drawNpc(npc: Npc, jacket: Color = Color(0xFFFF9F43), hat: 
             drawLine(Color(0xFF8B5E3C), Offset(cx, cy - 3f * u), Offset(cx, cy + tipY * u), 2.4f * u)
         }
         // body
-        drawRoundRect(jacket, Offset(cx - 10f * u, cy - 5.5f * u), Size(20f * u, 11f * u), CornerRadius(5f * u, 5f * u))
-        drawRoundRect(Color(0x40000000), Offset(cx - 10f * u, cy - 5.5f * u), Size(20f * u, 11f * u), CornerRadius(5f * u, 5f * u), style = Stroke(width = 0.9f * u))
-        drawRoundRect(Color(0xFFE0762B), Offset(cx - 10f * u, cy - 1f * u), Size(20f * u, 3f * u), CornerRadius(1.5f * u, 1.5f * u))
+        val bodyImg = sceneSprites?.npcBody
+        if (bodyImg != null) {
+            drawSprite(bodyImg, cx - 14f * u, cy - 10f * u, 28f * u, 20f * u, tint = jacket)
+        } else {
+            drawRoundRect(jacket, Offset(cx - 10f * u, cy - 5.5f * u), Size(20f * u, 11f * u), CornerRadius(5f * u, 5f * u))
+            drawRoundRect(Color(0x40000000), Offset(cx - 10f * u, cy - 5.5f * u), Size(20f * u, 11f * u), CornerRadius(5f * u, 5f * u), style = Stroke(width = 0.9f * u))
+            drawRoundRect(Color(0xFFE0762B), Offset(cx - 10f * u, cy - 1f * u), Size(20f * u, 3f * u), CornerRadius(1.5f * u, 1.5f * u))
+        }
         // hands
         drawCircle(skin, 3f * u, Offset(cx + lx * u, cy + ly * u))
         drawCircle(skin, 3f * u, Offset(cx + rx * u, cy + ry * u))
         // head: hat with a pompom, face peeking out at the front
-        drawCircle(hat, 6.5f * u, Offset(cx, cy - 0.5f * u))
-        drawCircle(skin, 3.2f * u, Offset(cx, cy - 6f * u))
-        drawCircle(Color(0xFF4FB4E6), 6.5f * u, Offset(cx, cy - 0.5f * u), style = Stroke(width = 1.1f * u))
-        drawCircle(Color.White.copy(alpha = 0.45f), 2.2f * u, Offset(cx - 2.2f * u, cy - 2.6f * u))
-        drawCircle(Color.White, 2f * u, Offset(cx, cy + 0.5f * u))
+        val hatImg = sceneSprites?.npcHat
+        if (hatImg != null) {
+            drawCircle(skin, 3.2f * u, Offset(cx, cy - 6f * u))
+            drawSprite(hatImg, cx - 9f * u, cy - 10f * u, 18f * u, 18f * u, tint = hat)
+        } else {
+            drawCircle(hat, 6.5f * u, Offset(cx, cy - 0.5f * u))
+            drawCircle(skin, 3.2f * u, Offset(cx, cy - 6f * u))
+            drawCircle(Color(0xFF4FB4E6), 6.5f * u, Offset(cx, cy - 0.5f * u), style = Stroke(width = 1.1f * u))
+            drawCircle(Color.White.copy(alpha = 0.45f), 2.2f * u, Offset(cx - 2.2f * u, cy - 2.6f * u))
+            drawCircle(Color.White, 2f * u, Offset(cx, cy + 0.5f * u))
+        }
         // shovel blade, with coal on it while delivering
         if (hasShovel) {
             drawCircle(Color(0xFF9AA5AF), 4.2f * u, Offset(cx, cy + tipY * u))
@@ -1258,4 +1303,111 @@ private fun DrawScope.drawNpc(npc: Npc, jacket: Color = Color(0xFFFF9F43), hat: 
             drawRoundRect(Color(0xFFB98B5E), Offset(cx - 5.5f * u, cy - 23.5f * u), Size(11f * u, 11f * u), CornerRadius(1.5f * u, 1.5f * u))
         }
     }
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Engine and utility cars with the 3D-shaded furniture sprites; only the moving bits stay drawn live.
+// Furniture sprites have a 4 dp margin for their shadows.
+// ---------------------------------------------------------------------------------------------
+private fun DrawScope.furniture(img: ImageBitmap?, x: Float, y: Float, w: Float, h: Float) {
+    if (img == null) return
+    val u = density
+    drawSprite(img, (x - 4f) * u, (y - 4f) * u, (w + 8f) * u, (h + 8f) * u)
+}
+
+private fun DrawScope.drawEngineCarSprites(sp: GameSprites, top: Float, look: Look, npc: Npc, time: Float, boosting: Boolean) {
+    val act = npc.act
+    // boiler with a glowing furnace door and a live pressure needle
+    furniture(sp.boiler, 10f, top + 10f, 60f, 54f)
+    val flicker = 0.5f + 0.5f * sin(time * 9f)
+    val heatAmt = (0.35f + 0.25f * flicker + (if (boosting) 0.35f else 0f) + (if (act == Act.SHOVEL_DROP) 0.25f else 0f)).coerceIn(0f, 1f)
+    box(lerp(Color(0xFF5A1A0A), Color(0xFFFF8A2B), heatAmt), 60f, top + 22f, 8f, 24f, 2.5f)
+    glow(64f, top + 34f, 34f, Color(0xFFFF8A2B), 0.22f + 0.38f * heatAmt)
+    val needle = -2.2f + 1.0f * sin(time * 1.5f)
+    line(Color(0xFFD64545), 28f, top + 38f, 28f + 5.5f * cos(needle), top + 38f + 5.5f * sin(needle), 1.3f)
+    dot(Color(0xFF2A2118), 28f, top + 38f, 1.2f)
+    // coal bin
+    furniture(sp.coalBin, 128f, top + 10f, 54f, 40f)
+    // driver console: screen, booster orb and lever
+    furniture(sp.console, 120f, top + 82f, 62f, 26f)
+    box(lerp(Color(0xFF2E6F8E), Color(0xFF7FD8FF), 0.5f + 0.5f * sin(time * 2f)).copy(alpha = 0.7f), 125f, top + 86f, 22f, 7f, 1.5f)
+    if (look.booster > 0) {
+        val bGlow = if (boosting) 1f else 0.5f + 0.3f * sin(time * 3f)
+        dot(lerp(Color(0xFF3B2A12), Color(0xFFFFB347), bGlow), 168f, top + 95f, 5.5f)
+        glow(168f, top + 95f, 26f, Color(0xFFFFB347), 0.2f + 0.4f * bGlow)
+        dot(Color(0xAAFFFFFF), 166.5f, top + 93.5f, 1.6f)
+    }
+    val knobY = top + 94f + (if (act == Act.DRIVE) 5f * sin(npc.phase) else 1.5f * sin(time))
+    line(Color(0xFF2B2F36), 131f, top + 102f, 128f, knobY, 2.2f)
+    dot(Color(0xFFFF9F43), 128f, knobY, 3f)
+    // bunk once the Night Conductor is hired, a locker before that
+    if (look.conductor > 0) {
+        furniture(sp.bunk, 8f, top + 80f, 50f, 28f)
+        if (act == Act.SLEEP) {
+            for (k in 0 until 3) {
+                val t = (time * 0.6f + k / 3f) % 1f
+                dot(Color.White.copy(alpha = (1f - t) * 0.85f), 30f + t * 12f, top + 80f - t * 16f, 2f + k * 1.2f)
+            }
+        }
+    } else {
+        furniture(sp.locker, 8f, top + 80f, 50f, 28f)
+    }
+}
+
+private fun DrawScope.drawUtilityCarSprites(sp: GameSprites, top: Float, look: Look, npc: Npc, time: Float) {
+    val act = npc.act
+    if (look.heat > 0) {
+        furniture(sp.heater, 8f, top + 8f, 54f, 54f)
+        val pulse = 0.5f + 0.5f * sin(time * 3f)
+        glow(33f, top + 35f, 38f, Color(0xFFFFB347), 0.12f + 0.28f * pulse)
+        val ang = if (act == Act.TURN_VALVE) npc.phase * 1.2f else time * 0.4f
+        val wy = top + 34f
+        drawCircle(Color(0xFFC8CED4), 7.5f * density, Offset(62f * density, wy * density), style = Stroke(2.6f * density))
+        drawCircle(Color(0x55000000), 7.5f * density, Offset(62.6f * density, (wy + 0.8f) * density), style = Stroke(0.8f * density))
+        for (k in 0 until 4) {
+            val a = ang + k * PI_F / 2f
+            line(Color(0xFFC8CED4), 62f, wy, 62f + 7.5f * cos(a), wy + 7.5f * sin(a), 1.8f)
+        }
+        dot(Color(0xFF8A949E), 62f, wy, 2f)
+        for (k in 0 until 3) {
+            val t = (time * 0.5f + k / 3f) % 1f
+            dot(Color(0xFFFFB347).copy(alpha = (1f - t) * 0.3f), 20f + k * 14f, top + 30f - t * 16f, 5f + t * 4f)
+        }
+    } else {
+        slot(8f, top + 8f, 54f, 54f)
+    }
+    if (look.food > 0) {
+        furniture(sp.kitchen, 128f, top + 8f, 54f, 66f)
+        val cooking = act == Act.COOK
+        if (cooking) glow(138f, top + 30f, 30f, Color(0xFFFF8A2B), 0.5f)
+        // pot on the front burner
+        dot(Color(0x55000000), 139f, top + 31.5f, 8.5f)
+        dot(Color(0xFF9AA5AF), 138f, top + 30f, 8f)
+        dot(Color(0xFFC8CED4), 137f, top + 29f, 6.8f)
+        dot(Color(0xFFE0A21B), 138f, top + 30f, 5.6f)
+        val sa = if (cooking) npc.phase * 2f else 0f
+        line(Color(0xFF8B5E3C), 138f, top + 30f, 138f + 7f * cos(sa), top + 30f + 7f * sin(sa), 1.6f)
+        for (k in 0 until 3) {
+            val t = (time * 0.7f + k / 3f) % 1f
+            val strength = if (cooking) 0.7f else 0.25f
+            dot(Color.White.copy(alpha = (1f - t) * strength), 138f + (k - 1) * 3f, top + 30f - t * 14f, 3f + t * 4f)
+        }
+        furniture(sp.table, 8f, top + 76f, 62f, 32f)
+    } else {
+        slot(128f, top + 8f, 54f, 66f)
+        slot(8f, top + 76f, 62f, 32f)
+    }
+    if (look.wagon > 0) {
+        val shown = min(look.wagon, 6)
+        for (j in 0 until shown) {
+            val cx = 118f + (j % 3) * 22f
+            val cy = top + 78f + (j / 3) * 15f
+            if (sp.crate != null) furniture(sp.crate, cx, cy, 16f, 16f) else crate(cx, cy, 15f)
+        }
+    } else {
+        slot(116f, top + 76f, 68f, 34f)
+    }
+    overheadDevice(CAR_DEFS[1][3], top + 6f, look, time)
+    overheadDevice(CAR_DEFS[1][4], top + 74f, look, time)
 }

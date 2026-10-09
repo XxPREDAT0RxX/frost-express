@@ -371,8 +371,13 @@ private fun DrawScope.drawBolt(color: Color) {
 
 @Composable
 private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Modifier) {
+    val sprites = rememberGameSprites()
     Canvas(modifier) {
         val s = size.minDimension
+        sprites.device[type]?.let { img ->
+            drawSprite(img, -s * 0.2f, -s * 0.2f, s * 1.4f, s * 1.4f)
+            return@Canvas
+        }
         when (type) {
             UpgradeType.ENGINE -> drawBolt(color)
             UpgradeType.WAGON -> {
@@ -1452,6 +1457,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
     val buyNow = androidx.compose.runtime.rememberUpdatedState { vm.buy(spec) }
 
     val mats = rememberMaterials()
+    val sprites = rememberGameSprites()
     var t by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         while (true) withFrameNanos { t = (it / 1_000_000L) / 1000f }
@@ -1508,7 +1514,21 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                         .padding(10.dp)
                         .graphicsLayer { scaleX = pop.value; scaleY = pop.value },
                 ) {
-                    withMaterial(mats.forType(type), 0f, 0f, size.width, size.height, density / 3f) {
+                    val side = min(size.width, size.height) * 1.05f
+                    val ox = (size.width - side) / 2f
+                    val oy = (size.height - side) / 2f
+                    if (drawDeviceSprite(sprites, type, ox, oy, side, t, 0.6f)) {
+                        val f = flash.value
+                        if (f > 0.01f) {
+                            val c0 = Offset(size.width / 2f, size.height / 2f)
+                            drawCircle(Color(0xFFFFE680).copy(alpha = f * 0.8f), side * (0.15f + 0.4f * (1f - f)), c0, style = Stroke(side * 0.04f * f))
+                            for (i in 0 until 8) {
+                                val a = (PI / 4 * i).toFloat() + 0.3f
+                                val d = side * (0.2f + 0.3f * (1f - f))
+                                drawCircle(Color.White.copy(alpha = f), side * 0.02f, Offset(c0.x + cos(a) * d, c0.y + sin(a) * d))
+                            }
+                        }
+                    } else withMaterial(mats.forType(type), 0f, 0f, size.width, size.height, density / 3f) {
                         if (spec.eff != null) {
                             val side = min(size.width, size.height) * 0.92f
                             drawDevice(type, (size.width - side) / 2f, (size.height - side) / 2f, side, t, maxOf(lvl, 1), flash.value, 0.6f)
