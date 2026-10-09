@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -856,13 +857,16 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
 
 private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     val u = density
-    val noseImg = sceneSprites?.nose
+    val noseImg = sceneSprites?.noseFill
     if (noseImg != null) {
-        drawSprite(noseImg, -6f * u, -6f * u, 202f * u, 42f * u, tint = body)
+        drawSprite(noseImg, -6f * u, -6f * u, 202f * u, 44f * u, tint = body)
+        sceneSprites?.noseLine?.let { drawSprite(it, -6f * u, -6f * u, 202f * u, 44f * u) }
         glow(56f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
         glow(134f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
-        box(accent, 70f, 10f, 50f, 3f, 1.5f)
-        if (plow > 0) box(Color(0xFF9FD8F0), 38f, 0f, 114f, 5f, 2.5f)
+        if (plow > 0) {
+            box(Color(0xFF6B4A3A), 37f, -1f, 116f, 7f, 3.5f)
+            box(Color(0xFFA9DDF2), 38f, 0f, 114f, 5f, 2.5f)
+        }
         return
     }
     val p = Path().apply {
@@ -885,17 +889,16 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
 }
 
 private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor: Color, plank: Color, metal: Boolean = false) {
-    val walls = sceneSprites?.carWalls
+    val walls = sceneSprites?.carFill
     val tex = sceneArt
     if (walls != null && tex != null) {
         // textured floor, then the 3D-shaded walls (tinted with the train colour) with glass windows
         texRect(if (metal) tex.metal else tex.wood, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f, ax = 7f, ay = top + 7f, r = 4f)
-        box(floor.copy(alpha = if (metal) 0.25f else 0.38f), 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f)
+        box(floor.copy(alpha = 0.12f), 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f)
         val u = density
         drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
-        sceneSprites?.carGlass?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
-        box(accent.copy(alpha = 0.9f), 16f, top + 1.6f, CAR_W - 32f, 1.8f, 1f)
-        box(accent.copy(alpha = 0.9f), 16f, top + CAR_H - 3.4f, CAR_W - 32f, 1.8f, 1f)
+        sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
+        box(accent.copy(alpha = 0.85f), 30f, top + 2.2f, CAR_W - 60f, 2.2f, 1.1f)
         return
     }
     // layered soft shadow on the ground
@@ -1187,6 +1190,7 @@ private fun DrawScope.drawSpeedLines(time: Float, originX: Float, trainPx: Float
 // ---------------------------------------------------------------------------------------------
 private fun DrawScope.drawNpc(npc: Npc, jacket: Color = Color(0xFFFF9F43), hat: Color = Color(0xFF7FD8FF)) {
     val u = density
+    if (sceneSprites?.npc != null) { drawNpcCozy(npc); return }
     val cx = npc.x * u
     val cy = npc.y * u
     val ph = npc.phase
@@ -1381,11 +1385,12 @@ private fun DrawScope.drawUtilityCarSprites(sp: GameSprites, top: Float, look: L
         furniture(sp.kitchen, 128f, top + 8f, 54f, 66f)
         val cooking = act == Act.COOK
         if (cooking) glow(138f, top + 30f, 30f, Color(0xFFFF8A2B), 0.5f)
-        // pot on the front burner
-        dot(Color(0x55000000), 139f, top + 31.5f, 8.5f)
-        dot(Color(0xFF9AA5AF), 138f, top + 30f, 8f)
-        dot(Color(0xFFC8CED4), 137f, top + 29f, 6.8f)
-        dot(Color(0xFFE0A21B), 138f, top + 30f, 5.6f)
+        // soup pot on the front burner
+        dot(Color(0xFF6B4A3A), 138f, top + 30f, 8.6f)
+        dot(Color(0xFFE89A6A), 138f, top + 30f, 7.4f)
+        dot(Color(0xFFFFCF7A), 138f, top + 29.4f, 5.6f)
+        dot(Color(0xFFF28C5A), 136.5f, top + 29f, 1.3f)
+        dot(Color(0xFF8FCB7A), 139.6f, top + 30.2f, 1.1f)
         val sa = if (cooking) npc.phase * 2f else 0f
         line(Color(0xFF8B5E3C), 138f, top + 30f, 138f + 7f * cos(sa), top + 30f + 7f * sin(sa), 1.6f)
         for (k in 0 until 3) {
@@ -1410,4 +1415,45 @@ private fun DrawScope.drawUtilityCarSprites(sp: GameSprites, top: Float, look: L
     }
     overheadDevice(CAR_DEFS[1][3], top + 6f, look, time)
     overheadDevice(CAR_DEFS[1][4], top + 74f, look, time)
+}
+
+
+/** The cozy worker: a front-facing sprite that hops while walking and shows what it is busy with. */
+private fun DrawScope.drawNpcCozy(npc: Npc) {
+    val sp = sceneSprites ?: return
+    val u = density
+    val cx = npc.x * u
+    val cy = npc.y * u
+    val walking = !npc.working
+    val act = npc.act
+    val hop = if (walking) kotlin.math.abs(sin(npc.phase)) * 2.2f else if (npc.working && act != Act.SLEEP) kotlin.math.abs(sin(npc.phase * 0.8f)) * 1.2f else 0f
+    val img = if (npc.working && act == Act.SLEEP) sp.npcSleep ?: sp.npc!! else sp.npc!!
+    val w = 26f
+    val h = 32.5f
+    // facing: mirror the sprite when heading to the left
+    val left = sin(npc.faceDeg * PI_F / 180f) < -0.3f
+    drawOval(Color(0x22000000), Offset(cx - 9f * u, cy + 6f * u), Size(18f * u, 5f * u))
+    withTransform({ if (left) scale(-1f, 1f, Offset(cx, cy)) }) {
+        drawSprite(img, cx - w / 2f * u, cy - (h - 10f + hop) * u, w * u, h * u)
+    }
+    // what the worker is holding
+    val st = npc.step
+    val hasShovel = st != null && (st.act == Act.SHOVEL_PICK || st.act == Act.SHOVEL_DROP)
+    if (hasShovel) {
+        val sx = cx + 11f * u
+        val sy = cy - 4f * u - hop * u
+        drawLine(Color(0xFF6B4A3A), Offset(sx, sy - 12f * u), Offset(sx, sy + 6f * u), 3.4f * u, StrokeCap.Round)
+        drawLine(Color(0xFFB9876A), Offset(sx, sy - 12f * u), Offset(sx, sy + 6f * u), 1.8f * u, StrokeCap.Round)
+        drawOval(Color(0xFF6B4A3A), Offset(sx - 4f * u, sy + 4f * u), Size(8f * u, 6f * u))
+        drawOval(Color(0xFFB9C8D8), Offset(sx - 3f * u, sy + 4.8f * u), Size(6f * u, 4.4f * u))
+        if (npc.holdingCoal) drawCircle(Color(0xFF4A4550), 2.2f * u, Offset(sx, sy + 5.5f * u))
+    }
+    if (npc.carrying) {
+        val img2 = sp.crate
+        if (img2 != null) drawSprite(img2, cx - 9f * u, cy - 6f * u - hop * u, 18f * u, 18f * u)
+    }
+    if (npc.working && act == Act.COOK) {
+        drawLine(Color(0xFF6B4A3A), Offset(cx + 9f * u, cy - 2f * u), Offset(cx + 15f * u, cy - 10f * u + sin(npc.phase * 2f) * 2f * u), 3f * u, StrokeCap.Round)
+        drawLine(Color(0xFFB9876A), Offset(cx + 9f * u, cy - 2f * u), Offset(cx + 15f * u, cy - 10f * u + sin(npc.phase * 2f) * 2f * u), 1.6f * u, StrokeCap.Round)
+    }
 }

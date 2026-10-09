@@ -96,19 +96,21 @@ import kotlin.math.min
 import kotlin.math.sin
 
 // Palette: snowy exterior (matches the scene) + warm wooden interior (matches the train floor).
-private val Snow = Color(0xFFE6EFF6)
-private val Ink = Color(0xFF2A2118)       // dark warm brown for text
-private val Panel = Color(0xFFF6F0E4)     // cream, like the car floor
-private val PanelHi = Color(0xFFE6DAC3)
-private val Track = Color(0xFFD9CDB5)     // empty part of progress bars
-private val Wood = Color(0xFFB98B5E)
-private val Ice = Color(0xFF2F7FB0)
-private val Ember = Color(0xFFE8772B)
-private val Gold = Color(0xFFF2B01E)
-private val GoldText = Color(0xFF9A6200)
-private val Mint = Color(0xFF2E9E78)
-private val Muted = Color(0xFF7C6F5C)
-private val Glass = Color.White.copy(alpha = 0.82f)
+// Cozy palette: cream panels, soft pastels and a warm brown outline around everything.
+private val Snow = Color(0xFFEEF5FB)
+private val Ink = Color(0xFF6B4A3A)       // warm brown: text and outlines
+private val Panel = Color(0xFFFFF6E9)     // cream
+private val PanelHi = Color(0xFFF3E3CC)
+private val Track = Color(0xFFEFE3D3)     // empty part of progress bars
+private val Wood = Color(0xFF6B4A3A)      // outline colour for cards and sheets
+private val Ice = Color(0xFF5E9CCF)
+private val Ember = Color(0xFFF08A5D)
+private val Gold = Color(0xFFFFC85C)
+private val GoldText = Color(0xFFC98A1E)
+private val Mint = Color(0xFF3F9E74)
+private val Muted = Color(0xFF9A7A64)
+private val Glass = Color(0xFFFFF6E9).copy(alpha = 0.97f)
+private val OutlineW = 2.5.dp
 
 private fun upgradeColor(t: UpgradeType): Color = when (t) {
     UpgradeType.ENGINE -> Color(0xFFE8890C)
@@ -153,7 +155,7 @@ private fun FrostAlert(
         dismissButton = dismissButton,
         title = title,
         text = text,
-        modifier = Modifier.border(2.dp, Wood.copy(alpha = 0.7f), RoundedCornerShape(24.dp)),
+        modifier = Modifier.border(OutlineW, Wood, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         containerColor = Panel,
         titleContentColor = Ink,
@@ -442,9 +444,9 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(Glass)
-            .border(1.dp, Color.White, RoundedCornerShape(14.dp))
+            .border(OutlineW, Wood, RoundedCornerShape(18.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -698,6 +700,7 @@ private fun PillButton(text: String, bg: Color, fg: Color, modifier: Modifier = 
         modifier
             .clip(RoundedCornerShape(18.dp))
             .background(bg)
+            .border(2.dp, Ink, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center,
@@ -902,7 +905,7 @@ private fun BottomBar(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Panel.copy(alpha = 0.95f))
-            .border(1.5.dp, Wood.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+            .border(OutlineW, Wood, RoundedCornerShape(16.dp))
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -911,11 +914,12 @@ private fun BottomBar(
                 .size(40.dp)
                 .border(if (pulseGear) 3.dp else 0.dp, Ember.copy(alpha = pulse), CircleShape)
                 .clip(CircleShape)
-                .background(if (sheetOpen) Ice else PanelHi)
+                .background(if (sheetOpen) Color(0xFF9FC5EA) else Color(0xFFCDE7F8))
+                .border(2.dp, Ink, CircleShape)
                 .clickable(onClick = onToggleUpgrades),
             contentAlignment = Alignment.Center,
         ) {
-            GearIcon(if (sheetOpen) Color.White else Ice, Modifier.size(22.dp))
+            GearIcon(Ink, Modifier.size(22.dp))
             if (canBuySomething && !sheetOpen) {
                 Box(
                     Modifier
@@ -932,11 +936,12 @@ private fun BottomBar(
             Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(if (shopOpen) Ember else PanelHi)
+                .background(if (shopOpen) Color(0xFFFFC9A0) else Color(0xFFFFE1C8))
+                .border(2.dp, Ink, CircleShape)
                 .clickable(onClick = onToggleShop),
             contentAlignment = Alignment.Center,
         ) {
-            ShopIcon(if (shopOpen) Color.White else Ember, Modifier.size(22.dp))
+            ShopIcon(Ember, Modifier.size(22.dp))
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -970,7 +975,7 @@ private fun BottomBar(
         Row(
             Modifier
                 .height(40.dp)
-                .border(if (pulseBoost) 3.dp else 0.dp, Ice.copy(alpha = pulse), RoundedCornerShape(20.dp))
+                .border(if (pulseBoost) 3.5.dp else 2.dp, if (pulseBoost) Ice.copy(alpha = pulse) else Ink, RoundedCornerShape(20.dp))
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     if (vm.boostLocked) Brush.horizontalGradient(listOf(PanelHi, PanelHi))
@@ -982,7 +987,7 @@ private fun BottomBar(
         ) {
             BoltIcon(if (vm.boostLocked) Muted else Ink, Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("BOOST", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = if (vm.boostLocked) Muted else Ink)
+            Text("BOOST!", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = if (vm.boostLocked) Muted else Ink)
         }
     }
 }
@@ -1033,7 +1038,7 @@ private fun UpgradesSheet(
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .background(Panel)
-            .border(1.5.dp, Wood.copy(alpha = 0.55f), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .border(OutlineW, Wood, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
     ) {
         Row(
@@ -1184,13 +1189,14 @@ private fun TabRow(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
             Box(
                 Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (on) Wood else PanelHi)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (on) Color(0xFFFFC9A0) else PanelHi)
+                    .border(2.dp, Ink, RoundedCornerShape(12.dp))
                     .clickable { onSelect(i) }
                     .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (on) Color.White else Muted)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (on) Ink else Muted)
             }
         }
     }
@@ -1277,9 +1283,9 @@ private fun UpgradeRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .border(if (highlight) 2.5.dp else 0.dp, Ember, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .background(Panel)
+            .border(if (highlight) 3.dp else 2.dp, if (highlight) Ember else Ink.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.55f))
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1306,8 +1312,9 @@ private fun UpgradeRow(
         Column(
             Modifier
                 .width(70.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(if (enabled) accent else PanelHi)
+                .border(2.dp, Ink, RoundedCornerShape(12.dp))
                 // Tap to buy once; hold to keep buying, faster the longer you hold.
                 .pointerInput(enabled) {
                     if (!enabled) return@pointerInput
@@ -1480,7 +1487,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                 .widthIn(max = 380.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Panel)
-                .border(2.dp, Wood.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
+                .border(OutlineW, Wood, RoundedCornerShape(24.dp))
                 .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -1499,7 +1506,7 @@ private fun UpgradeDialog(vm: GameViewModel, type: UpgradeType, onClose: () -> U
                     .height(190.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Brush.verticalGradient(listOf(Color(0xFFEBDDBF), Color(0xFFD8C298))))
-                    .border(1.5.dp, Wood.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                    .border(OutlineW, Wood, RoundedCornerShape(16.dp)),
             ) {
                 Canvas(Modifier.fillMaxSize()) {
                     var py = 14f * density

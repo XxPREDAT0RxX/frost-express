@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -52,11 +53,12 @@ class GameSprites(ctx: Context) {
     val kitchen = load("core_kitchen")
     val table = load("core_table")
     val crate = load("core_crate")
-    val carWalls = load("car_walls")
-    val carGlass = load("car_glass")
-    val nose = load("loco_nose")
-    val npcBody = load("npc_body")
-    val npcHat = load("npc_hat")
+    val carFill = load("car_fill")      // light layer, tinted with the train colour
+    val carLine = load("car_line")      // outlines and windows on top
+    val noseFill = load("nose_fill")
+    val noseLine = load("nose_line")
+    val npc = load("npc_front")
+    val npcSleep = load("npc_sleep")
     val stationRoof = load("station_roof")
 }
 
@@ -86,110 +88,118 @@ fun DrawScope.drawSprite(img: ImageBitmap, x: Float, y: Float, w: Float, h: Floa
     )
 }
 
-/** A part that spins: pivot in sprite units (0..64), [speed] in degrees per second, or a swing of +-[swing] degrees. */
-private class Rotor(val px: Float, val py: Float, val speed: Float, val swing: Float = 0f)
-
-private val ROTORS = mapOf(
-    UpgradeType.FLYWHEEL to Rotor(32f, 32f, 120f),
-    UpgradeType.COOLING_FAN to Rotor(32f, 32f, 420f),
-    UpgradeType.TURBO_VALVE to Rotor(32f, 32f, 60f),
-    UpgradeType.ICE_CUTTER to Rotor(32f, 32f, 520f),
-    UpgradeType.CARGO_CRANE to Rotor(20f, 40f, 0f, 30f),
-    UpgradeType.COMPASS to Rotor(32f, 32f, 0f, 35f),
-    UpgradeType.GOVERNOR to Rotor(32f, 32f, 170f),
-    UpgradeType.ROOF_FAN to Rotor(32f, 32f, 300f),
-    UpgradeType.FROST_RADAR to Rotor(32f, 32f, 100f),
-    UpgradeType.POLAR_BEACON to Rotor(32f, 32f, 200f),
-)
+/** Devices that pump up and down instead of gently breathing. */
+private val PUMPING = setOf(UpgradeType.BRASS_PISTONS, UpgradeType.BOGIE_SPRINGS, UpgradeType.GREASE_PUMP, UpgradeType.ENGINE, UpgradeType.BOOSTER)
 
 /**
- * One upgrade device: its 3D sprite, its spinning part and its live effects (steam, glow, sparks, needles).
+ * One upgrade device: its sprite with a soft idle bounce, its spinning part and its live effects.
  * ([ox],[oy]) is the top-left in pixels and [size] the side of the 64-unit sprite square.
  * Returns false if there is no sprite for this upgrade (the caller can fall back to the vector drawing).
  */
 fun DrawScope.drawDeviceSprite(sp: GameSprites, type: UpgradeType, ox: Float, oy: Float, size: Float, t: Float, night: Float = 0f): Boolean {
     val base = sp.device[type] ?: return false
-    drawSprite(base, ox, oy, size, size)
     val k = size / 64f
-    sp.rotor[type]?.let { img ->
-        val r = ROTORS[type]
-        if (r != null) {
-            val ang = if (r.swing > 0f) sin(t * 0.9f) * r.swing else t * r.speed
-            rotate(ang, Offset(ox + r.px * k, oy + r.py * k)) { drawSprite(img, ox, oy, size, size) }
-        } else {
-            drawSprite(img, ox, oy, size, size)
+    // squash and stretch around the feet, each device on its own phase
+    val phase = type.ordinal * 1.37f
+    val pump = type in PUMPING
+    val sy = 1f + (if (pump) 0.055f else 0.022f) * sin(t * (if (pump) 6f else 2.2f) + phase)
+    val sx = 1f - (sy - 1f) * 0.6f
+    withTransform({ scale(sx, sy, Offset(ox + 32f * k, oy + 57f * k)) }) {
+        drawSprite(base, ox, oy, size, size)
+        sp.rotor[type]?.let { img ->
+            val r = DEVICE_ROTORS[type]
+            if (r != null) {
+                val ang = if (r[3] > 0f) sin(t * 0.9f + phase) * r[3] else t * r[2]
+                rotate(ang, Offset(ox + r[0] * k, oy + r[1] * k)) { drawSprite(img, ox, oy, size, size) }
+            } else {
+                drawSprite(img, ox, oy, size, size)
+            }
         }
     }
-    deviceFx(type, ox, oy, k, t, night)
+    DEVICE_FX[type]?.forEach { fx -> drawFx(fx, ox, oy, k, t + phase, night) }
     return true
 }
 
-private fun DrawScope.deviceFx(type: UpgradeType, ox: Float, oy: Float, k: Float, t: Float, night: Float) {
+private fun DrawScope.drawFx(fx: DevFx, ox: Float, oy: Float, k: Float, t: Float, night: Float) {
     fun p(x: Float, y: Float) = Offset(ox + x * k, oy + y * k)
-    fun halo(x: Float, y: Float, r: Float, c: Color, a: Float) {
-        if (a <= 0.01f) return
-        val center = p(x, y)
-        drawCircle(Brush.radialGradient(listOf(c.copy(alpha = a.coerceIn(0f, 1f)), Color.Transparent), center, r * k), r * k, center, blendMode = BlendMode.Plus)
-    }
-    fun steam(x: Float, y: Float, n: Int = 3, rise: Float = 22f) {
-        for (i in 0 until n) {
-            val ph = (t * 0.55f + i.toFloat() / n) % 1f
-            val c = p(x + sin(ph * 6f + i) * 3f, y - ph * rise)
-            drawCircle(Color.White.copy(alpha = 0.55f * (1f - ph)), (2.5f + 5f * ph) * k, c)
+    val col = Color(fx.color.toInt())
+    val x = fx.x
+    val y = fx.y
+    when (fx.kind) {
+        FxKind.STEAM -> for (i in 0 until 3) {
+            val ph = (t * 0.55f + i / 3f) % 1f
+            drawCircle(Color.White.copy(alpha = 0.8f * (1f - ph)), (2.2f + 4.5f * ph) * k, p(x + sin(ph * 6f + i) * 3f, y - ph * 20f))
+            drawCircle(Color(0xFF6B4A3A).copy(alpha = 0.25f * (1f - ph)), (2.2f + 4.5f * ph) * k, p(x + sin(ph * 6f + i) * 3f, y - ph * 20f), style = Stroke(0.6f * k))
         }
-    }
-    fun ripples(x: Float, y: Float, r0: Float, r1: Float, c: Color, n: Int = 2) {
-        for (i in 0 until n) {
-            val ph = (t * 0.6f + i.toFloat() / n) % 1f
-            drawCircle(c.copy(alpha = 0.6f * (1f - ph)), (r0 + (r1 - r0) * ph) * k, p(x, y), style = Stroke(1.6f * k))
+        FxKind.GLOW -> {
+            val a = 0.22f + 0.16f * sin(t * 3f) + 0.35f * night
+            val c = p(x, y)
+            drawCircle(Brush.radialGradient(listOf(col.copy(alpha = a.coerceIn(0f, 1f)), Color.Transparent), c, fx.a * k), fx.a * k, c, blendMode = BlendMode.Plus)
         }
-    }
-    fun needle(x: Float, y: Float, len: Float, ang: Float, c: Color, w: Float) {
-        drawLine(c, p(x, y), p(x + cos(ang) * len, y + sin(ang) * len), w * k, StrokeCap.Round)
-    }
-    val flick = 0.5f + 0.5f * sin(t * 9f)
-    when (type) {
-        UpgradeType.STEAM_DOME -> steam(53f, 10f)
-        UpgradeType.SAMOVAR -> steam(30f, 20f)
-        UpgradeType.TEA_BREWER -> steam(54f, 20f, 2)
-        UpgradeType.STEAM_WHISTLE -> { steam(44f, 26f, 3, 18f); ripples(44f, 32f, 13f, 22f, Color.White) }
-        UpgradeType.STOVE_PIPE -> { halo(26f, 49f, 16f, Color(0xFFFF8A2B), 0.35f + 0.25f * flick); steam(60f, 26f, 3, 16f) }
-        UpgradeType.HEADLAMP -> halo(32f, 32f, 34f, Color(0xFFFFF3B0), 0.3f + 0.5f * night)
-        UpgradeType.LANTERN_RACK -> for (x in listOf(13f, 32f, 51f)) halo(x, 32f, 15f, Color(0xFFFFB347), 0.3f + 0.45f * night + 0.08f * sin(t * 5f + x))
-        UpgradeType.CABIN_HEATER -> halo(32f, 32f, 34f, Color(0xFFFF6B3D), 0.18f + 0.14f * sin(t * 3f))
-        UpgradeType.CHEFS_OVEN -> for (i in 0 until 4) halo(19f + (i % 2) * 26f, 19f + (i / 2) * 24f, 10f, Color(0xFFFF8A2B), 0.35f + 0.2f * sin(t * 8f + i))
-        UpgradeType.FUEL_INJECTOR -> halo(55f, 14f, 10f, Color(0xFFFF8A2B), 0.25f + 0.25f * flick)
-        UpgradeType.FROST_SHIELD -> { halo(32f, 32f, 30f, Color(0xFF9FDCFF), 0.2f + 0.15f * sin(t * 2.5f)); ripples(32f, 32f, 12f, 30f, Color(0xFFDFF3FF)) }
-        UpgradeType.RADIO_MAST -> { ripples(32f, 32f, 6f, 30f, Color(0xFF6FE38B), 3); if (sin(t * 6f) > 0f) halo(32f, 32f, 12f, Color(0xFFFF4D4D), 0.6f) }
-        UpgradeType.SIGNAL_BELL -> ripples(32f, 32f, 22f, 30f, Color(0xFFFFE680))
-        UpgradeType.POLAR_BEACON -> halo(32f, 32f, 30f, Color(0xFF8FE9FF), 0.2f + 0.4f * night)
-        UpgradeType.SPARK_COIL -> {
-            for (i in 0 until 3) {
-                val a = t * 3f + i * 2.1f
-                if (sin(a * 9f) > -0.2f) {
-                    val ang = a * 1.7f
-                    val m = p(32f + cos(ang) * 14f + 3f * sin(a * 13f), 32f + sin(ang) * 14f + 3f * cos(a * 11f))
-                    val e = p(32f + cos(ang) * 29f, 32f + sin(ang) * 29f)
-                    drawLine(Color(0xFFFFF0A0), p(32f, 32f), m, 1.6f * k, StrokeCap.Round)
-                    drawLine(Color(0xFFFFF0A0), m, e, 1.6f * k, StrokeCap.Round)
-                }
+        FxKind.RIPPLE -> for (i in 0 until 2) {
+            val ph = (t * 0.6f + i / 2f) % 1f
+            drawCircle(col.copy(alpha = 0.7f * (1f - ph)), (fx.a * 0.3f + fx.a * 0.7f * ph) * k, p(x, y), style = Stroke(1.6f * k))
+        }
+        FxKind.SPARKS -> for (i in 0 until 3) {
+            val a = t * 3f + i * 2.1f
+            if (sin(a * 9f) > -0.2f) {
+                val ang = a * 1.7f
+                val m = p(x + cos(ang) * fx.a * 0.5f + 3f * sin(a * 13f), y + sin(ang) * fx.a * 0.5f + 3f * cos(a * 11f))
+                val e = p(x + cos(ang) * fx.a, y + sin(ang) * fx.a)
+                drawLine(col, p(x, y), m, 1.8f * k, StrokeCap.Round)
+                drawLine(col, m, e, 1.8f * k, StrokeCap.Round)
             }
-            halo(32f, 32f, 26f, Color(0xFFD28BEA), 0.25f)
         }
-        UpgradeType.AURORA_PRISM -> {
-            val cols = listOf(Color(0xFFFF5F6D), Color(0xFFFFC371), Color(0xFFFFF176), Color(0xFF6FE38B), Color(0xFF4DD0E1), Color(0xFFB07CFF))
-            for (i in cols.indices) drawLine(cols[i].copy(alpha = 0.55f), p(40f, 34f), p(63f, 22f + i * 5f + 1.5f * sin(t * 2f + i)), 2.2f * k, StrokeCap.Round)
+        FxKind.RAINBOW -> {
+            val cols = listOf(Color(0xFFFF8A8A), Color(0xFFFFC371), Color(0xFFFFF176), Color(0xFF8FDBA8), Color(0xFF7FD3F0), Color(0xFFC3A6FF))
+            for (i in cols.indices) drawLine(cols[i].copy(alpha = 0.75f), p(x, y), p(x + fx.a, y - 10f + i * 4f + 1.5f * sin(t * 2f + i)), 2.4f * k, StrokeCap.Round)
         }
-        UpgradeType.PRESSURE_GAUGE -> {
-            val ang = (PI * (0.75 + 1.5 * (0.55 + 0.08 * sin(t * 4f)))).toFloat()
-            needle(32f, 26f, 9f, ang, Color(0xFFD64545), 1.4f)
+        FxKind.NEEDLE -> {
+            val ang = (PI * (0.75 + 1.5 * (0.55 + 0.1 * sin(t * 4f)))).toFloat()
+            drawLine(col, p(x, y), p(x + cos(ang) * fx.a, y + sin(ang) * fx.a), 1.6f * k, StrokeCap.Round)
+            drawCircle(Color(0xFF6B4A3A), 1.6f * k, p(x, y))
         }
-        UpgradeType.POCKET_WATCH -> {
-            needle(32f, 35f, 15f, t * 2.2f - 1.57f, Color(0xFF2A2118), 1.1f)
-            needle(32f, 35f, 9f, t * 0.18f - 1.57f, Color(0xFFD64545), 1.6f)
+        FxKind.HANDS -> {
+            val m = t * 2.2f - 1.57f
+            val h = t * 0.18f - 1.57f
+            drawLine(col, p(x, y), p(x + cos(m) * fx.a, y + sin(m) * fx.a), 1.3f * k, StrokeCap.Round)
+            drawLine(Color(0xFFE46A6A), p(x, y), p(x + cos(h) * fx.a * 0.6f, y + sin(h) * fx.a * 0.6f), 1.8f * k, StrokeCap.Round)
+            drawCircle(col, 1.4f * k, p(x, y))
         }
-        UpgradeType.BOOSTER -> halo(32f, 32f, 28f, Color(0xFFFFB347), 0.25f + 0.2f * sin(t * 3f))
-        UpgradeType.HEAT -> halo(30f, 32f, 22f, Color(0xFFFFB347), 0.2f + 0.2f * sin(t * 3f))
+        FxKind.BLINK -> if (sin(t * 5f) > 0f) {
+            val c = p(x, y)
+            drawCircle(Brush.radialGradient(listOf(col.copy(alpha = 0.8f), Color.Transparent), c, fx.a * k), fx.a * k, c, blendMode = BlendMode.Plus)
+        }
+        FxKind.SPARKLE -> for (i in 0 until 3) {
+            val ph = (t * 0.7f + i / 3f) % 1f
+            val a = (sin(ph * PI.toFloat())).coerceAtLeast(0f)
+            val ang = i * 2.1f + (t * 0.7f + i / 3f).toInt() * 1.3f
+            val c = p(x + cos(ang) * fx.a * 0.7f, y + sin(ang) * fx.a * 0.5f)
+            val r = 2.6f * a * k
+            drawLine(col.copy(alpha = a), Offset(c.x - r, c.y), Offset(c.x + r, c.y), 1.1f * k, StrokeCap.Round)
+            drawLine(col.copy(alpha = a), Offset(c.x, c.y - r), Offset(c.x, c.y + r), 1.1f * k, StrokeCap.Round)
+        }
+        FxKind.ZZZ -> for (i in 0 until 3) {
+            val ph = (t * 0.4f + i / 3f) % 1f
+            val c = p(x + ph * 10f, y - ph * 16f)
+            val r = (1.6f + i * 0.6f) * k
+            val a = 1f - ph
+            val z = Path().apply { moveTo(c.x - r, c.y - r); lineTo(c.x + r, c.y - r); lineTo(c.x - r, c.y + r); lineTo(c.x + r, c.y + r) }
+            drawPath(z, Color(0xFF6B4A3A).copy(alpha = a), style = Stroke(1.1f * k, cap = StrokeCap.Round))
+        }
+        FxKind.BUBBLES -> for (i in 0 until 3) {
+            val ph = (t * 0.5f + i / 3f) % 1f
+            drawCircle(col.copy(alpha = 0.9f * (1f - ph)), (0.8f + 0.6f * i) * k, p(x + sin(ph * 8f + i), y - ph * fx.a))
+        }
+        FxKind.WIND -> for (i in 0 until 3) {
+            val ph = (t * 1.1f + i / 3f) % 1f
+            val yy = y - fx.a * 0.3f + i * fx.a * 0.3f
+            drawLine(col.copy(alpha = 0.8f * (1f - ph)), p(x + fx.a * 0.6f - ph * fx.a, yy), p(x + fx.a * 0.6f - ph * fx.a - 7f, yy), 1.3f * k, StrokeCap.Round)
+        }
+        FxKind.DRIP -> {
+            val ph = (t * 0.8f) % 1f
+            drawCircle(col.copy(alpha = 1f - ph * 0.5f), 1.6f * k, p(x, y - 6f + ph * 6f))
+        }
         else -> {}
     }
 }
