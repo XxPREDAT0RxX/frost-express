@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -259,6 +261,27 @@ private fun hotspotAt(tx: Float, ty: Float, cars: Int): UpgradeType? {
     return list.firstOrNull { tx >= it.x && tx <= it.x + it.w && ty >= it.y && ty <= it.y + it.h }?.type
 }
 
+/** The second worker, if hired (set every frame), so the stove and the bed react to either worker. */
+private var sceneNpc2: Npc? = null
+private var sceneMainNpc: Npc? = null
+
+/** The worker busy with [act] right now, if any. */
+private fun crewDoing(npc: Npc, act: Act): Npc? =
+    if (npc.working && npc.act == act) npc else sceneNpc2?.takeIf { it.working && it.act == act }
+
+/** Seconds since a worker last finished [act] (99 if long ago). */
+private fun crewSince(npc: Npc, act: Act): Float {
+    var best = if (npc.doneAct == act) npc.sinceDone else 99f
+    sceneNpc2?.let { if (it.doneAct == act) best = min(best, it.sinceDone) }
+    return best
+}
+
+/** How visible a worker is "in bed": fades in when they lie down and out when they get up. */
+private fun sleepFade(n: Npc): Float {
+    val dur = n.step?.dur ?: 1f
+    return min(n.actT / 0.35f, (dur - n.actT) / 0.35f).coerceIn(0f, 1f)
+}
+
 private fun carY(car: Int, localY: Float): Float = NOSE + car * PITCH + localY
 
 /** The worker visits every installed station in turn. Positions are car-local, converted by carY. */
@@ -271,7 +294,7 @@ private fun buildCycle(heat: Boolean, food: Boolean, bed: Boolean, wagon: Boolea
     s.add(Step(112f, carY(0, 94f), 1f, 0f, Act.DRIVE, 2.2f))
     if (heat) s.add(Step(74f, carY(1, 34f), -1f, 0f, Act.TURN_VALVE, 2.4f))
     if (food) {
-        s.add(Step(124f, carY(1, 30f), 1f, 0f, Act.COOK, 2.6f))
+        s.add(Step(124f, carY(1, 30f), 1f, 0f, Act.COOK, 4.2f))
         s.add(Step(76f, carY(1, 92f), -1f, 0f, Act.EAT, 2.4f))
     }
     if (wagon) {
@@ -280,7 +303,7 @@ private fun buildCycle(heat: Boolean, food: Boolean, bed: Boolean, wagon: Boolea
     }
     // check on the devices in every extra car
     for (c in 2 until cars) s.add(Step(AISLE_X, carY(c, 56f), if (c % 2 == 0) -1f else 1f, 0f, Act.TURN_VALVE, 1.3f))
-    if (bed) s.add(Step(68f, carY(0, 94f), -1f, 0f, Act.SLEEP, 2.4f))
+    if (bed) s.add(Step(68f, carY(0, 94f), -1f, 0f, Act.SLEEP, 4.0f))
     return s
 }
 
@@ -291,6 +314,9 @@ private class Npc {
     var faceDeg = 0f
     var phase = 0f
     var actT = 0f
+    /** The last job finished and how long ago (seconds), for little "done" effects. */
+    var doneAct: Act? = null
+    var sinceDone = 99f
     var camY = 0f
     var zoom = 1f
     var originXpx = 0f      // set while drawing; used to turn taps into train-space positions
@@ -387,6 +413,7 @@ private class Npc {
     fun update(dt: Float, tempo: Float) {
         val st = step ?: return
         val d = dt * tempo
+        if (sinceDone < 99f) sinceDone += dt
         if (!working && path.isNotEmpty()) {
             val tgt = path[0]
             val dx = tgt.x - x
@@ -412,6 +439,8 @@ private class Npc {
             actT += d
             phase += d * 6f
             if (actT >= st.dur) {
+                doneAct = st.act
+                sinceDone = 0f
                 idx = (idx + 1) % cycle.size
                 plan()
             }
@@ -756,6 +785,8 @@ private fun DrawScope.drawScene(
     npc: Npc, npc2: Npc?, time: Float, scroll: Float, tier: TrainTier, look: Look,
     boosting: Boolean, aurora: Boolean, storm: Float, dark: Float, stations: List<Station>, fx: Boolean,
 ) {
+    sceneNpc2 = npc2
+    sceneMainNpc = npc
     val u = density
     val w = size.width
     val h = size.height
@@ -1877,12 +1908,7 @@ private fun DrawScope.drawEngineCarSprites(sp: GameSprites, top: Float, look: Lo
     // bunk once the Night Conductor is hired, a locker before that
     if (look.conductor > 0) {
         furniture(sp.bunk, 8f, top + 80f, 50f, 28f)
-        if (act == Act.SLEEP) {
-            for (k in 0 until 3) {
-                val t = (time * 0.6f + k / 3f) % 1f
-                dot(Color.White.copy(alpha = (1f - t) * 0.85f), 30f + t * 12f, top + 80f - t * 16f, 2f + k * 1.2f)
-            }
-        }
+        crewDoing(npc, Act.SLEEP)?.let { drawSleeper(sp, top, time, sleepFade(it)) }
     } else {
         furniture(sp.locker, 8f, top + 80f, 50f, 28f)
     }
@@ -1912,21 +1938,7 @@ private fun DrawScope.drawUtilityCarSprites(sp: GameSprites, top: Float, look: L
     }
     if (look.food > 0) {
         furniture(sp.kitchen, 128f, top + 8f, 54f, 66f)
-        val cooking = act == Act.COOK
-        if (cooking) glow(138f, top + 30f, 30f, Color(0xFFFF8A2B), 0.5f)
-        // soup pot on the front burner
-        dot(Color(0xFF6B4A3A), 138f, top + 30f, 8.6f)
-        dot(Color(0xFFE89A6A), 138f, top + 30f, 7.4f)
-        dot(Color(0xFFFFCF7A), 138f, top + 29.4f, 5.6f)
-        dot(Color(0xFFF28C5A), 136.5f, top + 29f, 1.3f)
-        dot(Color(0xFF8FCB7A), 139.6f, top + 30.2f, 1.1f)
-        val sa = if (cooking) npc.phase * 2f else 0f
-        line(Color(0xFF8B5E3C), 138f, top + 30f, 138f + 7f * cos(sa), top + 30f + 7f * sin(sa), 1.6f)
-        for (k in 0 until 3) {
-            val t = (time * 0.7f + k / 3f) % 1f
-            val strength = if (cooking) 0.7f else 0.25f
-            dot(Color.White.copy(alpha = (1f - t) * strength), 138f + (k - 1) * 3f, top + 30f - t * 14f, 3f + t * 4f)
-        }
+        drawCookingPot(top, time)
         furniture(sp.table, 8f, top + 76f, 62f, 32f)
     } else {
         slot(128f, top + 8f, 54f, 66f)
@@ -1947,6 +1959,142 @@ private fun DrawScope.drawUtilityCarSprites(sp: GameSprites, top: Float, look: L
 }
 
 
+/** The soup pot on the stove: raw food slowly cooks while a worker stirs, then a small "ready" pop. */
+private fun DrawScope.drawCookingPot(top: Float, time: Float) {
+    val cx = 138f
+    val cy = top + 30f
+    val cook = crewDoing(sceneMainNpc ?: return, Act.COOK)
+    val p = cook?.let { (it.actT / (it.step?.dur ?: 1f)).coerceIn(0f, 1f) } ?: 1f
+    val cooking = cook != null
+    // burner glow and a flickering ring of flame
+    if (cooking) {
+        glow(cx, cy, 30f, Color(0xFFFF8A2B), 0.32f + 0.12f * sin(time * 13f))
+        for (k in 0 until 6) {
+            val a = k * PI_F / 3f + time * 0.8f
+            val fl = 1.4f + 0.7f * sin(time * 17f + k * 1.9f)
+            dot(Color(0xFFFFA23A).copy(alpha = 0.85f), cx + 9.4f * cos(a), cy + 9.4f * sin(a), fl)
+        }
+    }
+    // pot rim, then soup that turns from pale raw to golden cooked
+    dot(Color(0xFF6B4A3A), cx, cy, 8.6f)
+    dot(Color(0xFFB8BEC6), cx, cy, 7.5f)
+    dot(lerp(Color(0xFFE8DCC6), Color(0xFFEE9A55), p), cx, cy, 6.3f)
+    dot(lerp(Color(0xFFF4ECDD), Color(0xFFFFC56E), p), cx - 0.6f, cy - 0.7f, 4.4f)
+    // bits of vegetables: pale, then bright
+    dot(lerp(Color(0xFFF2C7B8), Color(0xFFE2553A), p), cx - 2.2f, cy - 0.6f, 1.3f)
+    dot(lerp(Color(0xFFD5E8C8), Color(0xFF5DAF4E), p), cx + 2f, cy + 1.2f, 1.1f)
+    dot(lerp(Color(0xFFF5EBC0), Color(0xFFF2B705), p), cx + 0.6f, cy - 2.6f, 1f)
+    // gentle bubbling while it cooks: more bubbles as it gets hotter
+    if (cooking) {
+        val n = 2 + (p * 3f).toInt()
+        for (k in 0 until n) {
+            val bt = (time * 1.4f + k * 0.37f) % 1f
+            val ang = k * 2.39f + (time * 0.3f + k).toInt() * 1.7f
+            val rr = 1.5f + (k % 3) * 1.4f
+            val bx = cx + rr * cos(ang)
+            val by = cy + rr * sin(ang)
+            val br = 0.4f + bt * 1.3f
+            val ba = if (bt < 0.85f) 0.9f else (1f - bt) / 0.15f * 0.9f
+            dot(Color(0xFF8B4A2A).copy(alpha = ba * 0.35f), bx, by + 0.3f, br + 0.25f)
+            dot(Color.White.copy(alpha = ba * 0.75f), bx, by, br)
+        }
+        // the ladle stirs
+        val sa = cook!!.phase * 1.6f
+        line(Color(0xFF6B4A3A), cx + 3.6f * cos(sa), cy + 3.6f * sin(sa), cx + 9.5f * cos(sa - 0.5f), cy - 4f + 9.5f * sin(sa - 0.5f) * 0.4f, 2.4f)
+        line(Color(0xFFC08A5E), cx + 3.6f * cos(sa), cy + 3.6f * sin(sa), cx + 9.5f * cos(sa - 0.5f), cy - 4f + 9.5f * sin(sa - 0.5f) * 0.4f, 1.2f)
+    }
+    // steam: thin while idle, thicker the closer the food is to done
+    val steam = if (cooking) 0.25f + 0.55f * p else 0.18f
+    for (k in 0 until 3) {
+        val t = (time * 0.6f + k / 3f) % 1f
+        val sway = sin(time * 1.7f + k * 2f) * 2.2f * t
+        dot(Color.White.copy(alpha = (1f - t) * steam), cx + (k - 1) * 3f + sway, cy - 4f - t * 16f, 2.6f + t * 4.2f)
+    }
+    // "ready!": a ring, a few sparkles and a little check badge that pops up
+    val since = crewSince(sceneMainNpc!!, Act.COOK)
+    if (since < 1.1f) {
+        val t = since / 1.1f
+        val fade = 1f - t
+        drawCircle(Color(0xFFFFE680).copy(alpha = fade * 0.9f), (8f + t * 14f) * density, Offset(cx * density, cy * density), style = Stroke(1.6f * density * fade + 0.4f))
+        for (k in 0 until 5) {
+            val a = -PI_F / 2f + (k - 2) * 0.55f
+            val d = 10f + t * 12f
+            sparkle(cx + d * cos(a), cy + d * sin(a), (1.8f + (k % 2) * 0.8f) * fade, Color(0xFFFFE680).copy(alpha = fade))
+        }
+        val pop = if (t < 0.25f) t / 0.25f * 1.25f else 1.25f - min(0.25f, (t - 0.25f) * 1.5f)
+        val by = cy - 16f - t * 6f
+        val r = 4.6f * pop
+        dot(Color(0xFF6B4A3A).copy(alpha = fade), cx, by, r + 0.9f)
+        dot(Color(0xFF5DBB63).copy(alpha = fade), cx, by, r)
+        line(Color.White.copy(alpha = fade), cx - r * 0.45f, by + r * 0.05f, cx - r * 0.1f, by + r * 0.4f, 1.3f * pop)
+        line(Color.White.copy(alpha = fade), cx - r * 0.1f, by + r * 0.4f, cx + r * 0.5f, by - r * 0.35f, 1.3f * pop)
+    }
+}
+
+/** A four-point twinkle. */
+private fun DrawScope.sparkle(x: Float, y: Float, r: Float, color: Color) {
+    if (r <= 0.05f) return
+    line(color, x - r, y, x + r, y, r * 0.45f)
+    line(color, x, y - r * 1.4f, x, y + r * 1.4f, r * 0.45f)
+}
+
+/** A worker tucked into the bunk: eyes closed, the blanket rising and falling, "Z"s drifting up. */
+private fun DrawScope.drawSleeper(sp: GameSprites, top: Float, time: Float, a: Float) {
+    if (a <= 0.01f) return
+    val u = density
+    val breath = sin(time * 2.1f)          // slow, calm breathing
+    val ink = Color(0xFF6B4A3A).copy(alpha = a)
+    // head on the pillow (the sleeping sprite's head, lying sideways)
+    val img = sp.npcSleep ?: sp.npc
+    if (img != null) {
+        val hx = 19f
+        val hy = top + 92f + breath * 0.25f
+        withTransform({ rotate(-90f, Offset(hx * u, hy * u)) }) {
+            drawImage(
+                img,
+                srcOffset = IntOffset(16, 0), srcSize = IntSize(160, 128),
+                dstOffset = IntOffset(((hx - 8.5f) * u).roundToInt(), ((hy - 6.8f) * u).roundToInt()),
+                dstSize = IntSize((17f * u).roundToInt(), (13.6f * u).roundToInt()),
+                alpha = a, filterQuality = FilterQuality.Medium,
+            )
+        }
+    }
+    // blanket: its top edge lifts with every breath
+    val lift = 1.1f + 0.9f * breath
+    val by = top + 86.5f - lift
+    val bh = 12.5f + lift
+    box(ink, 23f, by - 0.9f, 33f, bh + 1.8f, 4.5f)
+    box(Color(0xFF8EC3E8).copy(alpha = a), 24f, by, 31f, bh, 3.8f)
+    box(Color(0xFFBFE0F5).copy(alpha = a), 24.5f, by + 0.6f, 30f, 2.6f, 1.3f)
+    line(Color(0xFF6FA6CF).copy(alpha = a * 0.8f), 34f, by + 4f, 34f, by + bh - 1.5f, 0.8f)
+    line(Color(0xFF6FA6CF).copy(alpha = a * 0.8f), 44f, by + 4f, 44f, by + bh - 1.5f, 0.8f)
+    // Zzz floating up and to the right, growing and fading
+    for (k in 0 until 3) {
+        val t = (time * 0.42f + k / 3f) % 1f
+        val zx = 24f + t * 16f + sin(t * 6.3f + k) * 2f
+        val zy = top + 84f - t * 24f
+        val zs = 2.2f + t * 3.4f
+        val za = sin(t * PI_F) * a
+        zGlyph(zx, zy, zs, za)
+    }
+}
+
+/** A hand-drawn "Z" with a soft outline. */
+private fun DrawScope.zGlyph(x: Float, y: Float, s: Float, alpha: Float) {
+    if (alpha <= 0.02f) return
+    val ink = Color(0xFF6B4A3A).copy(alpha = alpha * 0.8f)
+    val fill = Color.White.copy(alpha = alpha)
+    val h = s * 0.5f
+    zStrokes(ink, x, y, h, s * 0.42f + 1.2f)
+    zStrokes(fill, x, y, h, s * 0.42f)
+}
+
+private fun DrawScope.zStrokes(c: Color, x: Float, y: Float, h: Float, wdt: Float) {
+    line(c, x - h, y - h, x + h, y - h, wdt)
+    line(c, x + h, y - h, x - h, y + h, wdt)
+    line(c, x - h, y + h, x + h, y + h, wdt)
+}
+
 /** The cozy worker: a front-facing sprite that hops while walking and shows what it is busy with. */
 private fun DrawScope.drawNpcCozy(npc: Npc, look: ImageBitmap? = null) {
     val sp = sceneSprites ?: return
@@ -1961,9 +2109,12 @@ private fun DrawScope.drawNpcCozy(npc: Npc, look: ImageBitmap? = null) {
     val h = 32.5f
     // facing: mirror the sprite when heading to the left
     val left = sin(npc.faceDeg * PI_F / 180f) < -0.3f
-    drawOval(Color(0x22000000), Offset(cx - 9f * u, cy + 6f * u), Size(18f * u, 5f * u))
+    val inBed = look == null && npc.working && act == Act.SLEEP && sp.bunk != null
+    val stand = if (inBed) 1f - sleepFade(npc) else 1f
+    if (stand <= 0.01f) return
+    drawOval(Color(0x22000000).copy(alpha = 0.13f * stand), Offset(cx - 9f * u, cy + 6f * u), Size(18f * u, 5f * u))
     withTransform({ if (left) scale(-1f, 1f, Offset(cx, cy)) }) {
-        drawSprite(img, cx - w / 2f * u, cy - (h - 10f + hop) * u, w * u, h * u)
+        drawSprite(img, cx - w / 2f * u, cy - (h - 10f + hop) * u, w * u, h * u, alpha = stand)
     }
     // what the worker is holding
     val st = npc.step
@@ -2036,5 +2187,40 @@ private fun DrawScope.drawKeepsakeSparkle(cx: Float, cy: Float, time: Float) {
         val s = (3f + 2f * sin(time * 6f + i)) * u
         drawLine(Color.White, Offset(p.x - s, p.y), Offset(p.x + s, p.y), 1.4f * u)
         drawLine(Color.White, Offset(p.x, p.y - s), Offset(p.x, p.y + s), 1.4f * u)
+    }
+}
+
+/** Test-only preview of the stove and bunk animations, frame by frame (used by the screenshot tests). */
+@androidx.compose.runtime.Composable
+internal fun SceneAnimPreview() {
+    val sp = rememberGameSprites()
+    androidx.compose.foundation.Canvas(androidx.compose.foundation.layout.fillMaxSize(Modifier).let { androidx.compose.foundation.background(it, Color(0xFFF3E9DA)) }) {
+        sceneSprites = sp
+        sceneNpc2 = null
+        val cell = size.width / 3f
+        val k = cell / (90f * density)
+        fun cellAt(i: Int, block: DrawScope.() -> Unit) {
+            translate(left = (i % 3) * cell, top = (i / 3) * cell * 0.9f) { scale(k, k, pivot = Offset.Zero) { block() } }
+        }
+        // stove: raw, half, almost done, then the "ready" pop
+        for (i in 0 until 3) {
+            val n = Npc().apply { cycle = listOf(Step(0f, 0f, 1f, 0f, Act.COOK, 4.2f)); working = true; actT = 0.2f + i * 1.9f; phase = i * 1.3f }
+            sceneMainNpc = n
+            cellAt(i) { furniture(sp.kitchen, 128f - 110f, 8f, 54f, 66f); translate(left = -110f * density) { drawCookingPot(0f, 1.3f + i * 0.4f) } }
+        }
+        val done = Npc().apply { cycle = listOf(Step(0f, 0f, 1f, 0f, Act.EAT, 2f)); doneAct = Act.COOK; sinceDone = 0.3f }
+        sceneMainNpc = done
+        cellAt(3) { furniture(sp.kitchen, 18f, 8f, 54f, 66f); translate(left = -110f * density) { drawCookingPot(0f, 2f) } }
+        // bunk: three moments of the same nap
+        for (i in 0 until 3) {
+            val n = Npc().apply { cycle = listOf(Step(0f, 0f, -1f, 0f, Act.SLEEP, 4f)); working = true; actT = 1.5f }
+            sceneMainNpc = n
+            cellAt(4 + i) {
+                scale(1.5f, 1.5f, pivot = Offset.Zero) {
+                    furniture(sp.bunk, 8f, 20f, 50f, 28f)
+                    drawSleeper(sp, -60f, 0.4f + i * 0.9f, 1f)
+                }
+            }
+        }
     }
 }

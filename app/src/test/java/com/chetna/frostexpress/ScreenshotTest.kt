@@ -91,6 +91,14 @@ class ScreenshotTest {
                     }
                 }
             }
+            "anims" -> shot("${size}_18_anims") { SceneAnimPreview() }
+            "alltrains" -> shot("${size}_19_alltrains") {
+                androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFE8F0F7))) {
+                    for (row in 0 until 5) androidx.compose.foundation.layout.Row(androidx.compose.ui.Modifier.weight(1f)) {
+                        for (c in 0 until 5) TrainPicture(row * 5 + c, androidx.compose.ui.Modifier.weight(1f).fillMaxHeight().padding(3.dp))
+                    }
+                }
+            }
             "newtrain" -> {
                 playing()
                 prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "60,40,30,20,10,5,0,0,0,0") }
@@ -129,6 +137,8 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_evolved() = runAll("normal", "evolved")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_trains() = runAll("normal", "trains")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_newtrain() = runAll("normal", "newtrain")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_anims() = runAll("normal", "anims")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_alltrains() = runAll("normal", "alltrains")
 
     // big phone
     @Test @Config(sdk = [34], qualifiers = "w412dp-h915dp-port-xxhdpi") fun big_game() = runAll("big", "game")
