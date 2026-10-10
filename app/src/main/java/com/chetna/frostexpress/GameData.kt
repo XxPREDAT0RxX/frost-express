@@ -2,6 +2,7 @@ package com.chetna.frostexpress
 
 import java.util.Locale
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.log10
 import kotlin.math.pow
 
@@ -170,7 +171,7 @@ val UPGRADES: List<UpgradeSpec> = CORE_UPGRADES + EXTRA_UPGRADES + SURVIVOR_SPEC
 
 /** Rewards for watching a rewarded ad (limited per day). */
 enum class AdReward(val title: String, val desc: String, val perDay: Int) {
-    GEMS("Free gems", "+5 gems", 5),
+    GEMS("Free gems", "+3 gems", 5),
     BOOSTER("Mystery booster", "A random booster for your bag", 3),
     COINS("Coin rush", "Coins x2 for 2 minutes", 6),
 }
@@ -220,8 +221,8 @@ enum class GemPack(val title: String, val gems: Int, val productId: String) {
 
 /** Gems traded for coins (limited per day, so they stay valuable). */
 enum class GemTrade(val gems: Int, val incomeSec: Double) {
-    SMALL(5, 300.0),
-    LARGE(25, 1350.0),
+    SMALL(2, 1800.0),
+    LARGE(8, 6000.0),
 }
 
 /** Permanent upgrades: bought with Frost Cores (earned by evolving) and kept forever, even after evolving. */
@@ -290,7 +291,13 @@ fun xpForLevel(level: Int): Int = 60 + 40 * (level - 1) + 6 * (level - 1) * (lev
 /** Daily quests: three are picked every day. [stat] is the counter that has to grow by [goal]. */
 enum class QuestStat { UPGRADES, BOOST_TAPS, CRATES, STATIONS, BOOSTERS, STORMS, DISTANCE, DEVICES, EVOLVES, LEVEL, SURVIVORS, PASSENGERS, COLLECTIBLES, WOLVES, MINIGAMES }
 
-data class Quest(val id: String, val text: String, val stat: QuestStat, val goal: Int, val xp: Int, val gems: Int)
+data class Quest(val id: String, val text: String, val stat: QuestStat, val goal: Int, val xp: Int, val gemsBase: Int) {
+    val gems: Int get() = earnedGems(gemsBase)
+}
+
+/** Gems are rare: every earned reward pays this share of its design value (at least 1). */
+const val GEM_EARN_RATE = 0.4
+fun earnedGems(base: Int): Int = max(1, kotlin.math.round(base * GEM_EARN_RATE).toInt())
 
 val QUEST_POOL = listOf(
     Quest("q_upg10", "Buy 10 upgrades", QuestStat.UPGRADES, 10, 40, 2),
@@ -374,8 +381,8 @@ object Balance {
     fun evolveLevels(evolutions: Int): Int = ((100 + 120 * evolutions + 10 * evolutions * (evolutions - 1)) * 0.8).toInt()
     /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
     fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
-    const val GEM_TRADE_PER_DAY = 30         // gems you can buy with coins each day
-    const val DAILY_GEMS = 3                 // daily reward gems (x5 on every 7th day)
+    const val GEM_TRADE_PER_DAY = 10         // gems you can buy with coins each day
+    const val DAILY_GEMS = 2                 // daily reward gems (x4 on every 7th day)
     const val SHOP_MAX_SEC = 1800.0       // timed shop boosters stack up to 30 minutes
     const val STATION_STOP_SEC = 8.0      // storm shelter: the train waits this long at the station
 
@@ -426,7 +433,7 @@ object Balance {
 
     // Rewarded ad boost (hidden while ADS_ENABLED is false)
     const val ADS_ENABLED = true
-    const val AD_GEMS = 5
+    const val AD_GEMS = 3
     const val SURVIVOR_BONUS = 0.40
     // Google's official TEST ad unit. Replace with your own rewarded ad unit id from AdMob before release
     // (and the APPLICATION_ID in AndroidManifest.xml).

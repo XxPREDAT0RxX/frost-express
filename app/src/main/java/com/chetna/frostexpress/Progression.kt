@@ -49,7 +49,7 @@ const val MILESTONE_INCOME = 0.10
 const val BADGE_INCOME = 0.03
 
 fun isMilestone(evo: Int): Boolean = evo > 0 && (evo % 5 == 0 || evo == TIERS.lastIndex)
-fun milestoneGems(evo: Int): Int = 50 + 10 * evo
+fun milestoneGems(evo: Int): Int = 20 + 5 * evo
 
 fun evolvePerk(evo: Int): EvolvePerk = when {
     evo == PERK_ROUTE -> EvolvePerk("Route Choice", "After every evolve, pick one of three bonuses for the run")

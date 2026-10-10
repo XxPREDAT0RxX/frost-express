@@ -21,7 +21,8 @@ import java.time.temporal.IsoFields
 /** Something the player receives. [secs] coin rewards are worth that many seconds of steady income. */
 sealed class Reward {
     data class Coins(val secs: Double) : Reward()
-    data class Gems(val n: Int) : Reward()
+    /** [base] is the design value; players get [n] after the gem-earning rate is applied. */
+    data class Gems(val base: Int) : Reward() { val n: Int get() = earnedGems(base) }
     data class Item(val item: ShopItem, val n: Int = 1) : Reward()
     data class Flakes(val n: Int) : Reward()
     data class Polish(val n: Int) : Reward()
@@ -78,7 +79,7 @@ fun flakeShop(ev: WeeklyEvent): List<FlakeOffer> = listOf(
     FlakeOffer("${LIVERIES[ev.livery].name} paint (this week only)", 400, Reward.Paint(ev.livery)),
     FlakeOffer("Gold Polish", 250, Reward.Polish(1)),
     FlakeOffer("Gold Rush x5", 160, Reward.Item(ShopItem.RUSH5)),
-    FlakeOffer("15 gems", 120, Reward.Gems(15)),
+    FlakeOffer("6 gems", 120, Reward.Gems(15)),
     FlakeOffer("Turbo Coal", 60, Reward.Item(ShopItem.TURBO)),
     FlakeOffer("Hot Cocoa Rush", 60, Reward.Item(ShopItem.COCOA)),
 )
@@ -210,7 +211,7 @@ val STORIES = listOf(
 // ---------------- the journey to the Warm City ----------------
 
 /** Milestones along the line (total km travelled), the last one is the Warm City. */
-class Leg(val name: String, val km: Int, val gems: Int)
+class Leg(val name: String, val km: Int, val gemsBase: Int) { val gems: Int get() = earnedGems(gemsBase) }
 
 val JOURNEY = listOf(
     Leg("Frostbite Junction", 1, 5), Leg("Pinewatch", 3, 5), Leg("Old Mill Halt", 8, 8), Leg("Icebridge", 20, 10),

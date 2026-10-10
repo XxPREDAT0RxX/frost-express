@@ -4,6 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -265,6 +268,7 @@ private fun hotspotAt(tx: Float, ty: Float, cars: Int): UpgradeType? {
 
 /** The second worker, if hired (set every frame), so the stove and the bed react to either worker. */
 private var sceneNpc2: Npc? = null
+private var sceneUserZoom = 1f
 private var sceneMainNpc: Npc? = null
 
 /** The worker busy with [act] right now, if any. */
@@ -460,6 +464,8 @@ private class Npc {
 
 /** Shared with the UI: where the camera is (in cars) for the mini-map, and a car to jump to. */
 class SceneLink {
+    /** The player's zoom on top of the automatic fit (buttons or pinch). */
+    var zoom by androidx.compose.runtime.mutableFloatStateOf(1f)
     var camCar by androidx.compose.runtime.mutableFloatStateOf(0f)
     var viewCars by androidx.compose.runtime.mutableFloatStateOf(3f)
     var jumpCar = -1
@@ -664,17 +670,32 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                 hotspotAt(tx, ty, npc.cars)?.let(onDeviceTap)
             }
         }.pointerInput(Unit) {
-            // Drag up or down to look along a long train. The camera follows the worker again after 5 s.
-            detectVerticalDragGestures(
-                onDragStart = { npc.manualCam = npc.camY },
-                onVerticalDrag = { change, dy ->
-                    change.consume()
-                    if (npc.camHi > npc.camLo) {
-                        npc.manualCam = (npc.manualCam - dy / (density * npc.zoom)).coerceIn(npc.camLo, npc.camHi)
-                        npc.manualLeft = 5f
+            // Drag up or down to look along a long train (the camera follows the worker again after 5 s);
+            // pinch with two fingers to zoom in or out.
+            androidx.compose.foundation.gestures.awaitEachGesture {
+                androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+                npc.manualCam = npc.camY
+                var moving = false
+                var travel = 0f
+                do {
+                    val ev = awaitPointerEvent()
+                    val fingers = ev.changes.count { it.pressed }
+                    val zoomCh = if (fingers >= 2) ev.calculateZoom() else 1f
+                    val pan = ev.calculatePan()
+                    if (!moving) {
+                        travel += kotlin.math.abs(pan.y) + kotlin.math.abs(zoomCh - 1f) * 200f
+                        if (travel > viewConfiguration.touchSlop || fingers >= 2) moving = true
                     }
-                },
-            )
+                    if (moving) {
+                        if (zoomCh != 1f && link != null) link.zoom = (link.zoom * zoomCh).coerceIn(ZOOM_MIN, ZOOM_MAX)
+                        if (pan.y != 0f && npc.camHi > npc.camLo) {
+                            npc.manualCam = (npc.manualCam - pan.y / (density * npc.zoom)).coerceIn(npc.camLo, npc.camHi)
+                            npc.manualLeft = 5f
+                        }
+                        ev.changes.forEach { if (it.positionChanged()) it.consume() }
+                    }
+                } while (ev.changes.any { it.pressed })
+            }
         }
     ) {
         val look = Look(
@@ -692,6 +713,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneArt = art
         sceneMats = mats
         sceneSprites = sprites
+        sceneUserZoom = link?.zoom ?: 1f
         sceneGfx = vm.gfx
         sceneGolden = vm.meta.golden.toList()
         sceneDecor = vm.meta.decor.toList()
@@ -792,7 +814,7 @@ private fun DrawScope.drawScene(
     val u = density
     val w = size.width
     val h = size.height
-    val z = (w / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f)
+    val z = (w / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f) * sceneUserZoom
     npc.viewH = h / u / z
     npc.zoom = z
     fxOn = fx

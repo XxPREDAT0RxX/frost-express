@@ -206,6 +206,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
     var showGift by remember { mutableStateOf(false) }
     var showWheel by remember { mutableStateOf(false) }
     var showQuit by remember { mutableStateOf(false) }
+    // a clean view: header, rails and footer slide away so only the train is left
+    var uiHidden by remember { mutableStateOf(false) }
     BackHandler(enabled = sheet != 0) { sheet = 0 }
     // back on the main screen: ask before leaving the game
     BackHandler(enabled = sheet == 0) { showQuit = true }
@@ -226,7 +228,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 vm.tutorialAdvance(1)
                 detail = type
             }, link = link)
-            TopHud(
+            if (!uiHidden) TopHud(
                 vm,
                 Modifier
                     .align(Alignment.TopCenter)
@@ -238,7 +240,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onGoal = { sheet = it },
             )
             // side rails: they use the snowy space left and right of the train
-            LeftRail(
+            if (!uiHidden) LeftRail(
                 vm,
                 onQuests = { sheet = if (sheet == 5) 0 else 5 },
                 onAwards = { sheet = if (sheet == 7) 0 else 7 },
@@ -263,18 +265,25 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(top = 140.dp),
             )
-            Column(
+            if (!uiHidden) Column(
                 Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = 142.dp, end = 8.dp),
+                    .padding(top = 142.dp, end = 8.dp, bottom = FOOTER_H + 8.dp),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                RightRail(vm, link, onEvolve = { sheet = if (sheet == 6) 0 else 6 })
-                if (vm.featureOpen(Feature.JOURNEY)) RailButton(rememberGameSprites().iconTrophy, "Journey", Color(0xFFCDE7F8), onClick = { sheet = if (sheet == 8) 0 else 8 })
-                ActiveBoosters(vm)
+                RightRail(vm, link, onEvolve = { sheet = if (sheet == 6) 0 else 6 }, onJourney = { sheet = if (sheet == 8) 0 else 8 })
             }
+            SceneControls(
+                hidden = uiHidden,
+                zoom = link.zoom,
+                onToggleHide = { uiHidden = !uiHidden; if (uiHidden) sheet = 0 },
+                onZoom = { link.zoom = (link.zoom * it).coerceIn(ZOOM_MIN, ZOOM_MAX) },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 8.dp, bottom = (if (uiHidden) 16.dp else FOOTER_H + 10.dp) + bottomInset * (1f - sheetP)),
+            )
             if (vm.tutorialStage in 1..3) {
                 TutorialGuide(
                     vm, sheetOpen = showUpgrades,
@@ -295,7 +304,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
             NewTrainPopup(vm)
             RouteChoiceCard(vm)
             BoosterPopup(vm, Modifier.align(Alignment.Center))
-            BottomBar(
+            if (!uiHidden) BottomBar(
                 vm,
                 sheetOpen = showUpgrades,
                 onToggleUpgrades = {
@@ -536,7 +545,7 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
             Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(Brush.verticalGradient(listOf(Color(0xFFFFFBF4), Color(0xFFF6E8D3))))
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFFBF4).copy(alpha = 0.8f), Color(0xFFF6E8D3).copy(alpha = 0.8f))))
                 .border(OutlineW, Wood, shape),
         ) {
             SnowCap(Modifier.align(Alignment.TopCenter), seed = 3)
@@ -1061,7 +1070,7 @@ private fun BottomBar(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Panel.copy(alpha = 0.95f))
+            .background(Panel.copy(alpha = 0.8f))
             .border(OutlineW, Wood, RoundedCornerShape(16.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
@@ -1168,17 +1177,39 @@ private fun UpgradesSheet(
     var tab by remember { mutableStateOf(startTab) }
     LaunchedEffect(startTab) { if (startTab != 0) { tab = startTab; onTabShown() } }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // A long list is kept short: cars fold (maxed-out cars start folded) and "Can buy" hides the rest.
+    var canBuyOnly by remember { mutableStateOf(false) }
+    val foldOverride = remember { androidx.compose.runtime.mutableStateMapOf<Int, Boolean>() }
+    val chain = UPGRADES.filter { it.type != UpgradeType.SURVIVORS }
+    val firstLocked = chain.indexOfFirst { !vm.isUnlocked(it) }
+    val visibleUpgrades = if (firstLocked < 0) chain else chain.take(firstLocked + 1)
+    val byCar = visibleUpgrades.groupBy { carOf(it.type) }.toSortedMap()
+    fun maxed(spec: UpgradeSpec) = vm.level(spec.type) >= spec.maxLevel
+    fun buyable(spec: UpgradeSpec) = vm.isUnlocked(spec) && !maxed(spec) && vm.coins >= vm.bulkCost(spec, vm.buyCount(spec))
+    fun folded(car: Int): Boolean = foldOverride[car] ?: (byCar[car]?.all { maxed(it) } == true)
+    fun rowsOf(car: Int): List<UpgradeSpec> {
+        if (folded(car)) return emptyList()
+        val specs = byCar[car] ?: return emptyList()
+        return if (canBuyOnly) specs.filter { buyable(it) } else specs
+    }
 
     // Tapping a device on the train jumps to its upgrade and highlights it for a moment.
     androidx.compose.runtime.LaunchedEffect(focus) {
         if (focus != null) {
             tab = 0
+            canBuyOnly = false
+            foldOverride[carOf(focus)] = false
             kotlinx.coroutines.delay(90)
-            val idx = listState.layoutInfo.totalItemsCount
-            val chain = UPGRADES.filter { it.type != UpgradeType.SURVIVORS }
-            val pos = chain.indexOfFirst { it.type == focus }
-            // survivors card + one header per car before it
-            listState.animateScrollToItem((1 + pos + carOf(focus) + 1).coerceIn(0, maxOf(0, idx - 1)))
+            // survivors card, then a header per car and its rows
+            var index = 1
+            for (car in byCar.keys) {
+                index++
+                val rows = rowsOf(car)
+                val at = rows.indexOfFirst { it.type == focus }
+                if (at >= 0) { index += at; break }
+                index += rows.size
+            }
+            listState.animateScrollToItem(index.coerceIn(0, maxOf(0, listState.layoutInfo.totalItemsCount - 1)))
             kotlinx.coroutines.delay(2500)
             onFocusDone()
         }
@@ -1194,6 +1225,19 @@ private fun UpgradesSheet(
     ) {
         TabRow(tab, { tab = it }, Modifier.padding(horizontal = 12.dp))
         if (tab == 0) BuyAmountRow(vm, Modifier.padding(horizontal = 12.dp))
+        if (tab == 0) {
+            val canCount = visibleUpgrades.count { buyable(it) }
+            val allFolded = byCar.keys.all { folded(it) }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Show", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Muted)
+                SmallChip("All", !canBuyOnly, Modifier.weight(1f)) { canBuyOnly = false }
+                SmallChip("Can buy ($canCount)", canBuyOnly, Modifier.weight(1.6f)) { canBuyOnly = true }
+                SmallChip(if (allFolded) "Open all" else "Fold all", false, Modifier.weight(1.3f)) {
+                    val fold = !allFolded
+                    byCar.keys.forEach { foldOverride[it] = fold }
+                }
+            }
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
@@ -1237,18 +1281,26 @@ private fun UpgradesSheet(
             } else {
             item { SurvivorsCard(vm, onInfo = { onOpenDetail(UpgradeType.SURVIVORS) }) }
             // Show every unlocked upgrade plus the next locked one; the rest stay a surprise.
-            val chain = UPGRADES.filter { it.type != UpgradeType.SURVIVORS }
-            val firstLocked = chain.indexOfFirst { !vm.isUnlocked(it) }
-            val visibleUpgrades = if (firstLocked < 0) chain else chain.take(firstLocked + 1)
-            visibleUpgrades.groupBy { carOf(it.type) }.toSortedMap().forEach { (car, specs) ->
+            byCar.forEach { (car, specs) ->
+            val rows = rowsOf(car)
             item(key = "car$car") {
-                SectionTitle(
+                val isFolded = folded(car)
+                val done = specs.count { maxed(it) }
+                val can = specs.count { buyable(it) }
+                CarHeader(
                     when (car) { 0 -> "Car 1 · Engine"; 1 -> "Car 2 · Workshop"; else -> "Car ${car + 1}" },
                     listOf(Ember, Ice, Mint, XpPurple, GoldText, GemPink)[car % 6],
-                    if (car == 0) "Reset when you evolve. Hold a button to keep buying." else null,
+                    buildString {
+                        append("${specs.size} upgrades")
+                        if (can > 0) append(" · $can to buy")
+                        if (done > 0) append(" · $done maxed")
+                        if (!isFolded && canBuyOnly && rows.isEmpty()) append(" · nothing to buy")
+                    },
+                    folded = isFolded,
+                    onToggle = { foldOverride[car] = !isFolded },
                 )
             }
-            items(specs, key = { it.type.name }) { spec ->
+            items(rows, key = { it.type.name }) { spec ->
                 val lvl = vm.level(spec.type)
                 val maxed = lvl >= spec.maxLevel
                 val n = vm.buyCount(spec)
@@ -2151,7 +2203,7 @@ private fun GemShopSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClo
             item {
                 SectionTitle("Free gems", XpPurple)
                 Text(
-                    "Daily gift: ${Balance.DAILY_GEMS} gems, ${Balance.DAILY_GEMS * 5} on every 7th day in a row. Level ups, quests and awards give gems too.",
+                    "Daily gift: ${Balance.DAILY_GEMS} gems, ${Balance.DAILY_GEMS * 4} on every 7th day in a row. Level ups, quests and awards give gems too.",
                     fontSize = 11.sp, color = Muted,
                 )
             }
@@ -2660,7 +2712,7 @@ private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Un
 }
 
 @Composable
-private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) {
+private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit, onJourney: () -> Unit) {
     val sp = rememberGameSprites()
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // evolve progress ring
@@ -2685,10 +2737,16 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) 
                 modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(6.dp)).background(Panel.copy(alpha = 0.9f)).padding(horizontal = 4.dp),
             )
         }
-        // mini-map of the train: tap a car to fly the camera to it, tap MAP for the full train map
+        if (vm.featureOpen(Feature.JOURNEY)) RailButton(sp.iconTrophy, "Journey", Color(0xFFCDE7F8), onClick = onJourney)
+        ActiveBoosters(vm)
+        // mini-map of the train: tap a car to fly the camera to it, tap MAP for the full train map.
+        // Every car gets the same height, shrunk so the whole train fits above the footer.
         val cars = vm.carsNow
-        val cell = if (cars > 8) 16.dp else 20.dp
         var showMap by remember { mutableStateOf(false) }
+        androidx.compose.foundation.layout.BoxWithConstraints {
+        val room = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) 400.dp else maxHeight
+        val cell = ((room - 36.dp) / cars).coerceIn(12.dp, 20.dp)
+        val numSize = if (cell < 15.dp) 8.sp else 9.sp
         Column(
             Modifier
                 .width(42.dp)
@@ -2723,7 +2781,7 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) 
                                 .clickable { link.jumpCar = i },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("${i + 1}", fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                            Text("${i + 1}", fontSize = numSize, lineHeight = numSize, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -2738,8 +2796,58 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit) 
                 )
             }
         }
+        }
         if (showMap) TrainMapCard(vm, onPick = { link.jumpCar = it; showMap = false }, onClose = { showMap = false })
     }
+}
+
+internal val FOOTER_H = 104.dp
+const val ZOOM_MIN = 0.6f
+const val ZOOM_MAX = 2.2f
+
+/** Hide/show the UI and zoom the camera in or out (pinch works too). */
+@Composable
+private fun SceneControls(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Panel.copy(alpha = 0.8f))
+            .border(2.dp, Ink, RoundedCornerShape(16.dp))
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        ControlButton(onToggleHide) {
+            Canvas(Modifier.size(20.dp)) {
+                val w = size.width
+                val h = size.height
+                val eye = Path().apply {
+                    moveTo(w * 0.05f, h * 0.5f)
+                    quadraticBezierTo(w * 0.5f, h * 0.02f, w * 0.95f, h * 0.5f)
+                    quadraticBezierTo(w * 0.5f, h * 0.98f, w * 0.05f, h * 0.5f)
+                    close()
+                }
+                drawPath(eye, Ink, style = Stroke(1.8.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                drawCircle(Ink, w * 0.14f, Offset(w * 0.5f, h * 0.5f))
+                if (!hidden) drawLine(Ember, Offset(w * 0.12f, h * 0.88f), Offset(w * 0.88f, h * 0.12f), 2.4.dp.toPx(), StrokeCap.Round)
+            }
+        }
+        ControlButton({ onZoom(1.2f) }, enabled = zoom < ZOOM_MAX - 0.01f) { Text("+", fontSize = 18.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+        ControlButton({ onZoom(1f / 1.2f) }, enabled = zoom > ZOOM_MIN + 0.01f) { Text("−", fontSize = 18.sp, lineHeight = 18.sp, fontWeight = FontWeight.ExtraBold, color = Ink) }
+    }
+}
+
+@Composable
+private fun ControlButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(if (enabled) Color.White.copy(alpha = 0.85f) else PanelHi.copy(alpha = 0.6f))
+            .border(1.5.dp, Ink.copy(alpha = if (enabled) 1f else 0.4f), CircleShape)
+            .clickable(enabled = enabled) { UiSound.click(); onClick() },
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 /** The whole train at a glance: every car with its devices; tap a car to look at it. */
@@ -3602,6 +3710,38 @@ internal fun ChunkyButton(
             horizontalAlignment = Alignment.CenterHorizontally,
             content = content,
         )
+    }
+}
+
+/** A car's header in the upgrades list: tap to fold or open it. */
+@Composable
+private fun CarHeader(text: String, color: Color, note: String, folded: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { UiSound.click(); onToggle() }.padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text.uppercase(), fontSize = 11.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(color).padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(note, fontSize = 10.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(if (folded) "▸" else "▾", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.padding(horizontal = 6.dp))
+    }
+}
+
+@Composable
+private fun SmallChip(label: String, on: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (on) Brush.verticalGradient(listOf(Color(0xFFFFE49A), Color(0xFFFFC85C))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.6f), Color.White.copy(alpha = 0.6f))))
+            .border(2.dp, if (on) Ink else Ink.copy(alpha = 0.35f), RoundedCornerShape(11.dp))
+            .clickable { UiSound.click(); onClick() }
+            .padding(vertical = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (on) Ink else Muted, maxLines = 1, softWrap = false)
     }
 }
 

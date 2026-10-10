@@ -461,7 +461,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         grant(Reward.Passengers(3), quiet = true)
         meta.addStars(15)
         if (Math.random() < 0.35) collectSparkle()
-        showToast("You helped the stranded travellers: +5 gems, +3 passengers")
+        showToast("You helped the stranded travellers: +${earnedGems(5)} gems, +3 passengers")
     }
 
     // mini-games
@@ -535,7 +535,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     // friends
     fun makeGiftCode(): String {
         val code = GiftCodes.make(meta.playerId, today())
-        if (!meta.sentToday) { meta.markSent(); gems += 2; showToast("Thanks for sharing! +2 gems"); save() }
+        if (!meta.sentToday) { meta.markSent(); gems += 1; showToast("Thanks for sharing! +1 gem"); save() }
         return code
     }
     fun redeemCode(code: String): String {
@@ -545,11 +545,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (c in meta.redeemed) return "You already opened this gift."
         if (meta.redeemedToday >= 3) return "You can open 3 gifts a day. Come back tomorrow!"
         meta.markRedeemed(c)
-        gems += 5
+        gems += 2
         meta.addStars(10)
         audio.play(R.raw.sfx_buy)
         save()
-        return "Gift opened: +5 gems!"
+        return "Gift opened: +2 gems!"
     }
 
     /** Called by the scene when the train enters a region (index into the scene's region list). */
@@ -773,7 +773,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun dailyCoins(streak: Int): Double =
         max(200.0, baseCoinsPerSec * 900.0) * (1.0 + 0.25 * (min(streak, 7) - 1))
     fun dailyGivesCore(streak: Int): Boolean = streak % 7 == 0
-    fun dailyGems(streak: Int): Int = if (streak % 7 == 0) Balance.DAILY_GEMS * 5 else Balance.DAILY_GEMS
+    fun dailyGems(streak: Int): Int = if (streak % 7 == 0) Balance.DAILY_GEMS * 4 else Balance.DAILY_GEMS
 
     /** Time until tomorrow's daily gift, like "5h 12m". */
     val nextGiftIn: String
@@ -824,7 +824,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     val xpNeeded: Int get() = xpForLevel(playerLevel)
     var levelUpSerial by mutableIntStateOf(0); private set
     var levelUpGems by mutableIntStateOf(0); private set
-    fun levelGems(level: Int): Int = 5 + level
+    fun levelGems(level: Int): Int = 2 + level / 4
 
     fun addXp(amount: Int) {
         xp += amount * (if (todaysSpecial() == DailySpecial.XP_DAY) 2 else 1)
@@ -1247,7 +1247,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var gemTradeDay = prefs.getLong("gemDay", -1L)
     var gemsTradedToday by mutableIntStateOf(if (gemTradeDay == java.time.LocalDate.now().toEpochDay()) prefs.getInt("gemTraded", 0) else 0); private set
     val gemTradeLeft: Int get() = Balance.GEM_TRADE_PER_DAY - (if (gemTradeDay == today()) gemsTradedToday else 0)
-    fun gemTradeCost(t: GemTrade): Double = floor(max(250.0 * t.gems, baseCoinsPerSec * t.incomeSec))
+    fun gemTradeCost(t: GemTrade): Double = floor(max(5000.0 * t.gems, baseCoinsPerSec * t.incomeSec))
     fun tradeForGems(t: GemTrade) {
         val cost = gemTradeCost(t)
         if (coins < cost || gemTradeLeft < t.gems) return
@@ -1471,7 +1471,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (!endlessFuel) boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         val extraLen = effSum(Eff.BOOSTLEN)
         boostTimeLeft = min((Balance.BOOST_MAX_SEC + extraLen * 4.0) * boostLenMult, boostTimeLeft + (Balance.BOOST_SEC_PER_TAP + extraLen) * boostLenMult)
-        if (!endlessFuel && boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
+        if (!endlessFuel && boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // empty: unlocks again as soon as one tap is recharged
     }
 
     /** Increases with every evolve. */
@@ -1686,7 +1686,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         if (shopFuelLeft > 0.0) { shopFuelLeft = max(0.0, shopFuelLeft - dt); boostMeter = 1.0; boostLocked = false }
         if (boostTimeLeft > 0.0) boostTimeLeft = max(0.0, boostTimeLeft - dt)
         if (boostMeter < 1.0) boostMeter = min(1.0, boostMeter + rechargePerSec * dt)
-        if (boostLocked && boostMeter >= 1.0) boostLocked = false
+        if (boostLocked && boostMeter >= Balance.BOOST_COST_PER_TAP) boostLocked = false // one tap's worth is enough
     }
 
     private fun startLoop() {
