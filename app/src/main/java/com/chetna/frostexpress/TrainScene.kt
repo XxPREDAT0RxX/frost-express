@@ -2049,8 +2049,8 @@ private fun DrawScope.drawSleeper(sp: GameSprites, top: Float, time: Float, a: F
     // head on the pillow (the sleeping sprite's head, lying sideways)
     val img = sp.npcSleep ?: sp.npc
     if (img != null) {
-        val hx = 19f
-        val hy = top + 92f + breath * 0.25f
+        val hx = 17.5f
+        val hy = top + 92.5f + breath * 0.25f
         withTransform({ rotate(-90f, Offset(hx * u, hy * u)) }) {
             drawImage(
                 img,
@@ -2065,10 +2065,10 @@ private fun DrawScope.drawSleeper(sp: GameSprites, top: Float, time: Float, a: F
     val lift = 1.1f + 0.9f * breath
     val by = top + 86.5f - lift
     val bh = 12.5f + lift
-    box(ink, 23f, by - 0.9f, 33f, bh + 1.8f, 4.5f)
-    box(Color(0xFF8EC3E8).copy(alpha = a), 24f, by, 31f, bh, 3.8f)
-    box(Color(0xFFBFE0F5).copy(alpha = a), 24.5f, by + 0.6f, 30f, 2.6f, 1.3f)
-    line(Color(0xFF6FA6CF).copy(alpha = a * 0.8f), 34f, by + 4f, 34f, by + bh - 1.5f, 0.8f)
+    box(ink, 25.5f, by - 0.9f, 30.5f, bh + 1.8f, 4.5f)
+    box(Color(0xFF8EC3E8).copy(alpha = a), 26.5f, by, 28.5f, bh, 3.8f)
+    box(Color(0xFFBFE0F5).copy(alpha = a), 27f, by + 0.6f, 27.5f, 2.6f, 1.3f)
+    line(Color(0xFF6FA6CF).copy(alpha = a * 0.8f), 35f, by + 4f, 35f, by + bh - 1.5f, 0.8f)
     line(Color(0xFF6FA6CF).copy(alpha = a * 0.8f), 44f, by + 4f, 44f, by + bh - 1.5f, 0.8f)
     // Zzz floating up and to the right, growing and fading
     for (k in 0 until 3) {
