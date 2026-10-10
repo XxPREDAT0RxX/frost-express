@@ -88,16 +88,43 @@ private class SceneArt(
  * The regions the train passes, one after another. Each slot kind of the roadside scenery
  * (0 small, 1 landmark, 3 tall, 5 accent, 6 low) gets its own sprites per region; [lakes] turns snow drifts into frozen lakes.
  */
-private class Zone(val name: String, val slots: Map<Int, List<String>>, val lakes: Boolean = false)
-
-private val ZONES = listOf(
-    Zone("the Frozen Forest", mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("pine_a", "pine_b"), 3 to listOf("dead_a", "dead_b"), 5 to listOf("pine_c"), 6 to listOf("shrub"))),
-    Zone("a Buried Town", mapOf(0 to listOf("lamp", "sign", "pole"), 1 to listOf("ruin_a", "ruin_b", "car", "bus"), 3 to listOf("dead_a", "lamp"), 5 to listOf("car", "sign"), 6 to listOf("shrub"))),
-    Zone("the Ice Fields", mapOf(0 to listOf("ice"), 1 to listOf("cliff", "ice"), 3 to listOf("ice", "dead_b"), 5 to listOf("ice"), 6 to listOf("rock_a", "rock_b")), lakes = true),
-    Zone("the Old Wind Farm", mapOf(0 to listOf("turbine", "pole"), 1 to listOf("tank", "crane", "container"), 3 to listOf("turbine"), 5 to listOf("container", "pole"), 6 to listOf("shrub"))),
-    Zone("the Frozen Harbour", mapOf(0 to listOf("buoy"), 1 to listOf("ship", "lighthouse", "container"), 3 to listOf("buoy", "lamp"), 5 to listOf("ship"), 6 to listOf("rock_a")), lakes = true),
-    Zone("the Survivor Camps", mapOf(0 to listOf("pine_a", "pine_b"), 1 to listOf("cliff", "tent"), 3 to listOf("tent", "campfire"), 5 to listOf("campfire", "dead_a"), 6 to listOf("shrub", "rock_b"))),
+private class Zone(
+    val name: String, val ground: Long, val snowy: Boolean, val temp: Int,
+    val slots: Map<Int, List<String>>, val lakes: Boolean = false,
 )
+
+/** The lands the Little Express travels through, one after another, then looping. */
+private val ZONES = listOf(
+    Zone("the Green Meadow", 0xFFAFD98C, false, 22, mapOf(0 to listOf("tree_round", "bush"), 1 to listOf("tree_round", "tree_tall"), 3 to listOf("tree_tall"), 5 to listOf("flowers", "bush"), 6 to listOf("grass_tuft", "flowers"))),
+    Zone("the Pine Woods", 0xFF93C47D, false, 16, mapOf(0 to listOf("tree_tall", "bush"), 1 to listOf("tree_tall", "tree_round"), 3 to listOf("tree_tall"), 5 to listOf("fern", "bush"), 6 to listOf("grass_tuft", "boulder"))),
+    Zone("the Golden Savanna", 0xFFE6CE86, false, 31, mapOf(0 to listOf("grass_tuft", "dry_bush"), 1 to listOf("acacia"), 3 to listOf("acacia"), 5 to listOf("boulder", "grass_tuft"), 6 to listOf("grass_tuft", "dry_bush"))),
+    Zone("the Red Desert", 0xFFE7BC89, false, 39, mapOf(0 to listOf("cactus_ball", "dry_bush"), 1 to listOf("cactus", "mesa"), 3 to listOf("cactus", "mesa"), 5 to listOf("boulder", "cactus_ball"), 6 to listOf("dry_bush", "grass_tuft"))),
+    Zone("the Rainforest", 0xFF86C58F, false, 28, mapOf(0 to listOf("fern", "jungle"), 1 to listOf("palm", "jungle"), 3 to listOf("palm"), 5 to listOf("jungle", "fern"), 6 to listOf("fern", "grass_tuft"))),
+    Zone("the Snowfields", 0xFFDCE6EE, true, -18, mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("cliff", "ice"), 3 to listOf("dead_a", "pine_a"), 5 to listOf("ice", "rock_a"), 6 to listOf("shrub", "rock_b")), lakes = true),
+)
+
+/** Ground colour at a world position, cross-faded across biome borders. */
+private fun groundColorAt(key: Float): Color {
+    val raw = key / ZONE_LEN
+    val n = Math.round(raw)
+    val before = ZONES[Math.floorMod(n - 1, ZONES.size)]
+    val after = ZONES[Math.floorMod(n, ZONES.size)]
+    val edge = 0.14f
+    val d = raw - n
+    val a = ((d + edge) / (2f * edge)).coerceIn(0f, 1f)
+    return androidx.compose.ui.graphics.lerp(Color(before.ground), Color(after.ground), a)
+}
+
+/** How snowy (0..1) the land is at a world position, cross-faded across borders. */
+private fun snowAt(key: Float): Float {
+    val raw = key / ZONE_LEN
+    val n = Math.round(raw)
+    val before = if (ZONES[Math.floorMod(n - 1, ZONES.size)].snowy) 1f else 0f
+    val after = if (ZONES[Math.floorMod(n, ZONES.size)].snowy) 1f else 0f
+    val edge = 0.14f
+    val a = ((raw - n + edge) / (2f * edge)).coerceIn(0f, 1f)
+    return before + (after - before) * a
+}
 /** Distance (dp of scenery) the train spends in each region. */
 private const val ZONE_LEN = 2600f
 
@@ -135,6 +162,11 @@ private fun rememberSceneArt(): SceneArt {
         "container" to R.drawable.spr_container, "ship" to R.drawable.spr_ship, "lighthouse" to R.drawable.spr_lighthouse,
         "buoy" to R.drawable.spr_buoy, "tent" to R.drawable.spr_tent, "campfire" to R.drawable.spr_campfire,
         "cliff" to R.drawable.spr_cliff, "lake" to R.drawable.spr_lake,
+        "tree_round" to R.drawable.spr_tree_round, "tree_tall" to R.drawable.spr_tree_tall, "bush" to R.drawable.spr_bush,
+        "flowers" to R.drawable.spr_flowers, "cactus" to R.drawable.spr_cactus, "cactus_ball" to R.drawable.spr_cactus_ball,
+        "mesa" to R.drawable.spr_mesa, "dry_bush" to R.drawable.spr_dry_bush, "palm" to R.drawable.spr_palm,
+        "jungle" to R.drawable.spr_jungle, "fern" to R.drawable.spr_fern, "acacia" to R.drawable.spr_acacia,
+        "grass_tuft" to R.drawable.spr_grass_tuft, "boulder" to R.drawable.spr_boulder,
     ).map { (n, id) -> n to ImageBitmap.imageResource(id) }
     return remember(snow, track, wood) {
         SceneArt(
@@ -483,6 +515,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     val survivors = remember { List(10) { Npc() } }
     val stations = remember { ArrayList<Station>().apply { if (!vm.debugStationAt.isNaN()) add(Station(vm.debugStationAt)) } }
     val halfH = remember { floatArrayOf(300f) }
+    val startStop = remember { booleanArrayOf(false) }
     val stopFactor = remember { floatArrayOf(1f) }
     val shelterDwell = remember { floatArrayOf(-1f) }
     var seenStations by remember { mutableIntStateOf(vm.stationSerial) }
@@ -515,6 +548,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     acc = 0f
                     val boosting = vm.isBoosting
                     time += dt
+                    // the train begins each session standing at a platform, then pulls away
+                    if (!startStop[0] && halfH[0] > 1f) {
+                        startStop[0] = true
+                        stations.add(Station(halfH[0]))
+                    }
                     while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(if (vm.debugStationAt.isNaN()) -160f else vm.debugStationAt)) }
                     while (seenStorms < vm.stormStationSerial) { seenStorms++; stations.add(Station(-260f, stop = true)) }
                     // Every station: slow down, stand while passengers get off and on, then pull away.
@@ -544,7 +582,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     scroll += ds
                     // a new region of the frozen world reaches the train
                     val zoneNow = zoneAt(scroll - halfH[0])
-                    if (zoneNow != zoneSeen[0]) { vm.enterRegion(zoneNow, ZONES[zoneNow].name); zoneSeen[0] = zoneNow }
+                    if (zoneNow != zoneSeen[0]) { vm.enterRegion(zoneNow, ZONES[zoneNow].name, ZONES[zoneNow].temp); zoneSeen[0] = zoneNow }
                     if (seenCrates < vm.crateSerial) {
                         seenCrates = vm.crateSerial
                         crate[0] = 1f; crate[1] = -70f; crate[2] = if (Math.random() < 0.5) 0f else 1f
@@ -830,15 +868,18 @@ private fun DrawScope.drawScene(
     val worldDp = (npc.camAuto - npc.camY) * z
     sceneStationNear = stations.any { kotlin.math.abs(it.y + worldDp - h / u / 2f) < ST_LEN }
     npc.centerOffDp = centerOff
+    val groundKey = scroll + worldDp - h / (u * 2f)
+    val snowAmt = snowAt(groundKey)
+    sceneSnow = snowAmt
+    // the land the train is passing through, cross-fading from one biome to the next
+    drawRect(groundColorAt(groundKey), size = size)
     val art = sceneArt
-    if (art != null) {
-        // painted snow that scrolls with the ground (256 dp tile)
+    if (art != null && snowAmt > 0.01f) {
+        // the snowfields keep the painted snow texture and a cold grey-blue tint
         val tile = 256f
-        texRect(art.snow, 0f, -tile, w / u, h / u + 2f * tile, 2f, ay = (((scroll + worldDp) % tile) + tile) % tile - tile)
-        // the cold has taken the colour out of the world: a pale, grey-blue frozen land
-        drawRect(Color(0xFF8DA2B8).copy(alpha = 0.16f), size = size)
-    } else {
-        drawRect(Brush.verticalGradient(listOf(Color(0xFFEEF5FA), Color(0xFFDDE8F1))), size = size)
+        drawRect(Color(0xFFE4ECF3).copy(alpha = snowAmt), size = size)
+        texRect(art.snow, 0f, -tile, w / u, h / u + 2f * tile, 2f, ay = (((scroll + worldDp) % tile) + tile) % tile - tile, alpha = snowAmt)
+        drawRect(Color(0xFF8DA2B8).copy(alpha = 0.16f * snowAmt), size = size)
     }
     drawDecor(scroll + worldDp, originX, trainPx, h, u)
     if (fx) safeFx { drawGroundFx(time, scroll + worldDp, w, h, u, dark, storm) }
@@ -860,7 +901,7 @@ private fun DrawScope.drawScene(
     }
     // sky effects and snowfall stay outside: the cars are sealed, so their insides stay clear in storms
     if (aurora) drawAurora(time, w, h)
-    drawSnowfall(time, w, h, u, storm)
+    if (sceneSnow > 0.01f || storm > 0f) drawSnowfall(time, w, h, u, storm)
     // ...and the lit train interior is drawn on top, only slightly dimmed and warmed by its lamps.
     translate(left = originX, top = ny) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
@@ -910,6 +951,7 @@ private var sceneGfx = 2
 private var sceneFlashCar = -1
 private var sceneTier = 0
 private var sceneStorm = 0f
+private var sceneSnow = 0f
 private var sceneStationNear = false
 private var sceneGolden: List<String> = emptyList()
 private var sceneDecor: List<String> = emptyList()
@@ -953,7 +995,7 @@ private fun DrawScope.drawGroundFx(time: Float, scroll: Float, w: Float, h: Floa
         val y = ((scroll * 0.35f + i * 380f) % (h / u + 300f)) * u - 150f * u
         drawOval(Color(0x16203050), Offset(x - 130f * u, y - 70f * u), Size(260f * u, 140f * u))
     }
-    if (dark < 0.12f && storm < 0.3f) {
+    if (sceneSnow > 0.3f && dark < 0.12f && storm < 0.3f) {
         for (i in 0 until 26) {
             val fx = ((i * 0.7548777f) % 1f) * w
             val fy = ((((i * 0.5698403f) % 1f) * h + scroll * u) % h)
@@ -1740,7 +1782,7 @@ private fun DrawScope.drawWindowLight(cars: Int, dark: Float) {
 
 /** [storm] 0 = light snow, 1 = full snow storm (dense wind-driven flakes, streaks and a white-out). */
 private fun DrawScope.drawSnowfall(time: Float, w: Float, h: Float, u: Float, storm: Float) {
-    val n = (26 + (150 * storm).toInt()) / (if (sceneGfx == 0) 2 else 1)
+    val n = ((26 * sceneSnow).toInt() + (150 * storm).toInt()) / (if (sceneGfx == 0) 2 else 1)
     val wind = 10f + 50f * storm
     val fall = 26f + 110f * storm
     val drift = 120f * storm

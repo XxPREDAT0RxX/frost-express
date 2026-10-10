@@ -73,7 +73,7 @@ class PlayGamesCloud(private val activity: Activity) : CloudSaveProvider {
                     snapshot.snapshotContents.writeBytes(json.toByteArray(Charsets.UTF_8))
                     client.commitAndClose(
                         snapshot,
-                        SnapshotMetadataChange.Builder().setDescription("Frost Express progress").build(),
+                        SnapshotMetadataChange.Builder().setDescription("Little Express progress").build(),
                     )
                 }
             }

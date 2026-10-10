@@ -338,6 +338,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private var promptLeft = 0.0
     var activeMinigame by mutableStateOf<MiniGame?>(null); private set
     var zone by mutableIntStateOf(-1); private set
+    /** The current biome's typical temperature (°C), shown in the header. */
+    var regionTemp by mutableIntStateOf(18); private set
     var postcardSerial by mutableIntStateOf(0); private set
     var critSerial by mutableIntStateOf(0); private set
     var critAmount by mutableDoubleStateOf(0.0); private set
@@ -465,6 +467,38 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // mini-games
+    // ---- Trail: things that scroll past while you watch; tap them for coins, boost or a gift ----
+    /** Catches in a row; a bigger combo multiplies the coin catches (up to x3). */
+    var trailCombo by mutableIntStateOf(0); private set
+    private var trailComboLeft = 0.0
+    val trailMultiplier: Double get() = 1.0 + min(trailCombo, 20) * 0.1
+    /** Bumps every time a trail item is caught, so the UI can flash the combo. */
+    var trailSerial by mutableIntStateOf(0); private set
+    /** Coins from the last catch, for the floating pop. */
+    var trailLastCoins by mutableDoubleStateOf(0.0); private set
+
+    /** 0 coal, 1 crystal, 2 log, 3 gift. */
+    fun catchTrail(type: Int) {
+        trailCombo = (trailCombo + 1).coerceAtMost(99)
+        trailComboLeft = 4.0
+        trailSerial++
+        val m = trailMultiplier
+        var coinsGot = 0.0
+        when (type) {
+            0 -> { coinsGot = max(20.0, baseCoinsPerSec * 3.0) * m; audio.play(R.raw.sfx_coin, 0.5f) }         // coal
+            1 -> { coinsGot = max(15.0, baseCoinsPerSec * 2.0) * m; if (!endlessFuel) { boostMeter = min(1.0, boostMeter + 0.3); if (boostMeter >= Balance.BOOST_COST_PER_TAP) boostLocked = false }; audio.play(R.raw.sfx_upgrade, 0.5f) } // ice crystal
+            2 -> { coinsGot = max(40.0, baseCoinsPerSec * 8.0) * m; audio.play(R.raw.sfx_coin, 0.6f) }         // log (plow)
+            3 -> {                                                                                              // gift
+                val item = listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET, ShopItem.TANK).random()
+                inventory[item.ordinal] = owned(item) + 1
+                showToast("Trail gift: ${item.title} added to your bag!")
+                audio.play(R.raw.sfx_buy)
+            }
+        }
+        if (coinsGot > 0.0) { coins += coinsGot; trailLastCoins = coinsGot }
+        meta.addStars(1)
+    }
+
     fun startMinigame() { activeMinigame = minigamePrompt; minigamePrompt = null }
     fun finishMinigame(game: MiniGame, score: Int) {
         activeMinigame = null
@@ -553,9 +587,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Called by the scene when the train enters a region (index into the scene's region list). */
-    fun enterRegion(i: Int, name: String) {
+    fun enterRegion(i: Int, name: String, temp: Int = 18) {
         val first = zone >= 0
         zone = i
+        regionTemp = temp
         if (first) showToast("Now passing: $name")
         if (meta.addPostcard(i)) postcardSerial++
     }
@@ -1663,6 +1698,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.setRails(moveFactor.toFloat())
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         if (evolveRushLeft > 0.0) evolveRushLeft = max(0.0, evolveRushLeft - dt)
+        if (trailComboLeft > 0.0) { trailComboLeft -= dt; if (trailComboLeft <= 0.0) trailCombo = 0 }
         if (autoBuy && autoBuyUnlocked) {
             autoBuyT += dt
             if (autoBuyT >= 2.0) { autoBuyT = 0.0; autoBuyOnce() }

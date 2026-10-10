@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Frost Express</string>
+    <string name="app_name">Little Express</string>
     <!-- Project id from Play Console > Play Games Services > Configuration. Placeholder until you set it up. -->
     <string name="game_services_project_id" translatable="false">0000000000</string>
 </resources>

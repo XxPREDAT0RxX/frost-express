@@ -596,8 +596,8 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                     StatChip("${fmt(vm.speed, 1)} m/s", Ice)
                     StatChip("+${fmt(vm.coinsPerSec, 1)}/s", Mint)
                     PassengerChip(vm)
-                    val temp = (-38f - 14f * (vm.darkness / 0.42f) - 22f * vm.stormLevel).toInt()
-                    StatChip("$temp°C", Color(0xFF4C8DB8))
+                    val temp = (vm.regionTemp - 7f * (vm.darkness / 0.42f) - 10f * vm.stormLevel).toInt()
+                    StatChip("$temp°C", if (temp <= 0) Color(0xFF4C8DB8) else if (temp >= 30) Color(0xFFE08A4C) else Color(0xFF5BA06B))
                 }
                 // time of day and the evolve progress (label inside the bar)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -978,7 +978,7 @@ private fun SettingsDialog(vm: GameViewModel, onClose: () -> Unit) {
                     }
                     PillButton("Reset progress", Color(0xFFF3D3CF), Color(0xFFB03A2E)) { confirmReset = true }
                 }
-                Text("Frost Express v${BuildConfigVersion}", fontSize = 10.sp, color = Muted)
+                Text("Little Express v${BuildConfigVersion}", fontSize = 10.sp, color = Muted)
             }
         },
         confirmButton = {
@@ -1653,7 +1653,7 @@ fun CrashScreen(report: String, onContinue: () -> Unit, onReset: () -> Unit) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Frost Express crashed last time", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("Little Express crashed last time", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(
             "Sorry about that! Please copy this report (or take a screenshot) and send it to the developer. " +
                 "Safe mode is on: post-processing is off and the frame rate is 60.",
@@ -3255,7 +3255,7 @@ fun LoadingScreen(progress: Float) {
     val tip = tips[(progress * (tips.size - 1)).toInt().coerceIn(0, tips.size - 1)]
     Box(Modifier.fillMaxSize().background(Color(0xFFF4F9FD))) {
         Image(
-            androidx.compose.ui.res.painterResource(R.drawable.splash_art), "Frost Express",
+            androidx.compose.ui.res.painterResource(R.drawable.splash_art), "Little Express",
             Modifier.fillMaxSize(),
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             alignment = Alignment.TopCenter,
