@@ -58,7 +58,10 @@ class ScreenshotTest {
 
     private fun vm() = GameViewModel(ApplicationProvider.getApplicationContext<Application>())
 
-    private fun runAll(size: String, screen: String) {
+    private fun runBiome(screen: String) = runAll("normal", "biome:$screen")
+    private fun runAll(size: String, screen0: String) {
+        val screen = if (screen0.startsWith("biome:")) screen0.removePrefix("biome:") else screen0
+
         when (screen) {
             "loading" -> shot("${size}_1_loading") { LoadingScreen(0.6f) }
             "game" -> { playing(); val v = vm(); shot("${size}_2_game") { GameScreen(v) } }
@@ -95,6 +98,13 @@ class ScreenshotTest {
             "route" -> { playing(); prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("evo", 4); putInt("plvl", 3); putString("routeCh", "GOLD_LINE,FAST_TRACK,CHEAP_PARTS,NIGHT_SHIFT") }; val v = vm(); shot("${size}_20_route") { GameScreen(v) } }
             "feature" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("plvl", 2); putString("featSeen", "") }; val v = vm(); shot("${size}_21_feature") { GameScreen(v) } }
             "away" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putLong("last", System.currentTimeMillis() - 2 * 3600_000L) }; val v = vm(); v.openParcel(); shot("${size}_22_away") { GameScreen(v) } }
+            "meadow", "savanna", "desert", "rainforest" -> {
+                val dists = mapOf("meadow" to "1700", "savanna" to "8200", "desert" to "9500", "rainforest" to "12100")
+                val d = dists[screen] ?: "1700"
+                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("totalDist", d); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
+                val v = vm()
+                shot("${size}_25_$screen") { GameScreen(v) }
+            }
             "bigtrain" -> {
                 prefs {
                     putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
@@ -165,6 +175,10 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_feature() = runAll("normal", "feature")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_away() = runAll("normal", "away")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bigtrain() = runAll("normal", "bigtrain")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bmeadow() = runBiome("meadow")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bsavanna() = runBiome("savanna")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bdesert() = runBiome("desert")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_brainforest() = runBiome("rainforest")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bigupgrades() = runAll("normal", "bigupgrades")
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_bigtrain() = runAll("small", "bigtrain")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_anims() = runAll("normal", "anims")
