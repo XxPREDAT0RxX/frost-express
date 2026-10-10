@@ -13,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -2194,7 +2196,7 @@ private fun DrawScope.drawKeepsakeSparkle(cx: Float, cy: Float, time: Float) {
 @androidx.compose.runtime.Composable
 internal fun SceneAnimPreview() {
     val sp = rememberGameSprites()
-    androidx.compose.foundation.Canvas(androidx.compose.foundation.layout.fillMaxSize(Modifier).let { androidx.compose.foundation.background(it, Color(0xFFF3E9DA)) }) {
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize().background(Color(0xFFF3E9DA))) {
         sceneSprites = sp
         sceneNpc2 = null
         val cell = size.width / 3f
