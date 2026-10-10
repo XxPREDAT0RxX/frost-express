@@ -248,6 +248,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onGift = { showGift = true },
                 controls = {
                     SceneControls(
+                        horizontal = LocalConfiguration.current.screenHeightDp < 700,
                         hidden = false,
                         zoom = link.zoom,
                         onToggleHide = { uiHidden = true; sheet = 0 },
@@ -2820,16 +2821,19 @@ const val ZOOM_MAX = 2.2f
 
 /** Hide/show the UI and zoom the camera in or out (pinch works too). */
 @Composable
-private fun SceneControls(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Panel.copy(alpha = 0.8f))
-            .border(2.dp, Ink, RoundedCornerShape(16.dp))
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+private fun SceneControls(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit, modifier: Modifier = Modifier, horizontal: Boolean = false) {
+    val box = modifier
+        .clip(RoundedCornerShape(16.dp))
+        .background(Panel.copy(alpha = 0.8f))
+        .border(2.dp, Ink, RoundedCornerShape(16.dp))
+        .padding(4.dp)
+    if (horizontal) Row(box, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { SceneControlButtons(hidden, zoom, onToggleHide, onZoom) }
+    else Column(box, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) { SceneControlButtons(hidden, zoom, onToggleHide, onZoom) }
+}
+
+@Composable
+private fun SceneControlButtons(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit) {
+    run {
         ControlButton(onToggleHide) {
             Canvas(Modifier.size(20.dp)) {
                 val w = size.width
