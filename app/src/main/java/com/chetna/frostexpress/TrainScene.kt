@@ -1199,6 +1199,8 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zon
             return
         }
     }
+    // kind 4 is a ground patch: a frozen lake in the snowfields, nothing in the green/warm lands
+    if (art != null && kind == 4 && !z.lakes) return
     val names = z.slots[kind]
     if (art != null && kind != 4 && names != null && art.byName.isNotEmpty()) {
         val pick = ((x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
