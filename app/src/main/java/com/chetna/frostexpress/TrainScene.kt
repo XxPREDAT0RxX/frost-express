@@ -758,6 +758,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneGolden = vm.meta.golden.toList()
         sceneDecor = vm.meta.decor.toList()
         sceneTier = vm.tierIndex
+        scenePassengers = vm.passengers
         sceneWalkers = FloatArray(2 + 2 + survivors.size * 2).also { a ->
             a[0] = npc.x; a[1] = npc.y
             val crew = vm.permLevel(PermType.CREW) > 0
@@ -952,6 +953,7 @@ private var sceneFlashCar = -1
 private var sceneTier = 0
 private var sceneStorm = 0f
 private var sceneSnow = 0f
+private var scenePassengers = 0
 private var sceneStationNear = false
 private var sceneGolden: List<String> = emptyList()
 private var sceneDecor: List<String> = emptyList()
@@ -1326,6 +1328,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             1 -> drawUtilityCar(top, look, npc, time)
             else -> drawModuleCar(top, i, look, time)
         }
+        drawSeatRow(top, i, cars)
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
     drawCarDoors(cars, npc)
@@ -1335,6 +1338,55 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         if ("LIGHTS" in sceneDecor) drawStringLights(top, time)
         if ("LANTERNS" in sceneDecor) drawLanterns(top, time)
     }
+}
+
+/** Seated passengers riding in one car: two columns of three seats beside the aisle, filled to the current count. */
+private fun DrawScope.drawSeatRow(top: Float, car: Int, cars: Int) {
+    val perCar = Balance.SEATS_PER_CAR
+    // spread the riders evenly across the cars
+    val base = scenePassengers / max(1, cars)
+    val extra = scenePassengers % max(1, cars)
+    val here = (base + if (car < extra) 1 else 0).coerceIn(0, perCar)
+    val cols = floatArrayOf(AISLE_X - 19f, AISLE_X + 19f)
+    val rows = floatArrayOf(top + 30f, top + 58f, top + 86f)
+    var n = 0
+    for (r in 0 until 3) for (c in 0 until 2) {
+        val seat = r * 2 + c
+        val x = cols[c]; val y = rows[r]
+        val filled = seat < here
+        drawPassenger(x, y, filled, (car * 31 + seat * 7))
+        n++
+    }
+}
+
+private val PAX_JACKETS = longArrayOf(0xFFEF8A5C, 0xFF6FB07A, 0xFFE07AA0, 0xFF7FB3D8, 0xFFB59CE8, 0xFFE8C05C, 0xFF5BBE9E, 0xFFD98A6A)
+private val PAX_HATS = longArrayOf(0xFF7FD8FF, 0xFFFFD36A, 0xFFF2A0B5, 0xFFA6D9BB, 0xFFFFFFFF, 0xFFD6B8F0)
+
+private fun DrawScope.drawPassenger(x: Float, y: Float, filled: Boolean, seed: Int) {
+    val u = density
+    if (!filled) {
+        // an empty seat: a little cushion
+        box(Color(0xFF6B4A3A).copy(alpha = 0.35f), x - 5.5f, y - 3f, 11f, 8f, 3f)
+        box(Color(0xFFDFC9A8).copy(alpha = 0.55f), x - 4.5f, y - 2.4f, 9f, 6.4f, 2.4f)
+        return
+    }
+    val jacket = Color(PAX_JACKETS[Math.floorMod(seed, PAX_JACKETS.size)])
+    val hat = Color(PAX_HATS[Math.floorMod(seed * 3 + 1, PAX_HATS.size)])
+    val skin = Color(0xFFF3D3B3)
+    // seat back
+    box(Color(0xFF6B4A3A), x - 6f, y - 4f, 12f, 12f, 3.5f)
+    box(Color(0xFFCBB08A), x - 5f, y - 3.2f, 10f, 10.4f, 2.8f)
+    // body (jacket) + head + hat, drawn small, facing the aisle
+    drawCircle(jacket, 5.2f * u, Offset(x * u, (y + 3f) * u))
+    drawCircle(Color(0xFF6B4A3A), 5.2f * u, Offset(x * u, (y + 3f) * u), style = Stroke(1.1f * u))
+    drawCircle(skin, 3.4f * u, Offset(x * u, (y - 2f) * u))
+    drawCircle(Color(0xFF6B4A3A), 3.4f * u, Offset(x * u, (y - 2f) * u), style = Stroke(1f * u))
+    // little hat on top
+    drawArc(hat, 180f, 180f, true, topLeft = Offset((x - 3.6f) * u, (y - 5.4f) * u), size = Size(7.2f * u, 5.2f * u))
+    drawArc(Color(0xFF6B4A3A), 180f, 180f, false, topLeft = Offset((x - 3.6f) * u, (y - 5.4f) * u), size = Size(7.2f * u, 5.2f * u), style = Stroke(1f * u))
+    // eyes
+    drawCircle(Color(0xFF4A3528), 0.7f * u, Offset((x - 1.2f) * u, (y - 2f) * u))
+    drawCircle(Color(0xFF4A3528), 0.7f * u, Offset((x + 1.2f) * u, (y - 2f) * u))
 }
 
 /** A cosy red runner down the aisle (under everything else in the car). */

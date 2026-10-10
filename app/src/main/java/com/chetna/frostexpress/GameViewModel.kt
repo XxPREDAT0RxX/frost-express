@@ -510,7 +510,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         when (game) {
             MiniGame.SNOW -> stormLeft = min(stormLeft, max(Balance.STORM_FADE_SEC, stormLeft - 15.0))
             MiniGame.COAL -> { boostMeter = 1.0; boostLocked = false }
-            MiniGame.TICKETS -> paxMult += 0.01 * score
+            MiniGame.TICKETS -> passengers = min(seats, passengers + max(1, score))
         }
         audio.play(R.raw.sfx_buy)
         showToast("${game.title.trimEnd('!')} done: +${fmt(gain)} coins")
@@ -705,34 +705,47 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var passengers by mutableIntStateOf(prefs.getInt("pax", 0)); private set
     /** Income multiplier from the passengers on board, rolled again at every station. */
     var paxMult by mutableDoubleStateOf(prefs.getFloat("paxMult", 1f).toDouble()); private set
-    /** Seats: four per car. */
-    val seats: Int get() = 4 * carsNow
+    /** Seats, and so the most passengers the train can carry. */
+    val seats: Int get() = Balance.SEATS_PER_CAR * carsNow
+    /** What one seated passenger pays per second (scales with every comfort/income upgrade). */
+    val farePerPassenger: Double get() = coinsPerMeter * Balance.BASE_SPEED * Balance.PASSENGER_FARE
+    /** Coins per second from the passengers riding right now — the main income. */
+    val fareIncome: Double get() = passengers * farePerPassenger
+    private val trickleIncome: Double get() = speed * coinsPerMeter * Balance.DISTANCE_TRICKLE
+    /** How full the train is, 0..1. */
+    val occupancy: Float get() = if (seats <= 0) 0f else (passengers.toFloat() / seats).coerceIn(0f, 1f)
+    /** The dining car: counts down to the next sale. */
+    private var diningLeft = Balance.DINING_SEC
+    var diningSerial by mutableIntStateOf(0); private set
+    var diningAmount by mutableDoubleStateOf(0.0); private set
 
     /**
      * Called by the scene when the train stops at a station. Returns (got off, got on) for the animation.
      * Fares: the station pays more for every passenger who boards.
      */
     fun collectStation(shelter: Boolean = false, waiting: Int = 6): IntArray {
-        val off = if (passengers > 0) (0..(passengers + 1) / 2).random() else 0
+        // roughly a quarter to a half of the riders reach their stop and get off...
+        val off = if (passengers > 0) Math.round(passengers * (0.25 + Math.random() * 0.25)).toInt() else 0
         val left = passengers - off
-        val on = (1..max(1, waiting)).random().coerceAtMost(max(0, seats - left))
+        // ...and a fresh crowd boards, filling the empty seats
+        val want = (Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random()
+        val on = want.coerceAtMost(max(0, seats - left))
         passengers = left + on
-        // every passenger adds 2% to 6% income, rolled again at each stop
-        paxMult = 1.0 + passengers * (0.02 + Math.random() * 0.04)
-        val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION)) *
-            (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0) * (1.0 + 0.15 * on) *
-            route(RouteBonus.BUSY_STATIONS, 2.0) * daily(DailySpecial.BUSY_DAY, 1.5)
+        // each passenger who finished a trip pays a lump fare (bigger with a ticket booster or a storm shelter)
+        val gain = (max(30.0, farePerPassenger * off * Balance.TRIP_BONUS) * (1.0 + effSum(Eff.STATION)) *
+            (if (shopTicketLeft > 0.0) 2.0 else 1.0) * (if (shelter) 2.0 else 1.0) *
+            route(RouteBonus.BUSY_STATIONS, 2.0) * daily(DailySpecial.BUSY_DAY, 1.5)) * incomeMultiplier
         coins += gain
         stationsVisited++
         if (shelter) stormsSheltered++
         totalBoarded += on
         meta.addStars(3)
         meta.addFlakes(if (shelter && currentEvent().id == 0) 25 else 1)
-        if (shelter && currentEvent().id == 0) coins += gain * 0.5 // Blizzard Week: shelters pay triple
+        if (shelter && currentEvent().id == 0) coins += gain * 0.5 // storm week: shelters pay more
         audio.play(R.raw.sfx_brake, 0.8f)
         showToast(
-            if (shelter) "Storm shelter: +${fmt(gain)} coins · $on aboard, $off off"
-            else "Station: +${fmt(gain)} coins · $on aboard, $off off · passengers x${fmt(paxMult, 2)}"
+            if (shelter) "Shelter stop: +${fmt(gain)} coins · $on aboard, $off off"
+            else "Station: $on aboard, $off off · ${passengers}/${seats} seats · +${fmt(gain)} fares"
         )
         return intArrayOf(off, on)
     }
@@ -1159,12 +1172,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
     val speed: Double get() = travelSpeed * moveFactor
-    val coinsPerSec: Double get() = speed * coinsPerMeter * incomeMultiplier
+    val coinsPerSec: Double get() = (fareIncome + trickleIncome) * incomeMultiplier
     /** Steady income without boosts, shop items or stops; used to size rewards and shop prices. */
     private val baseCoinsPerSec: Double get() = cruiseSpeed * coinsPerMeter
 
@@ -1685,7 +1698,20 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val meters = speed * dt
         runDistance += meters
         totalDistance += meters
-        coins += meters * coinsPerMeter * incomeMultiplier
+        coins += coinsPerSec * dt
+        // the dining car: seated passengers buy food now and then for extra income (needs the galley)
+        diningLeft -= dt
+        if (diningLeft <= 0.0) {
+            diningLeft = Balance.DINING_SEC
+            val foodLvl = level(UpgradeType.FOOD)
+            if (foodLvl > 0 && passengers > 0) {
+                val diners = max(1, passengers / 2)
+                val sale = diners * farePerPassenger * Balance.DINING_K * (1.0 + 0.08 * foodLvl) * incomeMultiplier
+                coins += sale
+                diningAmount = sale
+                diningSerial++
+            }
+        }
         if (popupLeft > 0.0) {
             popupLeft -= dt
             if (popupLeft <= 0.0) achievementPopup = null

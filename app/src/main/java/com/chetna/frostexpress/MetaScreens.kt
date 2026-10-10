@@ -782,9 +782,20 @@ fun MetaPopups(vm: GameViewModel) {
 fun FloatingPops(vm: GameViewModel, modifier: Modifier = Modifier) {
     val crit = remember { Animatable(1f) }
     LaunchedEffect(vm.critSerial) { if (vm.critSerial > 0) { crit.snapTo(0f); crit.animateTo(1f, tween(1600, easing = LinearEasing)) } }
+    val dine = remember { Animatable(1f) }
+    LaunchedEffect(vm.diningSerial) { if (vm.diningSerial > 0) { dine.snapTo(0f); dine.animateTo(1f, tween(1500, easing = LinearEasing)) } }
     val found = remember { Animatable(1f) }
     LaunchedEffect(vm.foundSerial) { if (vm.foundSerial > 0) { found.snapTo(0f); found.animateTo(1f, tween(2600, easing = LinearEasing)) } }
     Box(modifier, contentAlignment = Alignment.Center) {
+        if (dine.value < 1f) {
+            val p = dine.value
+            Text(
+                "🍲 +${fmt(vm.diningAmount)}", fontSize = 16.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ember,
+                modifier = Modifier.offset(y = 40.dp).graphicsLayer {
+                    translationY = -70f * p; alpha = if (p > 0.6f) (1f - p) / 0.4f else 1f
+                }.clip(RoundedCornerShape(12.dp)).background(Color(0xFFFFF0E0).copy(alpha = 0.85f)).border(1.5.dp, Ink, RoundedCornerShape(12.dp)).padding(horizontal = 9.dp, vertical = 3.dp),
+            )
+        }
         if (crit.value < 1f) {
             val p = crit.value
             Text(

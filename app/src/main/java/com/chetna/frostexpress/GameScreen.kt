@@ -647,7 +647,7 @@ private fun PassengerChip(vm: GameViewModel) {
             drawRoundRect(c, Offset(s * 0.18f, s * 0.52f), Size(s * 0.64f, s * 0.48f), CornerRadius(s * 0.3f))
         }
         Spacer(Modifier.width(3.dp))
-        Text("${vm.passengers} · x${fmt(vm.paxMult, 2)}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1, softWrap = false)
+        Text("${vm.passengers}/${vm.seats}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1, softWrap = false)
     }
 }
 
