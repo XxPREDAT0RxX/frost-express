@@ -246,6 +246,14 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onAwards = { sheet = if (sheet == 7) 0 else 7 },
                 onWheel = { showWheel = true },
                 onGift = { showGift = true },
+                controls = {
+                    SceneControls(
+                        hidden = false,
+                        zoom = link.zoom,
+                        onToggleHide = { uiHidden = true; sheet = 0 },
+                        onZoom = { link.zoom = (link.zoom * it).coerceIn(ZOOM_MIN, ZOOM_MAX) },
+                    )
+                },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -275,14 +283,14 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
             ) {
                 RightRail(vm, link, onEvolve = { sheet = if (sheet == 6) 0 else 6 }, onJourney = { sheet = if (sheet == 8) 0 else 8 })
             }
-            SceneControls(
-                hidden = uiHidden,
+            if (uiHidden) SceneControls(
+                hidden = true,
                 zoom = link.zoom,
-                onToggleHide = { uiHidden = !uiHidden; if (uiHidden) sheet = 0 },
+                onToggleHide = { uiHidden = false },
                 onZoom = { link.zoom = (link.zoom * it).coerceIn(ZOOM_MIN, ZOOM_MAX) },
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 8.dp, bottom = (if (uiHidden) 16.dp else FOOTER_H + 10.dp) + bottomInset * (1f - sheetP)),
+                    .padding(start = 8.dp, bottom = 16.dp + bottomInset),
             )
             if (vm.tutorialStage in 1..3) {
                 TutorialGuide(
@@ -2700,7 +2708,7 @@ internal fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: S
 }
 
 @Composable
-private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, onWheel: () -> Unit, onGift: () -> Unit, modifier: Modifier = Modifier) {
+private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, onWheel: () -> Unit, onGift: () -> Unit, controls: @Composable () -> Unit = {}, modifier: Modifier = Modifier) {
     val sp = rememberGameSprites()
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         val q = vm.questsReady + vm.storiesReady
@@ -2708,6 +2716,7 @@ private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Un
         if (vm.featureOpen(Feature.EVENTS)) RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
         if (vm.featureOpen(Feature.WHEEL)) RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
         RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
+        controls()
     }
 }
 
@@ -2745,8 +2754,10 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit, 
         var showMap by remember { mutableStateOf(false) }
         androidx.compose.foundation.layout.BoxWithConstraints {
         val room = if (maxHeight == androidx.compose.ui.unit.Dp.Infinity) 400.dp else maxHeight
-        val cell = ((room - 36.dp) / cars).coerceIn(12.dp, 20.dp)
-        val numSize = if (cell < 15.dp) 8.sp else 9.sp
+        val cell = ((room - 36.dp) / cars).coerceIn(15.dp, 20.dp)
+        val numSize = 9.sp
+        val listH = (room - 36.dp).coerceAtLeast(cell * 3).coerceAtMost(cell * cars)
+        val mapScroll = androidx.compose.foundation.rememberScrollState()
         Column(
             Modifier
                 .width(42.dp)
@@ -2767,6 +2778,7 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit, 
                     .padding(vertical = 3.dp),
             )
             Spacer(Modifier.height(3.dp))
+            Box(Modifier.width(32.dp).height(listH).verticalScroll(mapScroll)) {
             Box(Modifier.width(32.dp).height(cell * cars)) {
                 Column {
                     for (i in 0 until cars) {
@@ -2794,6 +2806,7 @@ private fun RightRail(vm: GameViewModel, link: SceneLink, onEvolve: () -> Unit, 
                         .size(32.dp, (cell * (span + kotlin.math.min(0f, top))).coerceAtLeast(6.dp).coerceAtMost(cell * cars))
                         .border(2.dp, Ice, RoundedCornerShape(6.dp)),
                 )
+            }
             }
         }
         }
