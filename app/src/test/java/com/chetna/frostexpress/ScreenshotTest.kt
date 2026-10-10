@@ -45,6 +45,7 @@ class ScreenshotTest {
         putString("unl", "WAGON,HEAT,FOOD,PLOW,COAL,BOOSTER,CONDUCTOR,STEAM_WHISTLE,HEADLAMP")
         putInt("xp", 40)
         putInt("plvl", 3)
+        putLong("specialDay", java.time.LocalDate.now().toEpochDay())
     }
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
@@ -91,6 +92,9 @@ class ScreenshotTest {
                     }
                 }
             }
+            "route" -> { playing(); prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("evo", 4); putInt("plvl", 3); putString("routeCh", "GOLD_LINE,FAST_TRACK,CHEAP_PARTS,NIGHT_SHIFT") }; val v = vm(); shot("${size}_20_route") { GameScreen(v) } }
+            "feature" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("plvl", 2); putString("featSeen", "") }; val v = vm(); shot("${size}_21_feature") { GameScreen(v) } }
+            "away" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putLong("last", System.currentTimeMillis() - 2 * 3600_000L) }; val v = vm(); v.openParcel(); shot("${size}_22_away") { GameScreen(v) } }
             "anims" -> shot("${size}_18_anims") { SceneAnimPreview() }
             "alltrains" -> shot("${size}_19_alltrains") {
                 androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFE8F0F7))) {
@@ -137,6 +141,9 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_evolved() = runAll("normal", "evolved")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_trains() = runAll("normal", "trains")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_newtrain() = runAll("normal", "newtrain")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_route() = runAll("normal", "route")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_feature() = runAll("normal", "feature")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_away() = runAll("normal", "away")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_anims() = runAll("normal", "anims")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_alltrains() = runAll("normal", "alltrains")
 

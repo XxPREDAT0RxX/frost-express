@@ -655,7 +655,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     fun collectCrate() {
         if (event != GameEvent.CRATE) return
-        val gain = max(50.0, baseCoinsPerSec * 30.0) * (1.0 + effSum(Eff.CRATE))
+        val gain = max(50.0, baseCoinsPerSec * 30.0) * (1.0 + effSum(Eff.CRATE)) * daily(DailySpecial.CRATE_DAY, 2.0)
         coins += gain
         cratesCollected++
         meta.addStars(10)
@@ -685,7 +685,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         // every passenger adds 2% to 6% income, rolled again at each stop
         paxMult = 1.0 + passengers * (0.02 + Math.random() * 0.04)
         val gain = max(30.0, baseCoinsPerSec * Balance.STATION_BONUS_SEC) * (1.0 + effSum(Eff.STATION)) *
-            (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0) * (1.0 + 0.15 * on)
+            (if (shopTicketLeft > 0.0) 3.0 else 1.0) * (if (shelter) 2.0 else 1.0) * (1.0 + 0.15 * on) *
+            route(RouteBonus.BUSY_STATIONS, 2.0) * daily(DailySpecial.BUSY_DAY, 1.5)
         coins += gain
         stationsVisited++
         if (shelter) stormsSheltered++
@@ -826,7 +827,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun levelGems(level: Int): Int = 5 + level
 
     fun addXp(amount: Int) {
-        xp += amount
+        xp += amount * (if (todaysSpecial() == DailySpecial.XP_DAY) 2 else 1)
         while (xp >= xpForLevel(playerLevel)) {
             xp -= xpForLevel(playerLevel)
             playerLevel++
@@ -1102,7 +1103,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             milestoneMult(UpgradeType.ENGINE) *
             (1.0 + Balance.PLOW_BONUS * level(UpgradeType.PLOW)) *
             (1.0 + Balance.TIER_SPEED_BONUS * tierIndex) *
-            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED)) * (1.0 + effSum(Eff.SPEED)) * eventSpeedMult
+            (1.0 + Balance.PERM_SPEED * permLevel(PermType.SPEED)) * (1.0 + effSum(Eff.SPEED)) * eventSpeedMult *
+            route(RouteBonus.FAST_TRACK, 1.25) * daily(DailySpecial.TAILWIND, 1.15)
 
     val coinsPerMeter: Double
         get() = (1.0 + Balance.WAGON_BONUS * level(UpgradeType.WAGON)) * milestoneMult(UpgradeType.WAGON) *
@@ -1122,7 +1124,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -1289,7 +1291,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private val rechargePerSec: Double
         get() = Balance.BOOST_RECHARGE_PER_SEC * (1.0 + Balance.COAL_BONUS * level(UpgradeType.COAL)) * (1.0 + effSum(Eff.RECHARGE))
     /** Idle earnings count for at most this many seconds. */
-    val offlineCapSec: Long get() = Balance.OFFLINE_CAP_SEC + Balance.OFFLINE_CAP_PER_PERM * permLevel(PermType.OFFLINE)
+    val offlineCapSec: Long get() = Balance.OFFLINE_CAP_SEC + Balance.OFFLINE_CAP_PER_PERM * permLevel(PermType.OFFLINE) +
+        (if (evolutions >= PERK_LONG_NIGHTS) LONG_NIGHTS_SEC else 0L)
     var offlineAwaySec = 0L; private set
     var offlineCountedSec = 0L; private set
     private val offlineRate: Double
@@ -1311,11 +1314,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun blockedByTier(spec: UpgradeSpec): Boolean = carOf(spec.type) >= maxCars && !isUnlocked(spec)
 
     fun upgradeCost(spec: UpgradeSpec): Double =
-        floor(spec.baseCost * spec.growth.pow(level(spec.type)))
+        floor(spec.baseCost * spec.growth.pow(level(spec.type)) * costMult)
 
     /** Cost of buying n levels at once (geometric sum). */
     fun bulkCost(spec: UpgradeSpec, n: Int): Double =
-        floor(spec.baseCost * spec.growth.pow(level(spec.type)) * (spec.growth.pow(n) - 1.0) / (spec.growth - 1.0))
+        floor(spec.baseCost * spec.growth.pow(level(spec.type)) * (spec.growth.pow(n) - 1.0) / (spec.growth - 1.0) * costMult)
 
     /** How many levels a buy press would purchase right now (at least 1 so the price is always shown). */
     fun buyCount(spec: UpgradeSpec): Int {
@@ -1331,6 +1334,76 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
         return n
     }
+
+    // ---- progression: features by level, route bonus, auto-buyer, daily special, parcels ----
+    /** Features whose intro the player has already seen (older saves: everything already open). */
+    private val featSeen: MutableSet<String> = (prefs.getString("featSeen", null)?.split(",")?.filter { it.isNotEmpty() }?.toMutableSet()
+        ?: Feature.values().filter { prefs.getInt("plvl", 1) >= it.level }.map { it.name }.toMutableSet())
+    var featSerial by mutableIntStateOf(0); private set
+    fun featureOpen(f: Feature): Boolean = playerLevel >= f.level
+    /** A feature that just opened and has not been introduced yet. */
+    val pendingFeature: Feature?
+        get() { featSerial; return Feature.values().firstOrNull { featureOpen(it) && it.name !in featSeen } }
+    fun dismissFeature(f: Feature) { featSeen.add(f.name); featSerial++; save() }
+
+    /** This run's bonus, picked after evolving. */
+    var routeBonus by mutableStateOf(prefs.getString("route", null)?.let { n -> RouteBonus.values().firstOrNull { it.name == n } }); private set
+    /** Bonuses to pick from right now (empty = nothing to pick). */
+    val routeChoices = mutableStateListOf<RouteBonus>().apply {
+        prefs.getString("routeCh", "")?.split(",")?.mapNotNull { n -> RouteBonus.values().firstOrNull { it.name == n } }?.let { addAll(it) }
+    }
+    fun pickRoute(r: RouteBonus) {
+        routeBonus = r
+        routeChoices.clear()
+        audio.play(R.raw.sfx_buy)
+        showToast("Route: ${r.title} (${r.desc})")
+        save()
+    }
+
+    val autoBuyUnlocked: Boolean get() = evolutions >= PERK_AUTOBUY
+    var autoBuy by mutableStateOf(prefs.getBoolean("autoBuy", false)); private set
+    fun toggleAutoBuy() { if (autoBuyUnlocked) { autoBuy = !autoBuy; save() } }
+    private var autoBuyT = 0.0
+
+    val special: DailySpecial get() = todaysSpecial()
+    private var specialToldDay = prefs.getLong("specialDay", -1L)
+
+    /** A parcel left at a station while the player was away (30 minutes or more). */
+    var parcelReady by mutableStateOf(prefs.getBoolean("parcel", false)); private set
+    var parcelReward by mutableStateOf<Reward?>(null); private set
+    fun openParcel() {
+        if (!parcelReady) return
+        val roll = Math.random()
+        val r = when {
+            roll < 0.35 -> Reward.Gems((4..10).random())
+            roll < 0.70 -> Reward.Coins((10..20).random() * 60.0)
+            else -> Reward.Item(listOf(ShopItem.COCOA, ShopItem.TURBO, ShopItem.TICKET, ShopItem.TANK).random())
+        }
+        parcelReady = false
+        parcelReward = r
+        grant(r, quiet = true)
+        audio.play(R.raw.sfx_buy)
+    }
+
+    /** Multipliers from the route bonus and today's special. */
+    private fun route(r: RouteBonus, v: Double): Double = if (routeBonus == r) v else 1.0
+    private fun daily(d: DailySpecial, v: Double): Double = if (todaysSpecial() == d) v else 1.0
+    private val boostLenMult: Double get() = route(RouteBonus.LONG_BOOST, 1.5) * daily(DailySpecial.BOOST_DAY, 1.5)
+    private val costMult: Double get() = route(RouteBonus.CHEAP_PARTS, 0.8)
+
+    /** The one next step shown in the header. */
+    val goal: Goal
+        get() {
+            val nextName = TIERS[min(evolutions + 1, TIERS.lastIndex)].name
+            return when {
+                canEvolve -> Goal("Evolve to $nextName! Tap here", 1f, 6)
+                claimableCount > 0 -> Goal("Quest reward ready! Tap to claim", 1f, 5)
+                else -> Goal(
+                    "Buy ${evolveLevels - runLevels} levels to unlock ${evolvePerk(evolutions + 1).title}",
+                    (runLevels.toFloat() / evolveLevels).coerceIn(0f, 1f), 1,
+                )
+            }
+        }
 
     init {
         audio.enabled = soundOn
@@ -1368,6 +1441,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The Auto-Buyer: one level of the cheapest affordable upgrade. */
+    private fun autoBuyOnce() {
+        var best: UpgradeSpec? = null
+        var bestCost = Double.MAX_VALUE
+        for (spec in UPGRADES) {
+            if (!isUnlocked(spec) || level(spec.type) >= spec.maxLevel) continue
+            val c = upgradeCost(spec)
+            if (c <= coins && c < bestCost) { best = spec; bestCost = c }
+        }
+        val spec = best ?: return
+        val lvl = level(spec.type)
+        coins -= bestCost
+        levels[spec.type.ordinal] = lvl + 1
+        purchases++
+        if (lvl == 0) devicesInstalled++
+        audio.play(R.raw.sfx_upgrade, 0.3f)
+    }
+
     /** Each Boost tap costs 10% of the meter and grants 3 seconds of income multiplier. */
     fun boost() {
         if (boostLocked || boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) return
@@ -1379,7 +1470,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         meta.recordCombo(combo)
         if (!endlessFuel) boostMeter = max(0.0, boostMeter - Balance.BOOST_COST_PER_TAP)
         val extraLen = effSum(Eff.BOOSTLEN)
-        boostTimeLeft = min(Balance.BOOST_MAX_SEC + extraLen * 4.0, boostTimeLeft + Balance.BOOST_SEC_PER_TAP + extraLen)
+        boostTimeLeft = min((Balance.BOOST_MAX_SEC + extraLen * 4.0) * boostLenMult, boostTimeLeft + (Balance.BOOST_SEC_PER_TAP + extraLen) * boostLenMult)
         if (!endlessFuel && boostMeter < Balance.BOOST_COST_PER_TAP - 0.005) boostLocked = true // locked until fully recharged
     }
 
@@ -1401,6 +1492,13 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             showToast("Evolve rush! Coins x${fmt(rush, 1)} for 10 minutes")
         }
         evolutions++
+        if (isMilestone(evolutions)) {
+            gems += milestoneGems(evolutions)
+            showToast("Milestone train! +${milestoneGems(evolutions)} gems and +10% coins forever")
+        }
+        routeBonus = null
+        routeChoices.clear()
+        if (evolutions >= PERK_ROUTE) routeChoices.addAll(RouteBonus.values().toList().shuffled().take(if (evolutions >= PERK_MORE_ROUTES) 4 else 3))
         for (i in levels.indices) levels[i] = 0 // temporary upgrades reset; permanent ones stay
         unlockedUpgrades.clear()                // the unlock chain (and the extra cars) start again
         coins = startCoins
@@ -1461,6 +1559,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissOffline() {
+        if (parcelReady) openParcel()
+        parcelReward = null
         offlineCoins = 0.0
         offlineMeters = 0.0
     }
@@ -1472,6 +1572,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putInt("cores", cores)
             .putInt("evo", evolutions)
             .putString("evoRushLeft", evolveRushLeft.toString())
+            .putString("featSeen", featSeen.joinToString(","))
+            .putString("route", routeBonus?.name)
+            .putString("routeCh", routeChoices.joinToString(",") { it.name })
+            .putBoolean("autoBuy", autoBuy)
+            .putBoolean("parcel", parcelReady)
             .putString("evoRushMult", evolveRushMult.toString())
             .putString("levels", levels.joinToString(","))
             .putString("perm", permLevels.joinToString(","))
@@ -1529,7 +1634,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             offlineAwaySec = away
             offlineCountedSec = secs
             val meters = cruiseSpeed * secs * offlineRate
-            val gain = meters * coinsPerMeter
+            val gain = meters * coinsPerMeter * route(RouteBonus.NIGHT_SHIFT, 1.5) * perkIncome(evolutions)
+            if (away >= 1800L && tutorialDone) parcelReady = true
             if (gain >= 1.0) {
                 runDistance += meters
                 totalDistance += meters
@@ -1557,6 +1663,15 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         audio.setRails(moveFactor.toFloat())
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
         if (evolveRushLeft > 0.0) evolveRushLeft = max(0.0, evolveRushLeft - dt)
+        if (autoBuy && autoBuyUnlocked) {
+            autoBuyT += dt
+            if (autoBuyT >= 2.0) { autoBuyT = 0.0; autoBuyOnce() }
+        }
+        if (tutorialDone && specialToldDay != today() && toast == null && !dailyReady && offlineCoins <= 0.0) {
+            specialToldDay = today()
+            prefs.edit().putLong("specialDay", specialToldDay).apply()
+            showToast("Today's special: ${special.title} (${special.desc})")
+        }
         // a soft train horn now and then
         hornIn -= dt
         if (hornIn <= 0.0) {

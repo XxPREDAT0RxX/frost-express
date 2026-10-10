@@ -199,6 +199,7 @@ fun EventsSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () ->
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.EventTab(vm: GameViewModel, ev: WeeklyEvent) {
     LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { SpecialCard(vm) }
         item {
             Card(bg = Color(ev.color).copy(alpha = 0.35f)) {
                 Text(ev.name, fontSize = 20.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)

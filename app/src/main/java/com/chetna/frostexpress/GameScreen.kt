@@ -235,6 +235,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onOpenSettings = { showSettings = true },
                 onOpenGems = { sheet = 3 },
                 onOpenLevel = { sheet = if (sheet == 9) 0 else 9 },
+                onGoal = { sheet = it },
             )
             // side rails: they use the snowy space left and right of the train
             LeftRail(
@@ -271,7 +272,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 RightRail(vm, link, onEvolve = { sheet = if (sheet == 6) 0 else 6 })
-                RailButton(rememberGameSprites().iconTrophy, "Journey", Color(0xFFCDE7F8), onClick = { sheet = if (sheet == 8) 0 else 8 })
+                if (vm.featureOpen(Feature.JOURNEY)) RailButton(rememberGameSprites().iconTrophy, "Journey", Color(0xFFCDE7F8), onClick = { sheet = if (sheet == 8) 0 else 8 })
                 ActiveBoosters(vm)
             }
             if (vm.tutorialStage in 1..3) {
@@ -292,6 +293,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     .padding(bottom = 150.dp + bottomInset * (1f - sheetP)),
             )
             NewTrainPopup(vm)
+            RouteChoiceCard(vm)
             BoosterPopup(vm, Modifier.align(Alignment.Center))
             BottomBar(
                 vm,
@@ -388,6 +390,16 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
     if (showSettings) SettingsDialog(vm, onClose = { showSettings = false })
     if (showQuit) QuitCard(vm, onStay = { showQuit = false })
     if (showWheel) WheelDialog(vm, onClose = { showWheel = false })
+    val feat = vm.pendingFeature
+    if (feat != null && vm.tutorialDone && !vm.dailyReady && vm.offlineCoins <= 0.0 && !vm.newTrainPending && vm.routeChoices.isEmpty() && !showGift) {
+        FeatureIntroCard(vm, feat) { f ->
+            when (f) {
+                Feature.WHEEL -> showWheel = true
+                Feature.EVENTS -> sheet = 7
+                Feature.JOURNEY -> sheet = 8
+            }
+        }
+    }
     MetaPopups(vm)
     MinigameDialog(vm)
     if (showTutorialDone) {
@@ -514,8 +526,9 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 // ---------- HUD ----------
 
 @Composable
-private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}, onOpenLevel: () -> Unit = {}) {
-    val progress = (vm.runLevels.toFloat() / vm.evolveLevels).coerceIn(0f, 1f)
+private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}, onOpenLevel: () -> Unit = {}, onGoal: (Int) -> Unit = {}) {
+    val goal = vm.goal
+    val progress = goal.progress
     val shape = RoundedCornerShape(20.dp)
     // a frosted wooden sign: snow on top, icicles below
     Column(modifier.widthIn(max = 560.dp).fillMaxWidth()) {
@@ -575,10 +588,11 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                 Box(
                     Modifier
                         .weight(1f)
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(7.dp))
+                        .height(18.dp)
+                        .clip(RoundedCornerShape(9.dp))
                         .background(Track)
-                        .border(1.5.dp, Ink, RoundedCornerShape(7.dp)),
+                        .border(1.5.dp, Ink, RoundedCornerShape(9.dp))
+                        .clickable { UiSound.click(); onGoal(goal.sheet) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
@@ -586,11 +600,12 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                             .align(Alignment.CenterStart)
                             .fillMaxHeight()
                             .fillMaxWidth(progress)
-                            .background(Brush.horizontalGradient(listOf(Color(0xFFB8D8F2), Color(0xFFB9A2EE))))
+                            .background(Brush.horizontalGradient(if (progress >= 1f) listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)) else listOf(Color(0xFFB8D8F2), Color(0xFFB9A2EE))))
                     )
                     Text(
-                        if (vm.canEvolve) "Ready to evolve!" else "Evolve ${vm.runLevels} / ${vm.evolveLevels}",
-                        fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false,
+                        "🎯 " + goal.text,
+                        fontSize = 9.5.sp, lineHeight = 9.5.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, softWrap = false,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp),
                     )
                 }
                 }
@@ -1399,6 +1414,21 @@ private fun BuyAmountRow(vm: GameViewModel, modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (on) Ink else Muted)
+            }
+        }
+        if (vm.autoBuyUnlocked) {
+            val on = vm.autoBuy
+            Box(
+                Modifier
+                    .weight(1.2f)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (on) Brush.verticalGradient(listOf(Color(0xFFCDEBDC), Color(0xFF8FD1AE))) else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.6f), Color.White.copy(alpha = 0.6f))))
+                    .border(2.dp, if (on) Ink else Ink.copy(alpha = 0.35f), RoundedCornerShape(11.dp))
+                    .clickable { UiSound.click(); vm.toggleAutoBuy() }
+                    .padding(vertical = 5.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (on) "AUTO ✓" else "AUTO", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (on) Ink else Muted)
             }
         }
     }
@@ -2486,6 +2516,15 @@ private fun NewTrainPopup(vm: GameViewModel) {
             "Speed +${(Balance.TIER_SPEED_BONUS * idx * 100).toInt()}%  ·  Coins x${fmt(Balance.TIER_INCOME.pow(idx), 1)}\nUp to ${vm.maxCars} cars  ·  +${vm.cores} Frost Cores in total",
             fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(8.dp))
+        val perk = evolvePerk(vm.evolutions)
+        Column(
+            Modifier.fillMaxWidth(0.9f).clip(RoundedCornerShape(14.dp)).background(if (perk.milestone) Color(0xFFFFE49A) else Color(0xFFE2F3EA)).border(2.dp, Ink, RoundedCornerShape(14.dp)).padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Unlocked: ${perk.title}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+            Text(perk.desc, fontSize = 11.sp, color = Muted, textAlign = TextAlign.Center)
+        }
         Spacer(Modifier.height(12.dp))
         BigButton("All aboard!", vm::dismissNewTrain, Modifier.fillMaxWidth(0.7f))
     }
@@ -2614,8 +2653,8 @@ private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Un
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         val q = vm.questsReady + vm.storiesReady
         RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = q, glow = q > 0, onClick = onQuests)
-        RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
-        RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
+        if (vm.featureOpen(Feature.EVENTS)) RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
+        if (vm.featureOpen(Feature.WHEEL)) RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
         RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
     }
 }
@@ -3196,7 +3235,9 @@ private fun DailyGiftCard(vm: GameViewModel, onClose: (() -> Unit)? = null) {
     )
     CozyCard("Daily Gift", Color(0xFFFFC9D6), onDismiss = onClose ?: {}, closable = onClose != null) {
         Text(if (ready) "Day $next in a row" else "${vm.dailyStreak} days in a row", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Muted)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
+        SpecialCard(vm)
+        Spacer(Modifier.height(8.dp))
         // a week of gifts: claimed days are ticked, today glows, the 7th day has a Frost Core
         for (row in 0..1) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
@@ -3318,7 +3359,9 @@ private fun WelcomeBackCard(vm: GameViewModel) {
             CoinIcon(Modifier.size(26.dp)); Spacer(Modifier.width(6.dp))
             Text("+${fmt(vm.offlineCoins)}", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
+        ParcelBox(vm)
+        Spacer(Modifier.height(10.dp))
         if (Balance.ADS_ENABLED) {
             BigButton(if (vm.adReady) "Watch an ad: double it!" else "Loading ad...", vm::doubleOfflineWithAd, Modifier.fillMaxWidth(0.85f), listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)))
             Spacer(Modifier.height(8.dp))
@@ -3624,6 +3667,20 @@ private fun EvolveSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClos
                         Text(if (top) "TOP TRAIN" else "NEXT", fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.ExtraBold, color = XpPurple)
                         TrainPicture(next, Modifier.fillMaxWidth().height(120.dp).graphicsLayer { alpha = if (vm.canEvolve || top) 1f else 0.85f })
                         Text(TIERS[next].name, fontSize = 13.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
+                    }
+                }
+            }
+            // what the next train unlocks, and this run's route bonus
+            item {
+                val perk = evolvePerk(vm.evolutions + 1)
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (perk.milestone) Color(0xFFFFE49A) else Color(0xFFE2F3EA)).border(2.dp, Ink, RoundedCornerShape(16.dp)).padding(10.dp),
+                ) {
+                    Text("Next train unlocks: ${perk.title}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Text(perk.desc, fontSize = 11.sp, color = Muted)
+                    vm.routeBonus?.let { r ->
+                        Spacer(Modifier.height(4.dp))
+                        Text("This run's route: ${routeEmoji(r)} ${r.title} (${r.desc})", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ice)
                     }
                 }
             }
