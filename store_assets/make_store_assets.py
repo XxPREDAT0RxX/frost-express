@@ -18,7 +18,7 @@ SHOTS = [
     ('normal_8_night_station.png', 'Ride through snowy nights', '#C9C2F0'),
     ('normal_4_device.png', 'Install and upgrade 50+ devices', '#FFE0B8'),
     ('normal_3_upgrades.png', 'Grow your train car by car', '#CDEBDC'),
-    ('normal_10_newtrain.png', 'Evolve into six new trains', '#DCCBFA'),
+    ('normal_10_newtrain.png', 'Evolve through 25 trains', '#DCCBFA'),
     ('normal_7_quests.png', 'Daily quests and long journeys', '#FFE49A'),
     ('normal_11_shop.png', 'Boosters for a quick rush', '#FFD3C4'),
 ]

@@ -64,10 +64,10 @@ class GameSprites(ctx: Context) {
     val stationLamp = load("station_lamp")
     val stationBench = load("station_bench")
     /** A different nose for every train tier (index 0 = the classic nose above). */
-    val noseFills: List<ImageBitmap?> = listOf(load("nose_fill")) + (1..5).map { load("nose${it}_fill") }
-    val noseLines: List<ImageBitmap?> = listOf(load("nose_line")) + (1..5).map { load("nose${it}_line") }
+    val noseFills: List<ImageBitmap?> = listOf(load("nose_fill")) + (1..24).map { load("nose${it}_fill") }
+    val noseLines: List<ImageBitmap?> = listOf(load("nose_line")) + (1..24).map { load("nose${it}_line") }
     /** Wall trims per train tier (index 0 = none). */
-    val carTrims: List<ImageBitmap?> = listOf<ImageBitmap?>(null) + (1..5).map { load("car_trim$it") }
+    val carTrims: List<ImageBitmap?> = listOf<ImageBitmap?>(null) + (1..24).map { load("car_trim$it") }
     val item: Map<ShopItem, ImageBitmap> = ShopItem.values().mapNotNull { i -> load("item_" + i.name.lowercase())?.let { i to it } }.toMap()
     val iconShop = load("icon_shop")
     val iconGems = load("icon_gems")

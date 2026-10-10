@@ -32,6 +32,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var boostTimeLeft by mutableDoubleStateOf(0.0); private set
     var boostLocked by mutableStateOf(false); private set
     var adBoostLeft by mutableDoubleStateOf(0.0); private set
+    /** Evolve rush: extra upgrades bought before evolving give a timed coin multiplier. */
+    var evolveRushLeft by mutableDoubleStateOf(prefs.getString("evoRushLeft", "0")?.toDoubleOrNull() ?: 0.0); private set
+    var evolveRushMult by mutableDoubleStateOf(prefs.getString("evoRushMult", "1")?.toDoubleOrNull() ?: 1.0); private set
     var ads: AdProvider = NoAds
     var offlineCoins by mutableDoubleStateOf(0.0); private set
     var offlineMeters by mutableDoubleStateOf(0.0); private set
@@ -1119,7 +1122,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * eventIncomeMult * nightMult * shopIncomeMult * paxMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -1297,7 +1300,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     val runLevels: Int get() = levels.sum()
     val evolveLevels: Int get() = Balance.evolveLevels(evolutions)
     val canEvolve: Boolean get() = runLevels >= evolveLevels
-    val coreGain: Int get() = max(1, runLevels / 50)
+    /** Upgrade levels bought beyond what evolving needs. */
+    val extraLevels: Int get() = max(0, runLevels - evolveLevels)
+    /** More upgrades before evolving = more cores (+1 per 25 extra levels). */
+    val coreGain: Int get() = max(1, runLevels / 50) + extraLevels / 25
+    /** Coin multiplier for the evolve rush (up to x3 when you buy twice what's needed). */
+    val nextRushMult: Double get() = 1.0 + min(2.0, extraLevels.toDouble() / max(1, evolveLevels) * 2.0)
     /** Cars this train tier can have; more unlock with every evolve. */
     val maxCars: Int get() = Balance.maxCars(evolutions)
     fun blockedByTier(spec: UpgradeSpec): Boolean = carOf(spec.type) >= maxCars && !isUnlocked(spec)
@@ -1386,7 +1394,12 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         evolveSerial++
         newTrainPending = true
         audio.play(R.raw.sfx_evolve)
+        val rush = nextRushMult
         cores += coreGain
+        if (rush > 1.01) {
+            evolveRushMult = rush; evolveRushLeft = EVOLVE_RUSH_SEC
+            showToast("Evolve rush! Coins x${fmt(rush, 1)} for 10 minutes")
+        }
         evolutions++
         for (i in levels.indices) levels[i] = 0 // temporary upgrades reset; permanent ones stay
         unlockedUpgrades.clear()                // the unlock chain (and the extra cars) start again
@@ -1458,6 +1471,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("dist", runDistance.toString())
             .putInt("cores", cores)
             .putInt("evo", evolutions)
+            .putString("evoRushLeft", evolveRushLeft.toString())
+            .putString("evoRushMult", evolveRushMult.toString())
             .putString("levels", levels.joinToString(","))
             .putString("perm", permLevels.joinToString(","))
             .putInt("spent", coresSpent)
@@ -1541,6 +1556,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         tickMeta(dt)
         audio.setRails(moveFactor.toFloat())
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
+        if (evolveRushLeft > 0.0) evolveRushLeft = max(0.0, evolveRushLeft - dt)
         // a soft train horn now and then
         hornIn -= dt
         if (hornIn <= 0.0) {
@@ -1583,3 +1599,5 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 }
+
+const val EVOLVE_RUSH_SEC = 600.0

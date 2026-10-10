@@ -2507,7 +2507,7 @@ fun TrainPicture(tierIndex: Int, modifier: Modifier = Modifier) {
         fun img(i: androidx.compose.ui.graphics.ImageBitmap?, x: Float, y: Float, w: Float, h: Float, tint: Color? = null) {
             if (i != null) drawSprite(i, ox + x * k, oy + y * k, w * k, h * k, tint = tint)
         }
-        val t = tierIndex.coerceIn(0, 5)
+        val t = tierIndex.coerceIn(0, TIERS.lastIndex)
         for (c in 0 until 2) {
             val top = 52f + c * 126f
             drawRoundRect(Color(0xFFEFE6D8), Offset(ox + 8f * k, oy + (top + 8f) * k), Size(190f * k, 100f * k), CornerRadius(8f * k))
@@ -3652,6 +3652,8 @@ private fun EvolveSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClos
                     "Speed +${(Balance.TIER_SPEED_BONUS * 100).toInt()}%" to "a faster train",
                     "Coins x${fmt(Balance.TIER_INCOME, 1)}" to "every metre pays more",
                     (if (carsNext > vm.maxCars) "+${carsNext - vm.maxCars} cars" else "All cars") to "room for $carsNext cars",
+                    (if (vm.nextRushMult > 1.01) "Rush x${fmt(vm.nextRushMult, 1)}" else "Rush x1") to "coins for 10 min",
+                    "${vm.extraLevels} extra levels" to "buy more before evolving for more cores and a bigger rush",
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
                     rewards.chunked(2).forEach { pair ->

@@ -1059,11 +1059,17 @@ fun ProfileSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -
                     }
                     Spacer(Modifier.height(10.dp))
                     Text("Level ${vm.playerLevel}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = XpPurple)
-                    Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(Panel).border(1.5.dp, Ink, RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
+                    Spacer(Modifier.height(6.dp))
+                    Box(Modifier.fillMaxWidth(0.9f).height(20.dp).clip(RoundedCornerShape(10.dp)).background(Panel).border(1.5.dp, Ink, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
                         Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth((vm.xp.toFloat() / vm.xpNeeded).coerceIn(0f, 1f)).background(XpPurple))
-                        Text("${vm.xp} / ${vm.xpNeeded} XP", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        Text(
+                            "${vm.xp} / ${vm.xpNeeded} XP", fontSize = 11.sp, lineHeight = 11.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center,
+                            style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)),
+                        )
                     }
-                    Text("Next level: +${vm.levelGems(vm.playerLevel + 1)} gems · XP comes from awards, quests, stories, evolving and the daily gift", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                    Spacer(Modifier.height(10.dp))
+                    Text("Next level: +${vm.levelGems(vm.playerLevel + 1)} gems", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text("XP comes from awards, quests, stories, evolving and the daily gift", fontSize = 10.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 2.dp))
                 }
             }
             item {

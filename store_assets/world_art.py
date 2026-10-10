@@ -5,7 +5,7 @@ a different nose and trim for every train tier. Same cozy style as cozy_art.py (
     python3 store_assets/world_art.py spr_      # only names containing this text
     python3 store_assets/world_art.py --sheet   # also writes a preview contact sheet
 """
-import asyncio, io, os, sys
+import asyncio, io, math, os, sys
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -223,6 +223,103 @@ trim4 = ''.join(f'<rect x="{M + x}" y="{y}" width="8" height="9" fill="#FFFFFF" 
 trim5 = ''.join(f'<path d="M{M + x},{M + y} m-7,0 a7,7 0 0 1 14,0 a7,7 0 0 1 -14,0 Z" fill="#FFD166" stroke="{OL}" stroke-width="1.4"/>' for x in (6, W - 6) for y in (6, H - 6)) + \
         ''.join(f'<circle cx="{M + x}" cy="{M + 3}" r="1.6" fill="#FFD166" stroke="{OL}" stroke-width=".8"/><circle cx="{M + x}" cy="{M + H - 3}" r="1.6" fill="#FFD166" stroke="{OL}" stroke-width=".8"/>' for x in range(30, W - 20, 20))
 for i, body in enumerate((trim1, trim2, trim3, trim4, trim5), start=1):
+    art(f'car_trim{i}', W + 2 * M, H + 2 * M, body, 4)
+
+
+# ---------------- tiers 6..24: the five nose shapes, each dressed differently ----------------
+SHAPES_D = {1: d1, 2: d2, 3: d3, 4: d4, 5: d5}
+EMBLEM_Y = {1: 34, 2: 32, 3: 36, 4: 42, 5: 36}
+LAMP_POS = {1: (31, 28.5), 2: (68, 36), 3: (42, 44), 4: (50, 46), 5: (46, 40)}
+
+
+def emblem(kind, cx, cy, col):
+    if kind == 'star':
+        pts = ' '.join(f'{cx + (8 if k % 2 == 0 else 3.4) * math.sin(k * math.pi / 5)},{cy - (8 if k % 2 == 0 else 3.4) * math.cos(k * math.pi / 5)}' for k in range(10))
+        return f'<circle cx="{cx}" cy="{cy}" r="10" fill="{col}" stroke="{OL}" stroke-width="1.8"/><polygon points="{pts}" fill="#FFF6E9" stroke="{OL}" stroke-width="1"/>'
+    if kind == 'flake':
+        arms = ''.join(f'<line x1="{cx}" y1="{cy}" x2="{cx + 7 * math.cos(k * math.pi / 3)}" y2="{cy + 7 * math.sin(k * math.pi / 3)}" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>' for k in range(6))
+        return f'<circle cx="{cx}" cy="{cy}" r="10" fill="{col}" stroke="{OL}" stroke-width="1.8"/>{arms}'
+    if kind == 'sun':
+        rays = ''.join(f'<line x1="{cx + 9 * math.cos(k * math.pi / 4)}" y1="{cy + 9 * math.sin(k * math.pi / 4)}" x2="{cx + 13 * math.cos(k * math.pi / 4)}" y2="{cy + 13 * math.sin(k * math.pi / 4)}" stroke="{col}" stroke-width="2.4" stroke-linecap="round"/>' for k in range(8))
+        return f'{rays}<circle cx="{cx}" cy="{cy}" r="7.5" fill="{col}" stroke="{OL}" stroke-width="1.8"/>'
+    if kind == 'moon':
+        return f'<circle cx="{cx}" cy="{cy}" r="10" fill="#2B3A67" stroke="{OL}" stroke-width="1.8"/><path d="M{cx + 2},{cy - 7} A7,7 0 1 0 {cx + 2},{cy + 7} A5.5,5.5 0 1 1 {cx + 2},{cy - 7} Z" fill="{col}"/>'
+    if kind == 'heart':
+        return f'<path d="M{cx},{cy + 8} C{cx - 14},{cy - 2} {cx - 6},{cy - 12} {cx},{cy - 4} C{cx + 6},{cy - 12} {cx + 14},{cy - 2} {cx},{cy + 8} Z" fill="{col}" stroke="{OL}" stroke-width="1.8"/>'
+    if kind == 'gem':
+        return f'<path d="M{cx - 9},{cy - 3} L{cx - 5},{cy - 8} L{cx + 5},{cy - 8} L{cx + 9},{cy - 3} L{cx},{cy + 9} Z" fill="{col}" stroke="{OL}" stroke-width="1.8"/><path d="M{cx - 9},{cy - 3} L{cx + 9},{cy - 3}" stroke="#FFFFFF" stroke-width="1.2" opacity=".7"/>'
+    return ''
+
+
+def stripes(shape, cols):
+    out = ''
+    for k, c in enumerate(cols):
+        y = 50 - k * 5
+        out += f'<rect x="{X0 + 18}" y="{y}" width="{NW - 36}" height="3.4" fill="{c}"/>'
+    return f'<g clip-path="url(#nclip{shape})">{out}</g>'
+
+
+def wings(col):
+    return (f'<path d="M{X0 + 12},44 L{X0 - 2},38 L{X0 + 12},34 Z" fill="{col}" stroke="{OL}" stroke-width="1.4"/>'
+            f'<path d="M{X0 + NW - 12},44 L{X0 + NW + 2},38 L{X0 + NW - 12},34 Z" fill="{col}" stroke="{OL}" stroke-width="1.4"/>')
+
+
+def window(shape):
+    y = {1: 22, 2: 22, 3: 18, 4: 24, 5: 18}[shape]
+    return f'<path d="M{CX - 26},{y + 10} C{CX - 22},{y} {CX + 22},{y} {CX + 26},{y + 10} C{CX + 12},{y + 7} {CX - 12},{y + 7} {CX - 26},{y + 10} Z" fill="#BEE6F7" stroke="{OL}" stroke-width="2"/>'
+
+
+def spikes(col):
+    return ''.join(f'<path d="M{X0 + 22 + k * 20},56 L{X0 + 29 + k * 20},56 L{X0 + 25.5 + k * 20},62 Z" fill="{col}" stroke="{OL}" stroke-width="1.2"/>' for k in range(8))
+
+
+# (shape, emblem, emblem colour, stripe colours, extras)
+TIER_STYLE = [
+    (3, 'star', '#FFD166', ['#FFFFFF'], 'window'),            # 6 Polar Comet
+    (1, 'flake', '#5E9CCF', ['#FFD43B', '#3C3A40'], ''),      # 7 Glacier Hauler
+    (4, 'star', '#FFE49A', ['#FFFFFF', '#5E9CCF'], 'wings'),  # 8 Northern Star
+    (3, 'heart', '#F49AB2', ['#FFFFFF'], ''),                 # 9 Snowfox Line
+    (5, 'flake', '#9FD3EE', ['#FFFFFF'], 'spikes'),           # 10 Blizzard King
+    (2, 'gem', '#BEE6F7', ['#FFFFFF'], ''),                   # 11 Crystal Arrow
+    (3, 'sun', '#FFC85C', ['#FFE49A', '#F08A5D'], 'window'),  # 12 Midnight Sun
+    (1, 'star', '#E5484D', ['#C9D3DC', '#8F99A4'], 'spikes'), # 13 Tundra Titan
+    (4, 'sun', '#FF8F5A', ['#FFD166', '#E5484D'], 'wings'),   # 14 Frostfire
+    (3, 'moon', '#E6ECF2', ['#C9D3DC'], 'window'),            # 15 Silver Owl
+    (2, 'gem', '#8FC2AE', ['#7CF2C8', '#3F9E74'], 'spikes'),  # 16 Ice Dragon
+    (5, 'star', '#B9A2EE', ['#7CF2C8', '#B9A2EE'], ''),       # 17 Aurora Royale
+    (1, 'flake', '#FFFFFF', ['#9FD3EE', '#FFFFFF'], 'window'),# 18 Permafrost Express
+    (4, 'star', '#FFE49A', ['#FFFFFF', '#FFE49A', '#FFFFFF'], 'wings'),  # 19 Comet Tail
+    (3, 'moon', '#FFE49A', ['#2B3A67'], 'window'),            # 20 Starlight Sleeper
+    (2, 'sun', '#FFD43B', ['#3C3A40', '#FFD43B'], 'spikes'),  # 21 Thunder Sledge
+    (4, 'heart', '#FF8F5A', ['#FFC85C', '#E5484D', '#FFC85C'], 'wings'),  # 22 Winter Phoenix
+    (3, 'star', '#FFFFFF', ['#B9A2EE', '#FFFFFF'], 'wings'),  # 23 Celestial Line
+    (5, 'sun', '#FFD166', ['#FFD166', '#FFFFFF', '#FFD166'], 'spikes'),  # 24 The Last Light
+]
+TRIM_COLS = ['#FFFFFF', '#FFD43B', '#5E9CCF', '#F49AB2', '#9FD3EE', '#BEE6F7', '#FFC85C', '#E5484D', '#FF8F5A', '#C9D3DC',
+             '#8FC2AE', '#B9A2EE', '#9FD3EE', '#FFE49A', '#FFE49A', '#FFD43B', '#FF8F5A', '#B9A2EE', '#FFD166']
+
+for k, (shape, emb, ecol, scol, extra) in enumerate(TIER_STYLE):
+    i = 6 + k
+    d = SHAPES_D[shape]
+    deco = f'<defs><clipPath id="nclip{shape}"><path d="{d}"/></clipPath></defs>' + stripes(shape, scol)
+    if extra == 'window': deco += window(shape)
+    if extra == 'wings': deco += wings(ecol)
+    if extra == 'spikes': deco += spikes(ecol)
+    lx, ly = LAMP_POS[shape]
+    deco += emblem(emb, CX, EMBLEM_Y[shape] + (6 if extra == 'window' else 0), ecol) + lamp(X0 + lx - X0 + 0, ly) + lamp(X0 + NW - (lx - X0), ly)
+    nose(i, d, f'<path d="{d}" fill="none" stroke="{OL}" stroke-width="2.4" stroke-linejoin="round"/>' + deco)
+    # wall trim: a band in the tier's colour along both long walls plus studs at the ends
+    c = TRIM_COLS[k]
+    style = k % 4
+    if style == 0:
+        body = f'<rect x="{M + 1}" y="{M + 16}" width="3.4" height="{H - 32}" rx="1.7" fill="{c}" stroke="{OL}" stroke-width=".8"/><rect x="{M + W - 4.4}" y="{M + 16}" width="3.4" height="{H - 32}" rx="1.7" fill="{c}" stroke="{OL}" stroke-width=".8"/>'
+    elif style == 1:
+        body = ''.join(f'<rect x="{M + x}" y="{M - 1}" width="{w}" height="5" fill="{c}" stroke="{OL}" stroke-width=".8"/>' for x, w in ((24, 30), (W - 54, 30))) + \
+               ''.join(f'<rect x="{M + x}" y="{M + H - 4}" width="{w}" height="5" fill="{c}" stroke="{OL}" stroke-width=".8"/>' for x, w in ((24, 30), (W - 54, 30)))
+    elif style == 2:
+        body = ''.join(f'<circle cx="{M + x}" cy="{M + y}" r="2.2" fill="{c}" stroke="{OL}" stroke-width=".9"/>' for x in range(24, W - 16, 18) for y in (3, H - 3))
+    else:
+        body = ''.join(f'<path d="M{M + x},{M + y} l5,-4 l5,4 l-5,4 Z" fill="{c}" stroke="{OL}" stroke-width=".9"/>' for x in (14, W - 24) for y in (12, H - 12))
     art(f'car_trim{i}', W + 2 * M, H + 2 * M, body, 4)
 
 

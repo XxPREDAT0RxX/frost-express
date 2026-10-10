@@ -1354,21 +1354,23 @@ private val NOSE_LAMPS = listOf(
     floatArrayOf(56f, 15f, 134f, 15f), floatArrayOf(25f, 2.5f, 165f, 2.5f), floatArrayOf(62f, 10f, 128f, 10f),
     floatArrayOf(36f, 18f, 154f, 18f), floatArrayOf(44f, 20f, 146f, 20f), floatArrayOf(40f, 14f, 150f, 14f),
 )
-/** The front tip of each tier's nose (dp), where the snow plough blade sits. */
+/** The front tip of each nose shape (dp), where the snow plough blade sits. */
 private val NOSE_TIP = floatArrayOf(-1f, -10f, -22f, -20f, -25f, -16f)
+/** Which nose shape (lamps/tip) each train tier's art uses. */
+private val TIER_SHAPE = intArrayOf(0, 1, 2, 3, 4, 5, 3, 1, 4, 3, 5, 2, 3, 1, 4, 3, 2, 5, 1, 4, 3, 2, 4, 3, 5)
 
 private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     val u = density
-    val t = sceneTier.coerceIn(0, 5)
+    val t = sceneTier.coerceIn(0, TIERS.lastIndex)
     val tierFill = sceneSprites?.noseFills?.getOrNull(t)
     if (t > 0 && tierFill != null) {
         drawSprite(tierFill, -6f * u, -26f * u, 202f * u, 64f * u, tint = body)
         sceneSprites?.noseLines?.getOrNull(t)?.let { drawSprite(it, -6f * u, -26f * u, 202f * u, 64f * u) }
-        val l = NOSE_LAMPS[t]
+        val l = NOSE_LAMPS[TIER_SHAPE[t]]
         glow(l[0], l[1], 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
         glow(l[2], l[3], 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
         if (plow > 0) {
-            val ty = NOSE_TIP[t]
+            val ty = NOSE_TIP[TIER_SHAPE[t]]
             box(Color(0xFF6B4A3A), 64f, ty - 3f, 62f, 7f, 3.5f)
             box(Color(0xFFA9DDF2), 65f, ty - 2f, 60f, 5f, 2.5f)
         }
@@ -1417,7 +1419,7 @@ private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor
         drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
         sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
         box(accent.copy(alpha = 0.85f), 30f, top + 2.2f, CAR_W - 60f, 2.2f, 1.1f)
-        sceneSprites?.carTrims?.getOrNull(sceneTier.coerceIn(0, 5))?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
+        sceneSprites?.carTrims?.getOrNull(sceneTier.coerceIn(0, TIERS.lastIndex))?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
         return
     }
     // layered soft shadow on the ground

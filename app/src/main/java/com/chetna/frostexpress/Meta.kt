@@ -87,7 +87,7 @@ fun flakeShop(ev: WeeklyEvent): List<FlakeOffer> = listOf(
 
 const val PASS_TIERS = 30
 const val PASS_STARS_PER_TIER = 100
-const val PASS_PREMIUM_GEMS = 300
+const val PASS_PREMIUM_GEMS = 1000
 
 fun passSeasonKey(): Int = LocalDate.now().let { it.year * 12 + it.monthValue }
 fun passSeasonName(): String = LocalDate.now().month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) + " Frost Pass"
