@@ -432,7 +432,7 @@ object Balance {
     const val PLAY_GAMES_ENABLED = false  // set to true after the Play Games setup in the README
 
     // Rewarded ad boost (hidden while ADS_ENABLED is false)
-    const val ADS_ENABLED = true
+    const val ADS_ENABLED = false
     const val AD_GEMS = 3
     const val SURVIVOR_BONUS = 0.40
     // Google's official TEST ad unit. Replace with your own rewarded ad unit id from AdMob before release
