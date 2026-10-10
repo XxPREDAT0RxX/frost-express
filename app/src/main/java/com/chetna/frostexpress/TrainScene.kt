@@ -7,6 +7,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -672,8 +674,8 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         }.pointerInput(Unit) {
             // Drag up or down to look along a long train (the camera follows the worker again after 5 s);
             // pinch with two fingers to zoom in or out.
-            androidx.compose.foundation.gestures.awaitEachGesture {
-                androidx.compose.foundation.gestures.awaitFirstDown(requireUnconsumed = false)
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
                 npc.manualCam = npc.camY
                 var moving = false
                 var travel = 0f
