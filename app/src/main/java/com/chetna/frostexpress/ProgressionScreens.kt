@@ -87,7 +87,7 @@ internal fun RouteChoiceCard(vm: GameViewModel) {
 }
 
 internal fun routeEmoji(r: RouteBonus): String = when (r) {
-    RouteBonus.GOLD_LINE -> "🪙"
+    RouteBonus.GOLD_LINE -> "💰"
     RouteBonus.FAST_TRACK -> "⚡"
     RouteBonus.LONG_BOOST -> "🔥"
     RouteBonus.BUSY_STATIONS -> "🚉"
