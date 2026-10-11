@@ -914,9 +914,13 @@ private fun DrawScope.drawScene(
     translate(left = originX, top = ny) {
         scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
             drawTrain(tier, look, npc, time, boosting)
-            if (npc2 != null) drawNpc(npc2, Color(0xFF5BBE7A), Color(0xFFF2C94C))
-            sceneSprites?.survivors?.let { imgs -> sceneSurvivors.forEachIndexed { i, sv -> if (i < imgs.size) drawNpcCozy(sv, imgs[i]) } }
-            drawNpc(npc)
+            // the walking crew live on the floor, so once the roofs close over (zoomed right out) they are hidden
+            val roofClosed = ((1f - sceneUserZoom) / 0.4f).coerceIn(0f, 1f) > 0.55f
+            if (!roofClosed) {
+                if (npc2 != null) drawNpc(npc2, Color(0xFF5BBE7A), Color(0xFFF2C94C))
+                sceneSprites?.survivors?.let { imgs -> sceneSurvivors.forEachIndexed { i, sv -> if (i < imgs.size) drawNpcCozy(sv, imgs[i]) } }
+                drawNpc(npc)
+            }
             // the car picked on the map glows for a moment
             if (sceneFlashCar >= 0 && sceneFlash > 0f) {
                 val top = NOSE + sceneFlashCar * PITCH
