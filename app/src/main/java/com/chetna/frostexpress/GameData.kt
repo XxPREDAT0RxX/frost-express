@@ -378,7 +378,7 @@ object Balance {
 
     /** Evolve needs this many upgrade levels bought in the current run (grows with every evolve). */
     /** Upgrade levels needed to evolve (20% fewer than the first balance, so evolving comes sooner). */
-    fun evolveLevels(e: Int): Int = (28 + 22 * e + 2 * e * (e - 1))  // first evolve ~28 upgrade levels (~15-20 min), then a steady ramp
+    fun evolveLevels(e: Int): Int = (28 + 28 * e + 5 * e * (e - 1))  // ~28 for the first evolve, then each higher tier needs a lot more
     /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
     fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
     const val GEM_TRADE_PER_DAY = 10         // gems you can buy with coins each day

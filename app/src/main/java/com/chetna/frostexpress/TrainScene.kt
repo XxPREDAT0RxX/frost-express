@@ -499,6 +499,7 @@ class SceneLink {
 @Composable
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}, link: SceneLink? = null) {
     val npc = remember { Npc() }
+    val roster = remember { ArrayList<ScenePax>() }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val survivors = remember { List(10) { Npc() } }
     val stations = remember { ArrayList<Station>().apply { if (!vm.debugStationAt.isNaN()) add(Station(vm.debugStationAt)) } }
@@ -538,6 +539,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     val boosting = vm.isBoosting
                     time += dt
                     vm.audio.zoom = link?.zoom ?: 1f   // the ear moves inside the coach as you zoom in
+                    val warmNow = vm.regionTemp >= 24
+                    val tgt = vm.passengers
+                    while (roster.size < tgt) roster.add(ScenePax((Math.random() * 1000).toInt(), warmNow))
+                    while (roster.size > tgt && roster.isNotEmpty()) roster.removeAt(roster.size - 1)
+                    sceneRoster = roster
                     // the train begins each session standing at a platform, then pulls away
                     if (!startStop[0] && halfH[0] > 1f) {
                         startStop[0] = true
@@ -880,7 +886,7 @@ private fun DrawScope.drawScene(
     }
     drawDecor(scroll + worldDp, originX, trainPx, h, u)
     if (fx) safeFx { drawGroundFx(time, scroll + worldDp, w, h, u, dark, storm) }
-    translate(top = worldDp * u) { for (st in stations) drawStation(st, originX, u) }
+    translate(top = worldDp * u) { for (st in stations) withTransform({ scale(z, z, pivot = Offset(originX, st.y * u)) }) { drawStation(st, originX, u) } }
     val ny = (centerOff - npc.camY) * u * z
     // The outside world (track, ground, trees) gets the full night tint first...
     translate(left = originX, top = ny) {
@@ -889,7 +895,7 @@ private fun DrawScope.drawScene(
     if (dark > 0.01f) drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
     // station lamps and windows glow at night and in storms
     val lampOn = max((dark / 0.42f).coerceIn(0f, 1f), storm)
-    if (lampOn > 0.02f) translate(top = worldDp * u) { for (st in stations) drawStationLights(st, originX, u, lampOn) }
+    if (lampOn > 0.02f) translate(top = worldDp * u) { for (st in stations) withTransform({ scale(z, z, pivot = Offset(originX, st.y * u)) }) { drawStationLights(st, originX, u, lampOn) } }
     // light spilling out of the windows onto the dark ground
     if (dark > 0.01f) {
         translate(left = originX, top = ny) {
@@ -951,6 +957,9 @@ private var sceneStorm = 0f
 private var sceneSnow = 0f
 private var scenePassengers = 0
 private var sceneWarm = false
+/** A rider's stable identity while aboard: which character sprite, and whether they boarded in warm weather. */
+private class ScenePax(val sprite: Int, val warm: Boolean)
+private var sceneRoster: List<ScenePax> = emptyList()
 private var sceneStationNear = false
 private var sceneGolden: List<String> = emptyList()
 private var sceneDecor: List<String> = emptyList()
@@ -1359,7 +1368,7 @@ private fun paxInCar(car: Int, cars: Int): Int {
 }
 
 /** A forward-facing train seat seen from above, with its rider's head and shoulders if taken. */
-private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, occupied: Boolean, seed: Int) {
+private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax: ScenePax?) {
     val u = density
     val fab = Color(0xFF7FA8CC)
     val fabD = Color(0xFF5C83A6)
@@ -1368,10 +1377,10 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, occupied: Boolean, see
     box(fabD, cx - 14f, cy - 16f, 28f, 24f, 6f)
     box(fab, cx - 14f, cy - 16f, 28f, 11f, 6f)
     // a real cosy passenger (one of the survivor characters), sitting, facing out
-    if (occupied) {
+    if (pax != null) {
         val sp = sceneSprites
-        val pool = if (sceneWarm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
-        val img = if (pool.isNotEmpty()) pool[Math.floorMod(seed, pool.size)] else sp?.npc
+        val pool = if (pax.warm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
+        val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
         if (img != null) {
             // soft shadow, then the character; legs are hidden behind the seat cushion below
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
@@ -1409,13 +1418,13 @@ private fun DrawScope.drawAisle(top: Float, h: Float) {
 /** A passenger coach: a central aisle with two rows of 2+2 forward-facing seats, and a toilet at the rear. */
 private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
     drawAisle(top, CAR_H - 32f)
-    val here = paxInCar(car, cars)
-    // 2 + 2 seating: two seats each side of the aisle, two rows
+    // 2 + 2 seating: two seats each side of the aisle, two rows; riders come from the shared roster
     val cols = floatArrayOf(38f, 70f, 120f, 152f)
     val rows = floatArrayOf(top + 24f, top + 62f)
+    val baseIdx = (car - 1) * Balance.SEATS_PER_CAR
     var seat = 0
     for (r in 0 until 2) for (c in 0 until 4) {
-        drawTrainSeat(cols[c], rows[r], seat < here, car * 41 + seat * 7)
+        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat))
         seat++
     }
     drawToilet(top)
@@ -1431,14 +1440,13 @@ private fun DrawScope.drawFoodCar(top: Float, look: Look, npc: Npc, time: Float)
     box(Color(0xFFE6C79A), 8f, top + 10f, CAR_W - 16f, 6f, 3f)
     if (look.food > 0 && sp?.kitchen != null) { furniture(sp.kitchen, 150f, top + 2f, 34f, 40f); drawCookingPot(top, time) }
     for (i in 0 until 5) { dot(Color(0xFFF2EAD8), 24f + i * 22f, top + 22f, 3.2f); dot(Color(0xFFE0A05A), 24f + i * 22f, top + 21f, 1.6f) }
-    // two rows of 2+2 diners with a table between each pair
-    val here = paxInCar(1, look.cars)
+    // two rows of 2+2 diners with a table between each pair (food car is the first non-engine car)
     val cols = floatArrayOf(38f, 70f, 120f, 152f)
     val rows = floatArrayOf(top + 56f, top + 92f)
     var seat = 0
     for (r in 0 until 2) for (c in 0 until 4) {
         if (c % 2 == 0) box(Color(0xFF9C7E5A), cols[c] + 16f - 7f, rows[r] - 6f, 14f, 12f, 3f) // a table between each pair
-        drawTrainSeat(cols[c], rows[r], seat < here, 100 + seat * 5)
+        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(seat))
         seat++
     }
 }
