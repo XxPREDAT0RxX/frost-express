@@ -1333,7 +1333,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             1 -> drawFoodCar(top, look, npc, time)
             else -> drawSeatingCar(top, i, cars)
         }
-        drawRoofStyle(top, body, accent)
+        if (i >= 2) drawRoofStyle(top, body, accent)  // only the plain seating coaches carry the roof detail
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
     drawCarDoors(cars, npc)
@@ -1726,10 +1726,10 @@ private fun DrawScope.drawRoofStyle(top: Float, body: Color, accent: Color) {
             var wy = top + 16f
             while (wy < top + CAR_H - 16f) { box(glass, cx - 6f, wy, 12f, 7f, 1.5f); box(Color(0x66FFFFFF), cx - 5f, wy + 1f, 4f, 3f, 0.6f); wy += 12f }
         }
-        2 -> { // ribbed metro roof
-            var ry = top + 14f
-            while (ry < top + CAR_H - 10f) { box(spineD.copy(alpha = 0.5f), 16f, ry, CAR_W - 32f, 1.6f, 0.8f); ry += 9f }
-            box(spine, cx - 4f, top + 10f, 8f, CAR_H - 20f, 2f)
+        2 -> { // ribbed roof spine
+            box(spine, cx - 7f, top + 10f, 14f, CAR_H - 20f, 3f)
+            var ry = top + 16f
+            while (ry < top + CAR_H - 14f) { box(spineD.copy(alpha = 0.6f), cx - 6f, ry, 12f, 1.6f, 0.8f); ry += 7f }
         }
         3 -> { // diesel/AC coach: roof units along the spine
             for (ay in listOf(top + 24f, top + 50f, top + 76f)) { box(spineD, cx - 9f, ay, 18f, 16f, 3f); box(spine, cx - 7f, ay + 2f, 14f, 6f, 2f); box(Color(0x55000000), cx - 6f, ay + 9f, 12f, 4f, 1f) }
