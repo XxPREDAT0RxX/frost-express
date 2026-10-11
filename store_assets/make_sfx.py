@@ -261,28 +261,39 @@ def rails(seconds=8.8):
 
 
 def cabin(seconds=10.0):
-    """Inside a full passenger coach: a warm murmur of voices over a muffled rail rumble, a seamless loop."""
+    """Inside a moving coach: a warm low rumble with the rhythmic clack of the wheels and a faint murmur.
+    Mostly the TRAIN you feel through the floor, so it never sounds like plain hiss."""
     n = int(SR * seconds)
-    # muffled rumble (heavily low-passed, like hearing the wheels through the floor)
-    rumble = lowpass(rng.standard_normal(n), 0.004) * 2.6
-    rumble += np.sin(2 * np.pi * 42 * np.arange(n) / SR) * 0.05
-    # a murmur of voices: band-limited noise with slow, overlapping amplitude swells
-    voices = np.zeros(n)
-    for _ in range(7):
-        band = lowpass(rng.standard_normal(n), 0.06)
-        band = band - lowpass(band, 0.012)          # keep the mid "speech" band
-        env = 0.5 + 0.5 * np.sin(2 * np.pi * (0.1 + rng.random() * 0.25) * np.arange(n) / SR + rng.random() * 6)
-        voices += band * env
-    voices = voices / np.max(np.abs(voices)) * 0.5
-    # the odd soft cup/clink now and then
-    for _ in range(5):
-        t = tvec(0.14)
-        clink = np.sin(2 * np.pi * (1200 + rng.random() * 800) * t) * np.exp(-t * 40) * 0.12
-        place(voices, clink, rng.random() * (seconds - 0.2))
-    out = rumble * 0.22 + voices
-    out = reverb(out, 0.5)                            # a boxy, enclosed room
-    out = loopify(out, 0.8)
-    return out / np.max(np.abs(out)) * 0.5
+    t_all = np.arange(n) / SR
+    # deep floor rumble (two low tones + very-low-passed noise), clearly a moving vehicle
+    rumble = (np.sin(2 * np.pi * 38 * t_all) * 0.5 + np.sin(2 * np.pi * 57 * t_all) * 0.3)
+    rumble += lowpass(rng.standard_normal(n), 0.003) * 1.4
+    rumble *= (0.85 + 0.15 * np.sin(2 * np.pi * 0.7 * t_all))   # slow sway
+    # the clackety-clack of wheels on joints, muffled (heard through the body of the coach)
+    clacks = np.zeros(n)
+    def clack(vol):
+        t = tvec(0.1)
+        thump = np.sin(2 * np.pi * 70 * t) * np.exp(-t * 48)
+        return thump * vol
+    period = 0.72
+    k = 0.0
+    while k < seconds - 0.2:
+        place(clacks, clack(0.9), k)
+        place(clacks, clack(0.6), k + 0.16)
+        k += period
+    clacks = lowpass(clacks, 0.22)      # muffled, as if under the floor
+    # a faint murmur of a few voices, low in the mix
+    murmur = np.zeros(n)
+    for _ in range(4):
+        band = lowpass(rng.standard_normal(n), 0.05)
+        band = band - lowpass(band, 0.015)
+        env = 0.5 + 0.5 * np.sin(2 * np.pi * (0.12 + rng.random() * 0.2) * t_all + rng.random() * 6)
+        murmur += band * env
+    murmur = murmur / (np.max(np.abs(murmur)) + 1e-9) * 0.14
+    out = rumble * 0.5 + clacks * 0.6 + murmur
+    out = reverb(out, 0.35)
+    out = loopify(out, 0.7)
+    return out / np.max(np.abs(out)) * 0.6
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v5":

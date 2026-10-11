@@ -1617,8 +1617,8 @@ private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor
         texRect(floorBrush, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f, ax = 7f, ay = top + 7f, r = 4f)
         val u = density
         drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
+        drawLivery(top, body, accent)
         sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
-        box(accent.copy(alpha = 0.85f), 30f, top + 2.2f, CAR_W - 60f, 2.2f, 1.1f)
         sceneSprites?.carTrims?.getOrNull(sceneTier.coerceIn(0, TIERS.lastIndex))?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
         return
     }
@@ -1668,6 +1668,31 @@ private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor
         dot(Color(0x66FFFFFF), rx, top + 2.8f, 0.8f)
         dot(Color(0x66FFFFFF), rx, top + CAR_H - 2.8f, 0.8f)
         rx += 22f
+    }
+}
+
+/** A per-tier paint livery painted on the side walls, so each train class reads as its own look. */
+private fun DrawScope.drawLivery(top: Float, body: Color, accent: Color) {
+    val style = Math.floorMod(sceneTier, 6)
+    val dark = lerp(body, Color.Black, 0.28f)
+    val light = lerp(body, Color.White, 0.5f)
+    // the two side walls are the strips at the far left/right of the car (x ~2..12 and ~178..188)
+    fun stripe(sx: Float, w: Float, col: Color, a: Float = 1f) {
+        box(col.copy(alpha = a), sx, top + 6f, w, CAR_H - 12f, 1.5f)
+        box(col.copy(alpha = a), CAR_W - sx - w, top + 6f, w, CAR_H - 12f, 1.5f)
+    }
+    // a roof band across the front (toward the engine) in the accent colour, width by style
+    box(accent.copy(alpha = 0.9f), 24f, top + 1.8f, CAR_W - 48f, (2f + style % 3).toFloat(), 1.2f)
+    when (style) {
+        0 -> { stripe(2.5f, 5f, accent, 0.9f) }                                   // single bold side stripe
+        1 -> { stripe(2.5f, 3f, accent, 0.9f); stripe(7f, 2f, light, 0.8f) }       // twin stripe
+        2 -> { stripe(2.5f, 8f, dark, 0.55f); stripe(3.5f, 3f, accent, 0.9f) }     // wide band + accent
+        3 -> {                                                                      // hazard dashes
+            var yy = top + 8f
+            while (yy < top + CAR_H - 10f) { box(accent.copy(alpha = 0.9f), 2.5f, yy, 6f, 5f, 1f); box(accent.copy(alpha = 0.9f), CAR_W - 8.5f, yy, 6f, 5f, 1f); yy += 12f }
+        }
+        4 -> { stripe(2.5f, 4f, light, 0.7f); box(accent.copy(alpha = 0.85f), 2.5f, top + CAR_H / 2f - 2f, CAR_W - 5f, 4f, 1.5f) } // belt line
+        else -> { stripe(2.5f, 6f, lerp(accent, Color.White, 0.3f), 0.85f); stripe(8.5f, 1.5f, dark, 0.6f) }
     }
 }
 

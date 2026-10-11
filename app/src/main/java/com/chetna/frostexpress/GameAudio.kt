@@ -183,7 +183,7 @@ class GameAudio(private val ctx: Context) {
         val amt = interiorAmt
         if (amt > 0.02f) {
             if (interior == null) interior = MediaPlayer.create(ctx, R.raw.amb_cabin)?.apply { isLooping = true; setVolume(0f, 0f) }
-            val v = (sfxVolume * 0.6f * amt).coerceIn(0f, 1f)
+            val v = (sfxVolume * 0.7f * amt).coerceIn(0f, 1f)
             interior?.setVolume(v, v)
             interior?.let { if (!it.isPlaying) it.start() }
         } else {
@@ -195,7 +195,7 @@ class GameAudio(private val ctx: Context) {
     fun setRails(motion: Float) {
         if (!enabled || !foreground) { rails?.let { if (it.isPlaying) it.pause() }; return }
         if (rails == null) rails = MediaPlayer.create(ctx, R.raw.amb_rails)?.apply { isLooping = true; setVolume(0f, 0f) }
-        val v = (sfxVolume * 0.16f * motion.coerceIn(0f, 1f) * (1f - 0.5f * interiorAmt))
+        val v = (sfxVolume * 0.42f * motion.coerceIn(0f, 1f) * (1f - 0.15f * interiorAmt))
         if (kotlin.math.abs(v - railsLevel) > 0.01f) { railsLevel = v; rails?.setVolume(v, v) }
         rails?.let { if (v > 0.005f && !it.isPlaying) it.start() else if (v <= 0.005f && it.isPlaying) it.pause() }
     }

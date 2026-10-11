@@ -218,14 +218,13 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
     val sheetP by animateFloatAsState(if (sheet != 0) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "sheet")
     val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
 
-    Column(
+    Box(
         Modifier
             .fillMaxSize()
             .background(Snow)
     ) {
-        // The running scene takes whatever space the sheet leaves free; the footer floats on top of it.
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
+        // The scene stays full-height; the sheet slides up over it so the train never resizes or jumps.
+        TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
                 detail = type
             }, link = link)
@@ -330,18 +329,15 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 10.dp)
-                    .padding(top = 6.dp, bottom = 6.dp + bottomInset * (1f - sheetP)),
+                    .padding(top = 6.dp, bottom = 6.dp + bottomInset * (1f - sheetP) + sheetHeight * sheetP),
             )
-        }
         if (sheetP > 0.001f) {
             Box(
                 Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .layout { measurable, constraints ->
-                        val placeable = measurable.measure(constraints.copy(minHeight = sheetPx, maxHeight = sheetPx))
-                        val h = (sheetPx * sheetP).toInt()
-                        layout(placeable.width, h) { placeable.place(0, 0) }
-                    }
+                    .height(sheetHeight)
+                    .graphicsLayer { translationY = sheetPx * (1f - sheetP) }
                     .clipToBounds(),
             ) {
                 if (shownSheet[0] == 2) {
@@ -2718,12 +2714,18 @@ private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Un
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         // a single toggle collapses the side icons so they do not cover the scene
         RailButton(null, if (open) "Hide" else "Menu", Color(0xFFEDE4F5), badge = if (open) 0 else pending, glow = !open && pending > 0, icon = { MenuIcon(open, Modifier.size(26.dp)) }, onClick = { UiSound.click(); open = !open })
-        if (open) {
-            val q = vm.questsReady + vm.storiesReady
-            RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = q, glow = q > 0, onClick = onQuests)
-            if (vm.featureOpen(Feature.EVENTS)) RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
-            if (vm.featureOpen(Feature.WHEEL)) RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
-            RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.expandVertically(animationSpec = tween(260, easing = FastOutSlowInEasing), expandFrom = Alignment.Top) + androidx.compose.animation.fadeIn(tween(220)),
+            exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(220, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Top) + androidx.compose.animation.fadeOut(tween(160)),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                val q = vm.questsReady + vm.storiesReady
+                RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = q, glow = q > 0, onClick = onQuests)
+                if (vm.featureOpen(Feature.EVENTS)) RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
+                if (vm.featureOpen(Feature.WHEEL)) RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
+                RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
+            }
         }
         controls()
     }
