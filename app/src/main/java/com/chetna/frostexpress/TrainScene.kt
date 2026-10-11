@@ -888,6 +888,7 @@ private fun DrawScope.drawScene(
         texRect(art.snow, 0f, -tile, w / u, h / u + 2f * tile, 2f, ay = (((scroll + worldDp) % tile) + tile) % tile - tile, alpha = snowAmt)
         drawRect(Color(0xFF8DA2B8).copy(alpha = 0.16f * snowAmt), size = size)
     }
+    drawStationRoad(scroll + worldDp, originX, h, u)
     drawDecor(scroll + worldDp, originX, trainPx, h, u)
     if (fx) safeFx { drawGroundFx(time, scroll + worldDp, w, h, u, dark, storm) }
     translate(top = worldDp * u) { for (st in stations) withTransform({ scale(z, z, pivot = Offset(originX, st.y * u)) }) { drawStation(st, originX, u) } }
@@ -1065,6 +1066,26 @@ private const val ST_LEN = 290f
 private val ST_LAMPS = floatArrayOf(-125f, -75f, -25f, 25f, 75f, 125f)
 
 /** A long platform with a station building, benches, lamp posts and waiting passengers, next to the train. */
+/** A country road that runs alongside the line on the outer side, linking the stations.
+ *  It is drawn continuously (not per station) so every stop sits on the same road. */
+private fun DrawScope.drawStationRoad(scroll: Float, originX: Float, h: Float, u: Float) {
+    val roadW = 20f * u
+    val cx = originX - (ST_W + 70f) * u
+    if (cx < roadW) return
+    val left = cx - roadW / 2f
+    // soft grass shoulders, then asphalt
+    drawRect(Color(0xFF9BAE7E).copy(alpha = 0.45f), Offset(left - 6f * u, 0f), Size(roadW + 12f * u, h))
+    drawRect(Color(0xFF5B626C), Offset(left, 0f), Size(roadW, h))
+    drawRect(Color(0xFF6B727C), Offset(left + 1.5f * u, 0f), Size(roadW - 3f * u, h))
+    // dashed centre line, scrolling with the world
+    val dash = 24f; val gap = 20f; val period = dash + gap
+    var y = -(((scroll % period) + period) % period) * u
+    while (y < h) {
+        drawRect(Color(0xFFF2C94C), Offset(cx - 1.6f * u, y), Size(3.2f * u, dash * u))
+        y += period * u
+    }
+}
+
 private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     val pw = ST_W * u
     if (originX < pw + 8f * u) return
@@ -1109,6 +1130,31 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         // storm shelter: a red sign
         drawRoundRect(Color(0xFFE5484D), Offset(x + 4f * u, y + 52f * u), Size(26f * u, 12f * u), CornerRadius(2f * u, 2f * u))
         drawRect(Color.White, Offset(x + 8f * u, y + 57f * u), Size(18f * u, 2f * u))
+    }
+    // a little parking lot on the outer side, linked to the road, with a few parked cars
+    val parkLeft = x - 46f * u
+    if (parkLeft > -20f * u) {
+        val parkW = 42f * u
+        val parkTop = y - 68f * u
+        val parkH = 136f * u
+        drawRect(Color(0xFF6E7681), Offset(parkLeft, parkTop), Size(parkW, parkH))
+        drawRect(Color(0xFF5B626C), Offset(parkLeft, parkTop), Size(parkW, parkH), style = Stroke(1.4f * u))
+        for (b in 0..3) drawRect(Color(0xFFE6E6E6).copy(alpha = 0.55f), Offset(parkLeft + 3f * u, parkTop + 6f * u + b * 34f * u), Size(parkW - 6f * u, 1.6f * u))
+        // a short slip road from the main road into the lot
+        drawRect(Color(0xFF5B626C), Offset(parkLeft - 26f * u, y - 7f * u), Size(26f * u, 14f * u))
+        // parked cars (top-down), skipping one bay so it reads as a car park
+        val carImg = sceneArt?.byName["car"]
+        val carCols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C))
+        for (b in 0..3) {
+            if (b == 2) continue
+            val cxp = parkLeft + 7f * u
+            val cyp = parkTop + 5f * u + b * 34f * u
+            if (carImg != null) drawSprite(carImg, cxp, cyp, 28f * u, 28f * u)
+            else {
+                drawRoundRect(carCols[b], Offset(cxp + 2f * u, cyp), Size(24f * u, 28f * u), CornerRadius(5f * u, 5f * u))
+                drawRoundRect(Color(0xFFBFE0F0), Offset(cxp + 5f * u, cyp + 5f * u), Size(18f * u, 9f * u), CornerRadius(3f * u, 3f * u))
+            }
+        }
     }
     // passengers seen from above: those who board walk from the platform to the train and step inside
     // (only the rescued survivors are drawn inside the cars); those getting off walk out and away
@@ -1399,6 +1445,34 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax: ScenePax?) {
     box(fabD, cx - 14f, cy + 5f, 28f, 4f, 3f)
     box(Color(0xFF3E4A57), cx - 15f, cy - 4f, 3f, 20f, 1.5f)   // armrests
     box(Color(0xFF3E4A57), cx + 12f, cy - 4f, 3f, 20f, 1.5f)
+}
+
+/** The driver at the controls of the engine car: a swivel seat and a capped crew member,
+ *  hands on the console with a gentle bob while the train is rolling. */
+private fun DrawScope.drawDriver(cx: Float, cy: Float, time: Float, driving: Boolean) {
+    val u = density
+    // swivel chair seen from above: dark base, padded back
+    box(Color(0xFF2B2F36), cx - 12f, cy - 11f, 24f, 24f, 9f)
+    box(Color(0xFF3E4651), cx - 11f, cy - 10f, 22f, 15f, 7f)
+    box(Color(0xFF4C8DB8).copy(alpha = 0.5f), cx - 10f, cy - 9f, 20f, 7f, 5f)
+    // the driver (a crew character), seated, facing forward
+    val sp = sceneSprites
+    val img = sp?.survivors?.firstOrNull() ?: sp?.npc
+    drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 4f) * u), Size(18f * u, 5f * u))
+    if (img != null) {
+        drawSprite(img, (cx - 11f) * u, (cy - 14f) * u, 22f * u, 26f * u)
+    } else {
+        dot(Color(0xFFE9B48F), cx, cy - 5f, 6.5f)      // head
+        box(Color(0xFF3E6B8E), cx - 8f, cy - 1f, 16f, 14f, 5f) // shoulders
+    }
+    // a peaked driver's cap over the head so they read as the driver
+    box(Color(0xFF24324A), cx - 6.5f, cy - 12f, 13f, 6f, 3f)
+    box(Color(0xFF2E4A6E), cx - 6f, cy - 9f, 12f, 3f, 1.5f)
+    dot(Color(0xFFF2C14E), cx, cy - 11f, 1.6f)         // cap badge
+    // hands resting on the controls, bobbing a little while driving
+    val bob = if (driving) 1.3f * sin(time * 3f) else 0.5f * sin(time)
+    dot(Color(0xFFE9B48F), cx - 7f, cy + 3f + bob, 2.3f)
+    dot(Color(0xFFE9B48F), cx + 7f, cy + 3f - bob, 2.3f)
 }
 
 /** A toilet cubicle across the rear end of a coach. */
@@ -1810,6 +1884,9 @@ private fun DrawScope.drawEngineCar(top: Float, look: Look, npc: Npc, time: Floa
     line(Color(0xFF2B2F36), 130f, top + 102f, 127f, knobY, 2.4f)
     dot(Color(0xFFFF9F43), 127f, knobY, 3.2f)
 
+    // the driver, seated at the console in the cab
+    drawDriver(96f, top + 92f, time, act == Act.DRIVE)
+
     // Locker, or a bunk once the Night Conductor is hired
     if (look.conductor > 0) {
         box(Color(0xFF8B5E3C), 8f, top + 80f, 50f, 28f, 4f)
@@ -2165,6 +2242,8 @@ private fun DrawScope.drawEngineCarSprites(sp: GameSprites, top: Float, look: Lo
     val knobY = top + 94f + (if (act == Act.DRIVE) 5f * sin(npc.phase) else 1.5f * sin(time))
     line(Color(0xFF2B2F36), 131f, top + 102f, 128f, knobY, 2.2f)
     dot(Color(0xFFFF9F43), 128f, knobY, 3f)
+    // the driver, seated at the console in the cab
+    drawDriver(96f, top + 92f, time, act == Act.DRIVE)
     // bunk once the Night Conductor is hired, a locker before that
     if (look.conductor > 0) {
         furniture(sp.bunk, 8f, top + 80f, 50f, 28f)

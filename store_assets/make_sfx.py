@@ -112,6 +112,27 @@ def wolf():
     return s / np.max(np.abs(s)) * 0.5
 
 
+def wolf_flee():
+    # a startled yelp that jumps up then cuts off, plus a quick running-away whoosh
+    dur = 0.95
+    t = tvec(dur)
+    # yelp: pitch leaps up fast then drops, short and sharp
+    f = 520 + 520 * np.clip(t / 0.12, 0, 1) - 300 * np.clip((t - 0.18) / 0.5, 0, 1)
+    f = f * (1 + 0.03 * np.sin(2 * np.pi * 9 * t))
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    yenv = np.minimum(1, t / 0.03) * np.exp(-np.clip(t - 0.05, 0, None) * 6.5)
+    yelp = (np.sin(ph) + 0.35 * np.sin(2 * ph) + 0.12 * np.sin(3 * ph)) * yenv
+    # whoosh: filtered noise that fades out as it "runs off"
+    rng = np.random.default_rng(7)
+    noise = rng.standard_normal(len(t))
+    noise = lowpass(noise, 0.12)
+    wenv = np.clip((t - 0.12) / 0.15, 0, 1) * np.exp(-np.clip(t - 0.3, 0, None) * 4.0)
+    whoosh = noise * wenv * 0.5
+    s = yelp * 0.9 + whoosh
+    s = reverb(s * 0.8, 0.5)
+    return s / np.max(np.abs(s)) * 0.6
+
+
 def bell(f, dur, vol):
     t = tvec(dur)
     return (np.sin(2 * np.pi * f * t) + 0.5 * np.sin(2 * np.pi * f * 2.76 * t) * np.exp(-t * 4)) * np.exp(-t * 2.5) * vol
@@ -296,7 +317,9 @@ def cabin(seconds=10.0):
     return out / np.max(np.abs(out)) * 0.6
 
 
-if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v5":
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v6":
+    save("sfx_wolf_flee", wolf_flee(), q=4)
+elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v5":
     save("amb_cabin", cabin(), q=2)
 elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v4":
     save("amb_rails", rails(), q=2)

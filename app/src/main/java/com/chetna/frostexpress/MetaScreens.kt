@@ -488,7 +488,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.AlbumTab(vm: GameView
     LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(
-                "Tap sparkles in the snow to find keepsakes. Each full set: +${(SET_BONUS * 100).toInt()}% coins forever. Sets done: ${vm.meta.setsDone} / 6.",
+                "Tap sparkles along the line to find keepsakes. Each full set: +${(SET_BONUS * 100).toInt()}% coins forever. Sets done: ${vm.meta.setsDone} / 6.",
                 fontSize = 11.sp, color = Muted,
             )
         }

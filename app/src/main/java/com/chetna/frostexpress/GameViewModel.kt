@@ -451,7 +451,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         coins += max(20.0, baseCoinsPerSec * 8.0)
         meta.addStars(2)
         if (currentEvent().id == 3) meta.addFlakes(4)
-        audio.play(R.raw.sfx_coin, 0.5f)
+        // a startled yelp as the wolf is scared off (a little pitch variety each time)
+        audio.play(R.raw.sfx_wolf_flee, 0.9f, rate = 0.95f + Math.random().toFloat() * 0.1f)
     }
     fun wolfReached() {
         if (passengers > 0) { passengers--; showToast("A wolf scared a passenger off the train") }

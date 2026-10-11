@@ -55,7 +55,7 @@ class GameAudio(private val ctx: Context) {
         listOf(
             R.raw.sfx_buy, R.raw.sfx_coin, R.raw.sfx_click,
             R.raw.sfx_evolve, R.raw.sfx_boost, R.raw.sfx_deny, R.raw.sfx_horn,
-            R.raw.sfx_wolf, R.raw.sfx_brake, R.raw.sfx_pass,
+            R.raw.sfx_wolf, R.raw.sfx_wolf_flee, R.raw.sfx_brake, R.raw.sfx_pass,
             R.raw.sfx_install, R.raw.sfx_upgrade, R.raw.sfx_bird1, R.raw.sfx_bird2, R.raw.sfx_bird3,
             R.raw.sfx_horn2, R.raw.sfx_horn3,
         ).forEach { ids[it] = pool.load(ctx, it, 1) }
@@ -68,7 +68,7 @@ class GameAudio(private val ctx: Context) {
         R.raw.sfx_click to 0.99f, R.raw.sfx_coin to 0.62f, R.raw.sfx_deny to 0.72f,
         R.raw.sfx_evolve to 1.08f, R.raw.sfx_horn to 0.72f, R.raw.sfx_horn2 to 0.51f,
         R.raw.sfx_horn3 to 0.98f, R.raw.sfx_install to 1.50f, R.raw.sfx_pass to 0.88f,
-        R.raw.sfx_upgrade to 1.15f, R.raw.sfx_wolf to 0.80f,
+        R.raw.sfx_upgrade to 1.15f, R.raw.sfx_wolf to 0.80f, R.raw.sfx_wolf_flee to 1.05f,
     )
 
     /** [rate] changes the pitch (0.5..2), used to give repeated sounds some variety. [pan] -1 left .. 1 right. */

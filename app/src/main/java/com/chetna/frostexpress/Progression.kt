@@ -9,7 +9,7 @@ package com.chetna.frostexpress
 enum class Feature(val title: String, val desc: String, val level: Int) {
     WHEEL("Lucky Wheel", "Spin it once a day for free. Win gems, boosters and coins.", 2),
     EVENTS("Events & Frost Pass", "A new event every week. Earn stars for Frost Pass rewards and snowflakes for the event shop.", 3),
-    JOURNEY("Journey", "Follow the route to the Warm City. Unlock stories, keepsakes and car styles on the way.", 4),
+    JOURNEY("Journey", "Ride the 30-station loop of each country, then prestige onward to the next land for +15% coins forever.", 4),
 }
 
 /** A bonus picked after evolving; it lasts until the next evolve. */

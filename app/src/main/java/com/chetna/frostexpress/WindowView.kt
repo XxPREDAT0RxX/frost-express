@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.lerp
 import kotlin.math.sin
@@ -192,64 +193,89 @@ private fun DrawScope.drawBiomeTree(x: Float, baseY: Float, pal: ViewPalette) {
     }
 }
 
-/** The cosy wooden window the player is looking through: wall, rounded glass opening, sill. */
+/** The train carriage window the player looks through: twin panes split by a pillar, gasket frame,
+ *  luggage-rack valance above and a sill ledge below, all set in the coach's inner wall. */
 private fun DrawScope.drawWindowFrame(w: Float, h: Float) {
-    val wall = Color(0xFFE9DCC4)
-    val wallDark = Color(0xFFCFC0A2)
-    val sill = Color(0xFFC9A66B)
-    val sillDark = Color(0xFFA9824C)
+    val wall = Color(0xFFEADFC8)       // warm cream coach wall
+    val wallLo = Color(0xFFD8C8A6)      // lower wainscot band
+    val gasket = Color(0xFF3B4653)      // dark rubber/metal window seal
+    val frame = Color(0xFF6B7684)       // metal frame
+    val sill = Color(0xFFBF9A5E)
+    val sillHi = Color(0xFFD8B87A)
 
-    val mx = w * 0.07f
-    val top = h * 0.10f
-    val bottom = h * 0.80f
-    val r = w * 0.09f
+    val mx = w * 0.055f
+    val top = h * 0.145f
+    val bottom = h * 0.72f
+    val r = w * 0.045f
+    val pillarHW = w * 0.028f           // half-width of the centre pillar between the two panes
+    val cx = w / 2f
+    val leftR = Rect(mx, top, cx - pillarHW, bottom)
+    val rightR = Rect(cx + pillarHW, top, w - mx, bottom)
 
-    // carve the glass opening out of a full-screen wall
-    val opening = Path().apply {
-        addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(mx, top, w - mx, bottom), CornerRadius(r, r)))
+    // carve the two glass panes out of a full-screen wall
+    val panes = Path().apply {
+        addRoundRect(androidx.compose.ui.geometry.RoundRect(leftR, CornerRadius(r, r)))
+        addRoundRect(androidx.compose.ui.geometry.RoundRect(rightR, CornerRadius(r, r)))
     }
-    clipPath(opening, clipOp = ClipOp.Difference) {
+    clipPath(panes, clipOp = ClipOp.Difference) {
         drawRect(wall)
-        // soft inner shading on the wall edges
-        drawRect(Brush.verticalGradient(listOf(wallDark.copy(alpha = 0.5f), Color.Transparent), startY = 0f, endY = h * 0.2f))
-        drawRect(Brush.verticalGradient(listOf(Color.Transparent, wallDark.copy(alpha = 0.6f)), startY = h * 0.78f, endY = h))
+        // lower wainscot: a slightly darker band along the bottom wall
+        drawRect(wallLo, topLeft = Offset(0f, h * 0.82f), size = Size(w, h * 0.18f))
+        drawRect(Color(0x22000000), topLeft = Offset(0f, h * 0.82f), size = Size(w, 3f))
+        // soft top shade
+        drawRect(Brush.verticalGradient(listOf(Color(0x33000000), Color.Transparent), startY = 0f, endY = h * 0.14f))
     }
 
-    // inner frame lip around the glass
-    drawRoundRect(
-        Color(0x33000000), topLeft = Offset(mx, top), size = Size(w - 2 * mx, bottom - top),
-        cornerRadius = CornerRadius(r, r), style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.012f),
-    )
-    drawRoundRect(
-        sillDark, topLeft = Offset(mx - 3f, top - 3f), size = Size(w - 2 * mx + 6f, bottom - top + 6f),
-        cornerRadius = CornerRadius(r, r), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f),
-    )
-
-    // glass sheen: a soft diagonal highlight
-    clipPath(Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(mx, top, w - mx, bottom), CornerRadius(r, r))) }) {
-        val sheen = Path().apply {
-            moveTo(mx, top + (bottom - top) * 0.1f)
-            lineTo(mx + (w - 2 * mx) * 0.3f, top)
-            lineTo(mx + (w - 2 * mx) * 0.5f, top)
-            lineTo(mx, top + (bottom - top) * 0.45f)
-            close()
+    // glass sheen + a faint interior reflection, per pane
+    for (pane in listOf(leftR, rightR)) {
+        clipPath(Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(pane, CornerRadius(r, r))) }) {
+            val sheen = Path().apply {
+                moveTo(pane.left, pane.top + pane.height * 0.12f)
+                lineTo(pane.left + pane.width * 0.42f, pane.top)
+                lineTo(pane.left + pane.width * 0.62f, pane.top)
+                lineTo(pane.left, pane.top + pane.height * 0.5f)
+                close()
+            }
+            drawPath(sheen, Color(0x1FFFFFFF))
         }
-        drawPath(sheen, Color(0x22FFFFFF))
     }
 
-    // the sill (a little shelf below the glass)
-    val sy = bottom - 4f
-    drawRect(sill, topLeft = Offset(mx - w * 0.02f, sy), size = Size(w - 2 * (mx - w * 0.02f), h * 0.05f))
-    drawRect(sillDark, topLeft = Offset(mx - w * 0.02f, sy), size = Size(w - 2 * (mx - w * 0.02f), 6f))
-    drawRect(sillDark.copy(alpha = 0.6f), topLeft = Offset(mx - w * 0.02f, sy + h * 0.05f - 5f), size = Size(w - 2 * (mx - w * 0.02f), 5f))
+    // gasket + metal frame around each pane
+    for (pane in listOf(leftR, rightR)) {
+        drawRoundRect(gasket, topLeft = Offset(pane.left - w * 0.012f, pane.top - w * 0.012f),
+            size = Size(pane.width + w * 0.024f, pane.height + w * 0.024f),
+            cornerRadius = CornerRadius(r + 4f, r + 4f), style = Stroke(width = w * 0.022f))
+        drawRoundRect(frame, topLeft = Offset(pane.left, pane.top), size = Size(pane.width, pane.height),
+            cornerRadius = CornerRadius(r, r), style = Stroke(width = w * 0.009f))
+    }
 
-    // a tiny potted plant on the sill, bottom-right, for cosiness
-    val px = w - mx - w * 0.06f
+    // centre pillar between the panes, with a couple of rivets
+    drawRoundRect(wall, topLeft = Offset(cx - pillarHW, top - w * 0.02f), size = Size(pillarHW * 2, bottom - top + w * 0.04f), cornerRadius = CornerRadius(4f, 4f))
+    drawRect(Color(0x22000000), topLeft = Offset(cx - pillarHW, top), size = Size(2f, bottom - top))
+    drawRect(Color(0x33FFFFFF), topLeft = Offset(cx + pillarHW - 2f, top), size = Size(2f, bottom - top))
+    drawCircle(Color(0x55000000), 2.5f, Offset(cx, top + h * 0.03f))
+    drawCircle(Color(0x55000000), 2.5f, Offset(cx, bottom - h * 0.03f))
+
+    // luggage-rack valance: a dark bar across the top, with small brackets
+    val vy = top - h * 0.055f
+    drawRoundRect(Color(0xFFB7A07A), topLeft = Offset(mx - w * 0.02f, vy), size = Size(w - 2 * (mx - w * 0.02f), h * 0.03f), cornerRadius = CornerRadius(6f, 6f))
+    drawRect(Color(0x33000000), topLeft = Offset(mx - w * 0.02f, vy + h * 0.03f - 3f), size = Size(w - 2 * (mx - w * 0.02f), 3f))
+    drawRect(Color(0xFF9A835E), topLeft = Offset(mx + w * 0.04f, vy + h * 0.03f), size = Size(5f, h * 0.02f))
+    drawRect(Color(0xFF9A835E), topLeft = Offset(w - mx - w * 0.04f, vy + h * 0.03f), size = Size(5f, h * 0.02f))
+
+    // the sill ledge below the panes
+    val sy = bottom + w * 0.012f
+    drawRect(sill, topLeft = Offset(mx - w * 0.03f, sy), size = Size(w - 2 * (mx - w * 0.03f), h * 0.045f))
+    drawRect(sillHi, topLeft = Offset(mx - w * 0.03f, sy), size = Size(w - 2 * (mx - w * 0.03f), 5f))
+    drawRect(Color(0x33000000), topLeft = Offset(mx - w * 0.03f, sy + h * 0.045f - 5f), size = Size(w - 2 * (mx - w * 0.03f), 5f))
+
+    // a tiny potted plant on the sill corner, for cosiness
+    val px = w - mx - w * 0.08f
     val py = sy
-    drawRoundRect(Color(0xFFCB6D4F), topLeft = Offset(px, py - h * 0.03f), size = Size(w * 0.05f, h * 0.035f), cornerRadius = CornerRadius(4f, 4f))
-    drawCircle(Color(0xFF5BA34C), w * 0.03f, Offset(px + w * 0.025f, py - h * 0.045f))
-    drawCircle(Color(0xFF6FB85C), w * 0.022f, Offset(px + w * 0.01f, py - h * 0.06f))
-    drawCircle(Color(0xFF6FB85C), w * 0.02f, Offset(px + w * 0.04f, py - h * 0.058f))
+    drawRoundRect(Color(0xFFCB6D4F), topLeft = Offset(px, py - h * 0.028f), size = Size(w * 0.045f, h * 0.03f), cornerRadius = CornerRadius(4f, 4f))
+    drawCircle(Color(0xFF5BA34C), w * 0.026f, Offset(px + w * 0.022f, py - h * 0.04f))
+    drawCircle(Color(0xFF6FB85C), w * 0.02f, Offset(px + w * 0.008f, py - h * 0.052f))
+    drawCircle(Color(0xFF6FB85C), w * 0.018f, Offset(px + w * 0.036f, py - h * 0.05f))
 }
 
 private fun darken(c: Color, f: Float) = lerp(c, Color.Black, 1f - f)
