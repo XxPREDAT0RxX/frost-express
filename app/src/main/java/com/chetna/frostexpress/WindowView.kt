@@ -91,48 +91,82 @@ fun WindowView(vm: GameViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        // a few birds drifting in the distance (not in a snowstormy sky)
+        if (!pal.snowy) for (k in 0 until 3) {
+            val bx = ((t * 14f + k * 190f) % (w + 160f)) - 80f
+            val by = h * (0.2f + 0.05f * sin(t * 0.5f + k))
+            drawBird(bx, by, h * 0.012f)
+        }
+
         val horizon = h * 0.60f
 
-        // far hills (slow parallax)
-        drawHills(scroll * 0.12f, horizon, w, amp = h * 0.05f, len = 520f, Color(pal.farHill))
+        // far hills (slow parallax), then a hazy treeline along the horizon
+        drawHills(scroll * 0.1f, horizon - h * 0.015f, w, amp = h * 0.055f, len = 560f, lerp(Color(pal.farHill), Color(pal.skyBottom), 0.35f))
+        drawHills(scroll * 0.16f, horizon, w, amp = h * 0.045f, len = 300f, Color(pal.farHill))
         // near hills (faster)
         drawHills(scroll * 0.3f, horizon + h * 0.03f, w, amp = h * 0.075f, len = 380f, Color(pal.nearHill))
 
-        // ground band
+        // ground band with soft fading toward the horizon
         drawRect(Color(pal.ground), topLeft = Offset(0f, horizon + h * 0.02f), size = Size(w, h - horizon))
+        drawRect(Brush.verticalGradient(listOf(lerp(Color(pal.nearHill), Color(pal.ground), 0.4f), Color.Transparent), startY = horizon + h * 0.02f, endY = horizon + h * 0.14f), topLeft = Offset(0f, horizon + h * 0.02f), size = Size(w, h * 0.14f))
+        // field furrows sweeping past on the ground (parallax lines)
+        val furrow = 70f
+        var fy = -((scroll * 0.75f) % furrow)
+        while (fy < h) {
+            val yy = horizon + h * 0.08f + fy
+            if (yy > horizon + h * 0.05f) drawRect(darken(Color(pal.ground), 0.93f), topLeft = Offset(0f, yy), size = Size(w, 2f))
+            fy += furrow
+        }
+
+        // an occasional distant house behind the trees
+        run {
+            val hp = 620f
+            val hx = ((scroll * 0.45f) % hp)
+            var k = -1
+            while (k < (w / hp).toInt() + 2) {
+                val x = k * hp - hx + 120f
+                drawHouse(x, horizon + h * 0.03f, h, pal)
+                k++
+            }
+        }
 
         // mid-ground trees, repeating with a pitch, scrolling at near-train speed
-        val pitch = 230f
-        val base = horizon + h * 0.04f
+        val pitch = 210f
+        val base = horizon + h * 0.05f
         var i = -1
         val n = (w / pitch).toInt() + 3
         while (i < n) {
             val phase = (scroll * 0.6f) % pitch
             val x = i * pitch - phase + 40f
             val jitter = sin((i * 73).toFloat()) * 18f
-            drawBiomeTree(x, base + jitter, pal)
+            val scl = 0.82f + 0.36f * (0.5f + 0.5f * sin((i * 51).toFloat()))
+            drawBiomeTree(x, base + jitter, pal, scl)
             i++
         }
 
-        // foreground: fast ground strip + fence posts whipping past
+        // foreground: fast ground strip + a post-and-wire fence whipping past
         val fg = h * 0.86f
         drawRect(
-            Brush.verticalGradient(listOf(Color(pal.ground), darken(Color(pal.ground), 0.82f)), startY = fg, endY = h),
+            Brush.verticalGradient(listOf(Color(pal.ground), darken(Color(pal.ground), 0.78f)), startY = fg, endY = h),
             topLeft = Offset(0f, fg), size = Size(w, h - fg),
         )
-        val postPitch = 300f
+        val postPitch = 150f
         val pn = (w / postPitch).toInt() + 3
+        val wireY = fg - h * 0.045f
+        drawRect(Color(0xFF6E5238), topLeft = Offset(0f, wireY), size = Size(w, 2.2f)) // top wire
+        drawRect(Color(0xFF6E5238), topLeft = Offset(0f, wireY + h * 0.02f), size = Size(w, 2.2f))
         var p = -1
         while (p < pn) {
             val phaseP = (scroll * 1.0f) % postPitch
             val x = p * postPitch - phaseP + 60f
-            drawRect(Color(0xFF8A6A4A), topLeft = Offset(x, fg - h * 0.06f), size = Size(6f, h * 0.06f))
-            drawRect(Color(0xFF6E5238), topLeft = Offset(x, fg - h * 0.06f), size = Size(6f, 5f))
+            drawRect(Color(0xFF8A6A4A), topLeft = Offset(x, fg - h * 0.065f), size = Size(6f, h * 0.065f))
+            drawRect(Color(0xFF6E5238), topLeft = Offset(x, fg - h * 0.065f), size = Size(6f, 5f))
             p++
         }
 
-        // --- the window frame on top of the view ---
+        // --- the window frame, then the seat you are sitting in ---
         drawWindowFrame(w, h)
+        drawCabinForeground(w, h)
     }
 }
 
@@ -159,8 +193,30 @@ private fun DrawScope.drawHills(shift: Float, y: Float, w: Float, amp: Float, le
     drawPath(path, c)
 }
 
-private fun DrawScope.drawBiomeTree(x: Float, baseY: Float, pal: ViewPalette) {
-    val h = size.height
+/** A tiny distant bird: a soft "m" shape. */
+private fun DrawScope.drawBird(x: Float, y: Float, s: Float) {
+    val c = Color(0x66384048)
+    drawLine(c, Offset(x - s, y), Offset(x, y - s * 0.6f), 2f)
+    drawLine(c, Offset(x, y - s * 0.6f), Offset(x + s, y), 2f)
+}
+
+/** A small cottage in the distance, tinted to the biome. */
+private fun DrawScope.drawHouse(x: Float, baseY: Float, h: Float, pal: ViewPalette) {
+    val wd = h * 0.055f
+    val ht = h * 0.05f
+    val wall = if (pal.snowy) Color(0xFFE6ECF2) else if (pal.desert) Color(0xFFE8CBA0) else Color(0xFFEFE2C4)
+    val roof = if (pal.snowy) Color(0xFFBFD0DC) else Color(0xFFB4694A)
+    drawRect(wall, topLeft = Offset(x - wd / 2f, baseY - ht), size = Size(wd, ht))
+    val r = Path().apply {
+        moveTo(x - wd * 0.62f, baseY - ht); lineTo(x, baseY - ht - h * 0.028f); lineTo(x + wd * 0.62f, baseY - ht); close()
+    }
+    drawPath(r, roof)
+    drawRect(Color(0xFF8A6A4A), topLeft = Offset(x - wd * 0.12f, baseY - ht * 0.55f), size = Size(wd * 0.24f, ht * 0.55f)) // door
+    drawRect(Color(0xFF9CC3E0), topLeft = Offset(x + wd * 0.14f, baseY - ht * 0.8f), size = Size(wd * 0.2f, ht * 0.28f)) // window
+}
+
+private fun DrawScope.drawBiomeTree(x: Float, baseY: Float, pal: ViewPalette, scl: Float = 1f) {
+    val h = size.height * scl
     when {
         pal.snowy -> { // snowy pine
             val th = h * 0.16f
@@ -276,6 +332,23 @@ private fun DrawScope.drawWindowFrame(w: Float, h: Float) {
     drawCircle(Color(0xFF5BA34C), w * 0.026f, Offset(px + w * 0.022f, py - h * 0.04f))
     drawCircle(Color(0xFF6FB85C), w * 0.02f, Offset(px + w * 0.008f, py - h * 0.052f))
     drawCircle(Color(0xFF6FB85C), w * 0.018f, Offset(px + w * 0.036f, py - h * 0.05f))
+}
+
+/** The seat the viewer is sitting in: an armrest each side and the headrest of the seat ahead,
+ *  so the window reads as "looking out from your seat". */
+private fun DrawScope.drawCabinForeground(w: Float, h: Float) {
+    val fab = Color(0xFF6E93B8)
+    val fabD = Color(0xFF50708F)
+    // the headrest of the seat in the row ahead, low at the bottom of the view
+    val sy = h * 0.9f
+    drawRoundRect(fabD, topLeft = Offset(w * 0.3f, sy), size = Size(w * 0.4f, h * 0.14f), cornerRadius = CornerRadius(w * 0.06f, w * 0.06f))
+    drawRoundRect(fab, topLeft = Offset(w * 0.315f, sy + 4f), size = Size(w * 0.37f, h * 0.14f), cornerRadius = CornerRadius(w * 0.05f, w * 0.05f))
+    drawRoundRect(Color(0x33FFFFFF), topLeft = Offset(w * 0.33f, sy + 6f), size = Size(w * 0.34f, h * 0.02f), cornerRadius = CornerRadius(w * 0.03f, w * 0.03f))
+    // the viewer's own armrests, bottom corners
+    drawRoundRect(Color(0xFF3E4A57), topLeft = Offset(-w * 0.03f, h * 0.84f), size = Size(w * 0.13f, h * 0.18f), cornerRadius = CornerRadius(w * 0.035f, w * 0.035f))
+    drawRoundRect(Color(0xFF4C5A68), topLeft = Offset(-w * 0.03f, h * 0.84f), size = Size(w * 0.13f, h * 0.02f), cornerRadius = CornerRadius(w * 0.02f, w * 0.02f))
+    drawRoundRect(Color(0xFF3E4A57), topLeft = Offset(w * 0.9f, h * 0.84f), size = Size(w * 0.13f, h * 0.18f), cornerRadius = CornerRadius(w * 0.035f, w * 0.035f))
+    drawRoundRect(Color(0xFF4C5A68), topLeft = Offset(w * 0.9f, h * 0.84f), size = Size(w * 0.13f, h * 0.02f), cornerRadius = CornerRadius(w * 0.02f, w * 0.02f))
 }
 
 private fun darken(c: Color, f: Float) = lerp(c, Color.Black, 1f - f)

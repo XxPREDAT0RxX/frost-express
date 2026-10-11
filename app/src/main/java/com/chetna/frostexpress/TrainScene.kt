@@ -1404,6 +1404,62 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         if ("LIGHTS" in sceneDecor) drawStringLights(top, time)
         if ("LANTERNS" in sceneDecor) drawLanterns(top, time)
     }
+    // Closed roofs slide over the whole train when you zoom right out, and fade away to reveal
+    // the interior as you zoom back in (so from far off it reads as a real train seen from above).
+    val roofA = ((1f - sceneUserZoom) / 0.4f).coerceIn(0f, 1f)
+    if (roofA > 0.01f) {
+        drawNoseRoof(body, accent, roofA)
+        for (i in 0 until cars) {
+            val top = NOSE + i * PITCH
+            if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
+            drawCarRoof(top, body, accent, i, roofA)
+            if (i < cars - 1) box(lerp(body, Color.Black, 0.12f).copy(alpha = roofA), AISLE_X - 14f, top + CAR_H, 28f, GAP, 2f)
+        }
+    }
+}
+
+/** A coach roof seen from above: body panel, shaded eaves, a raised centre ridge, seams and vents.
+ *  Drawn at [a] alpha so it can fade in when zoomed out and vanish when zoomed in. */
+private fun DrawScope.drawCarRoof(top: Float, body: Color, accent: Color, i: Int, a: Float) {
+    val dark = lerp(body, Color.Black, 0.20f)
+    val lite = lerp(body, Color.White, 0.14f)
+    val ridge = lerp(body, Color.White, 0.26f)
+    box(body.copy(alpha = a), 0f, top, CAR_W, CAR_H, 12f)
+    // curved roof edges: darker eaves down each long side
+    box(dark.copy(alpha = a * 0.9f), 1f, top + 2f, 13f, CAR_H - 4f, 7f)
+    box(dark.copy(alpha = a * 0.9f), CAR_W - 14f, top + 2f, 13f, CAR_H - 4f, 7f)
+    // raised centre ridge with a soft highlight
+    box(ridge.copy(alpha = a), AISLE_X - 20f, top + 4f, 40f, CAR_H - 8f, 10f)
+    box(lite.copy(alpha = a * 0.7f), AISLE_X - 3f, top + 8f, 5f, CAR_H - 16f, 2f)
+    // transverse roof seams
+    var sy = top + 18f
+    while (sy < top + CAR_H - 10f) { box(dark.copy(alpha = a * 0.5f), 10f, sy, CAR_W - 20f, 1.4f, 0.6f); sy += 22f }
+    // accent band toward the front
+    box(accent.copy(alpha = a * 0.85f), 22f, top + 2.5f, CAR_W - 44f, 3f, 1.2f)
+    if (i == 0) {
+        // engine roof: a chimney and an exhaust vent
+        dot(Color(0xFF2B2F36).copy(alpha = a), AISLE_X.toFloat(), top + 26f, 9f)
+        dot(Color(0xFF4B525C).copy(alpha = a), AISLE_X.toFloat(), top + 26f, 5f)
+        box(dark.copy(alpha = a), AISLE_X - 8f, top + 60f, 16f, 14f, 3f)
+    } else {
+        for (vy in listOf(top + 30f, top + 62f, top + 94f)) {
+            box(dark.copy(alpha = a), AISLE_X - 9f, vy, 18f, 13f, 3f)
+            box(lite.copy(alpha = a), AISLE_X - 7f, vy + 2f, 14f, 4f, 2f)
+        }
+    }
+}
+
+/** The rounded nose cap, roofed to match the coaches when zoomed out. */
+private fun DrawScope.drawNoseRoof(body: Color, accent: Color, a: Float) {
+    val u = density
+    val dark = lerp(body, Color.Black, 0.20f)
+    val p = Path().apply {
+        moveTo(16f * u, (NOSE + 2f) * u); lineTo(46f * u, 4f * u); lineTo(144f * u, 4f * u); lineTo(174f * u, (NOSE + 2f) * u); close()
+    }
+    drawPath(p, body.copy(alpha = a))
+    box(dark.copy(alpha = a * 0.8f), 22f, 5f, 10f, NOSE - 2f, 4f)
+    box(dark.copy(alpha = a * 0.8f), CAR_W - 32f, 5f, 10f, NOSE - 2f, 4f)
+    box(accent.copy(alpha = a * 0.8f), 60f, 8f, 70f, 4f, 2f)
 }
 
 private val PAX_JACKETS = longArrayOf(0xFFEF8A5C, 0xFF6FB07A, 0xFFE07AA0, 0xFF7FB3D8, 0xFFB59CE8, 0xFFE8C05C, 0xFF5BBE9E, 0xFFD98A6A)
@@ -1451,6 +1507,12 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax: ScenePax?) {
  *  hands on the console with a gentle bob while the train is rolling. */
 private fun DrawScope.drawDriver(cx: Float, cy: Float, time: Float, driving: Boolean) {
     val u = density
+    // control desk / dashboard in front of the driver (toward the nose), with a screen and buttons
+    box(Color(0xFF3A424C), cx - 17f, cy - 23f, 34f, 11f, 3f)
+    box(Color(0xFF2B2F36), cx - 15f, cy - 22f, 30f, 9f, 2f)
+    box(lerp(Color(0xFF2E6F8E), Color(0xFF7FD8FF), 0.5f + 0.5f * sin(time * 2f)).copy(alpha = 0.85f), cx - 13f, cy - 21f, 13f, 6f, 1.5f)
+    dot(Color(0xFFE5484D), cx + 6f, cy - 18f, 1.7f)
+    dot(Color(0xFF3FAE5A), cx + 11f, cy - 18f, 1.7f)
     // swivel chair seen from above: dark base, padded back
     box(Color(0xFF2B2F36), cx - 12f, cy - 11f, 24f, 24f, 9f)
     box(Color(0xFF3E4651), cx - 11f, cy - 10f, 22f, 15f, 7f)
@@ -1704,6 +1766,9 @@ private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor
     val walls = sceneSprites?.carFill
     val tex = sceneArt
     if (walls != null && tex != null) {
+        // a soft drop shadow cast onto the ground, so the car reads as sitting above the scenery
+        box(Color(0x1E000000), 7f, top + 11f, CAR_W, CAR_H, 16f)
+        box(Color(0x14000000), 3f, top + 6f, CAR_W, CAR_H, 14f)
         // textured floor, then the 3D-shaded walls (tinted with the train colour) with glass windows
         val floors = sceneSprites?.floors
         val floorBrush = if (!floors.isNullOrEmpty()) floors[floorIdx % floors.size] else if (metal) tex.metal else tex.wood
@@ -1885,7 +1950,7 @@ private fun DrawScope.drawEngineCar(top: Float, look: Look, npc: Npc, time: Floa
     dot(Color(0xFFFF9F43), 127f, knobY, 3.2f)
 
     // the driver, seated at the console in the cab
-    drawDriver(96f, top + 92f, time, act == Act.DRIVE)
+    drawDriver(96f, top + 30f, time, act == Act.DRIVE)
 
     // Locker, or a bunk once the Night Conductor is hired
     if (look.conductor > 0) {
@@ -2243,7 +2308,7 @@ private fun DrawScope.drawEngineCarSprites(sp: GameSprites, top: Float, look: Lo
     line(Color(0xFF2B2F36), 131f, top + 102f, 128f, knobY, 2.2f)
     dot(Color(0xFFFF9F43), 128f, knobY, 3f)
     // the driver, seated at the console in the cab
-    drawDriver(96f, top + 92f, time, act == Act.DRIVE)
+    drawDriver(96f, top + 30f, time, act == Act.DRIVE)
     // bunk once the Night Conductor is hired, a locker before that
     if (look.conductor > 0) {
         furniture(sp.bunk, 8f, top + 80f, 50f, 28f)

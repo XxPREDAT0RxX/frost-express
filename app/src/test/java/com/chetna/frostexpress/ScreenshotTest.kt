@@ -136,6 +136,12 @@ class ScreenshotTest {
                 }
                 shot("${size}_26_$screen") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) { WindowView(v) } }
             }
+            "roof" -> {
+                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "9000000"); putInt("evo", 3); putString("levels", "20,10,8,6,4,3,5,5,6,6") }
+                val v = vm()
+                val link = SceneLink().apply { zoom = 0.6f }
+                shot("${size}_28_roof") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) { TrainScene(v, androidx.compose.ui.Modifier.fillMaxSize(), link = link) } }
+            }
             "anims" -> shot("${size}_18_anims") { SceneAnimPreview() }
             "alltrains" -> shot("${size}_19_alltrains") {
                 androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFE8F0F7))) {
@@ -193,6 +199,7 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bigupgrades() = runAll("normal", "bigupgrades")
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_bigtrain() = runAll("small", "bigtrain")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_journeyfull() = runAll("normal", "journeyfull")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_roof() = runAll("normal", "roof")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window() = runAll("normal", "window")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_desert() = runAll("normal", "window_desert")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_snow() = runAll("normal", "window_snow")
