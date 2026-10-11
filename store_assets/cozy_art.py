@@ -545,61 +545,63 @@ def side_car(x, y, w, body, roof, windows=3):
     return out
 
 
-SPLASH = f'''<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BFD9F2"/><stop offset=".55" stop-color="#F8D9E3"/><stop offset="1" stop-color="#FFE9D6"/></linearGradient></defs>
+def tree_green(x, y, sc=1.0):
+    return f'<g transform="translate({x} {y}) scale({sc})"><ellipse cx="0" cy="26" rx="20" ry="5" fill="#000" opacity=".12"/><rect x="-3.5" y="12" width="7" height="15" rx="3" fill="#B9876A" {o(2)}/><circle cx="0" cy="-2" r="20" fill="#8FCBA6" {o(2.4)}/><path d="M-14,-6 C-8,0 8,0 14,-6" fill="none" stroke="#6FB08B" stroke-width="3" stroke-linecap="round"/><circle cx="-8" cy="-8" r="6" fill="#A6D9BB" opacity=".8"/></g>'
+
+
+SPLASH = f"""<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#AEE0F5"/><stop offset=".5" stop-color="#DDF2E3"/><stop offset="1" stop-color="#FFF4E2"/></linearGradient>
+<linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A7D98A"/><stop offset="1" stop-color="#8FC47A"/></linearGradient></defs>
 <rect width="360" height="640" fill="url(#sky)"/>
-<circle cx="270" cy="250" r="38" fill="#FFF3C4" opacity=".9"/>
-<g fill="#FFFFFF" opacity=".85"><ellipse cx="70" cy="120" rx="40" ry="12"/><ellipse cx="100" cy="112" rx="26" ry="12"/><ellipse cx="290" cy="160" rx="36" ry="10"/><ellipse cx="312" cy="152" rx="20" ry="10"/></g>
-<path d="M-20,380 L60,250 L110,320 L170,220 L240,330 L300,260 L380,380 Z" fill="#B8CCE6" {o(3)}/>
-<path d="M60,250 L78,280 L66,276 L56,290 L44,276 Z M170,220 L194,256 L178,252 L168,268 L156,250 L146,258 Z M300,260 L318,288 L306,284 L296,296 L284,282 Z" fill="#FFFFFF"/>
-<path d="M-20,420 C60,380 140,400 200,385 C260,370 320,390 380,380 L380,640 L-20,640 Z" fill="#F4F9FD" {o(3)}/>
-<g transform="translate(40 360) scale(.9)">{misc_body('spr_pine_a')}</g><g transform="translate(270 350) scale(1.1)">{misc_body('spr_pine_b')}</g>
-<g transform="translate(300 400) scale(.7)">{misc_body('spr_pine_c')}</g><g transform="translate(-6 400) scale(.75)">{misc_body('spr_pine_b')}</g>
-<rect x="-10" y="476" width="380" height="8" rx="4" fill="#B98A68" {o(2.6)}/>
-{''.join(f'<rect x="{-6 + i * 26}" y="482" width="16" height="7" rx="3" fill="#C7976E" {o(2)}/>' for i in range(15))}
-<g transform="translate(0 0)">
-  <path d="M232,470 L232,420 C232,406 242,398 256,398 L300,398 C318,398 330,412 330,430 L330,470 Z" fill="#F4A7A0" {o(3)}/>
-  <rect x="236" y="384" width="40" height="22" rx="6" fill="#E8897F" {o(3)}/>
-  <rect x="300" y="380" width="14" height="22" rx="4" fill="#7C8FA8" {o(3)}/>
+<circle cx="286" cy="118" r="34" fill="#FFF0B8" opacity=".95"/><circle cx="286" cy="118" r="44" fill="#FFF0B8" opacity=".35"/>
+<g fill="#FFFFFF" opacity=".9"><ellipse cx="70" cy="150" rx="40" ry="12"/><ellipse cx="100" cy="142" rx="26" ry="12"/><ellipse cx="300" cy="210" rx="34" ry="10"/><ellipse cx="320" cy="202" rx="18" ry="9"/></g>
+<path d="M-20,360 C70,300 150,330 230,310 C300,294 350,320 380,312 L380,430 L-20,430 Z" fill="#BFE0A8" {o(2.6)}/>
+<path d="M-20,410 C80,360 160,392 240,378 C310,366 350,390 380,382 L380,640 L-20,640 Z" fill="url(#hill)" {o(3)}/>
+<g transform="translate(44 352)">{tree_green(0,0,1.0)}</g><g transform="translate(300 340)">{tree_green(0,0,1.2)}</g>
+<g transform="translate(-4 388)">{tree_green(0,0,.8)}</g><g transform="translate(336 406)">{tree_green(0,0,.7)}</g>
+<g fill="#F49AB2"><circle cx="150" cy="470" r="3"/><circle cx="210" cy="486" r="3"/></g><g fill="#FFD36A"><circle cx="150" cy="470" r="1.3"/><circle cx="210" cy="486" r="1.3"/></g>
+<rect x="-10" y="486" width="380" height="8" rx="4" fill="#B98A68" {o(2.6)}/>
+{''.join(f'<rect x="{-6 + i * 26}" y="492" width="16" height="7" rx="3" fill="#C7976E" {o(2)}/>' for i in range(15))}
+<g transform="translate(0 10)">
+  <path d="M232,470 L232,420 C232,406 242,398 256,398 L300,398 C318,398 330,412 330,430 L330,470 Z" fill="#5FB58E" {o(3)}/>
+  <rect x="236" y="384" width="40" height="22" rx="6" fill="#4C9E78" {o(3)}/>
+  <rect x="300" y="380" width="14" height="22" rx="4" fill="#F2B84B" {o(3)}/>
   <rect x="242" y="408" width="26" height="20" rx="5" fill="#FFE9A8" {o(2.4)}/>
   <circle cx="326" cy="446" r="7" fill="#FFF3C4" {o(2.4)}/>
-  <path d="M330,462 L346,474 L330,474 Z" fill="#A9DDF2" {o(2.4)}/>
-  <circle cx="250" cy="472" r="10" fill="#7C8FA8" {o(3)}/><circle cx="250" cy="472" r="3" fill="#FFF6E9"/>
-  <circle cx="300" cy="472" r="10" fill="#7C8FA8" {o(3)}/><circle cx="300" cy="472" r="3" fill="#FFF6E9"/>
-  <g fill="#FFFFFF" {o(2)}><circle cx="310" cy="366" r="8"/><circle cx="296" cy="346" r="11"/><circle cx="312" cy="322" r="14"/></g>
-  {side_car(128, 424, 96, '#9FD3C7', '#F4A7A0')}
-  {side_car(20, 424, 100, '#FFD6A5', '#9FC5EA')}
+  <path d="M330,462 L346,474 L330,474 Z" fill="#FFD9A0" {o(2.4)}/>
+  <circle cx="250" cy="472" r="10" fill="#6B5547" {o(3)}/><circle cx="250" cy="472" r="3" fill="#FFF6E9"/>
+  <circle cx="300" cy="472" r="10" fill="#6B5547" {o(3)}/><circle cx="300" cy="472" r="3" fill="#FFF6E9"/>
+  {side_car(128, 424, 96, '#F2C14E', '#5FB58E')}
+  {side_car(20, 424, 100, '#E88A6A', '#9FC5EA')}
   <rect x="220" y="450" width="12" height="8" rx="3" fill="#A9B4BE" {o(2)}/><rect x="116" y="450" width="12" height="8" rx="3" fill="#A9B4BE" {o(2)}/>
 </g>
-<g fill="#FFFFFF" stroke="#DCE9F4" stroke-width="1"><circle cx="30" cy="200" r="3"/><circle cx="120" cy="60" r="2.4"/><circle cx="210" cy="140" r="3"/><circle cx="330" cy="90" r="2.4"/><circle cx="90" cy="300" r="2.6"/><circle cx="200" cy="320" r="2"/><circle cx="340" cy="220" r="3"/><circle cx="160" cy="180" r="2"/></g>
 <g font-family="DejaVu Sans, sans-serif" font-weight="bold" text-anchor="middle">
-  <text x="180" y="132" font-size="46" fill="#FFF6E9" stroke="{OL}" stroke-width="9" paint-order="stroke" stroke-linejoin="round">Frost</text>
-  <text x="180" y="184" font-size="46" fill="#FFB86B" stroke="{OL}" stroke-width="9" paint-order="stroke" stroke-linejoin="round">Express</text>
-  <text x="180" y="212" font-size="14" fill="{OL}">a cozy idle train adventure</text>
-</g>'''
+  <text x="180" y="136" font-size="48" fill="#FFF6E9" stroke="{OL}" stroke-width="9" paint-order="stroke" stroke-linejoin="round">Little</text>
+  <text x="180" y="190" font-size="48" fill="#FFB86B" stroke="{OL}" stroke-width="9" paint-order="stroke" stroke-linejoin="round">Express</text>
+  <text x="180" y="218" font-size="14" fill="{OL}">a cozy train adventure</text>
+</g>"""
 
 misc('splash_art', 360, 640, SPLASH, 3)
 
 # ---------------- launcher icon (adaptive: background + foreground, 108 x 108 units) ----------------
-ICON_BG = f'''<defs><linearGradient id="isky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BFD9F2"/><stop offset=".6" stop-color="#F8D9E3"/><stop offset="1" stop-color="#FFE9D6"/></linearGradient></defs>
+ICON_BG = f"""<defs><linearGradient id="isky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#AEE0F5"/><stop offset=".55" stop-color="#DDF2E3"/><stop offset="1" stop-color="#FFF4E2"/></linearGradient>
+<linearGradient id="ihill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A7D98A"/><stop offset="1" stop-color="#8FC47A"/></linearGradient></defs>
 <rect width="108" height="108" fill="url(#isky)"/>
-<circle cx="80" cy="34" r="11" fill="#FFF3C4"/>
-<path d="M-6,74 L22,40 L38,58 L56,34 L78,60 L94,46 L114,74 Z" fill="#B8CCE6" stroke="{OL}" stroke-width="2"/>
-<path d="M22,40 L28,48 L24,47 L20,52 L16,47 Z M56,34 L63,44 L58,43 L55,48 L50,43 L47,45 Z M94,46 L99,53 L96,52 L93,56 L89,52 Z" fill="#FFFFFF"/>
-<path d="M-6,80 C20,72 50,76 70,73 C88,70 100,74 114,72 L114,114 L-6,114 Z" fill="#F4F9FD" stroke="{OL}" stroke-width="2"/>
-<g fill="#FFFFFF"><circle cx="14" cy="22" r="1.4"/><circle cx="44" cy="16" r="1.2"/><circle cx="96" cy="18" r="1.2"/><circle cx="34" cy="64" r="1"/></g>'''
-ICON_FG = f'''<g transform="translate(54 64) scale(.5) translate(-282 -432)">
+<circle cx="84" cy="30" r="11" fill="#FFF0B8"/>
+<path d="M-6,64 C22,52 52,58 74,54 C92,51 104,56 114,53 L114,80 L-6,80 Z" fill="#BFE0A8"/>
+<path d="M-6,74 C24,64 54,70 76,67 C94,64 104,70 114,67 L114,114 L-6,114 Z" fill="url(#ihill)"/>
+<g fill="#FFFFFF"><circle cx="16" cy="24" r="1.6"/><circle cx="44" cy="18" r="1.3"/><circle cx="98" cy="54" r="1.2"/></g>"""
+ICON_FG = f"""<g transform="translate(54 66) scale(.5) translate(-282 -432)">
   <rect x="196" y="476" width="166" height="8" rx="4" fill="#B98A68" {o(3)}/>
-  <path d="M232,470 L232,420 C232,406 242,398 256,398 L300,398 C318,398 330,412 330,430 L330,470 Z" fill="#F4A7A0" {o(3.4)}/>
-  <rect x="236" y="384" width="40" height="22" rx="6" fill="#E8897F" {o(3.4)}/>
-  <rect x="300" y="380" width="14" height="22" rx="4" fill="#7C8FA8" {o(3.4)}/>
+  <path d="M232,470 L232,420 C232,406 242,398 256,398 L300,398 C318,398 330,412 330,430 L330,470 Z" fill="#5FB58E" {o(3.4)}/>
+  <rect x="236" y="384" width="40" height="22" rx="6" fill="#4C9E78" {o(3.4)}/>
+  <rect x="300" y="380" width="14" height="22" rx="4" fill="#F2B84B" {o(3.4)}/>
   <rect x="242" y="408" width="26" height="20" rx="5" fill="#FFE9A8" {o(2.8)}/>
   <circle cx="326" cy="446" r="7" fill="#FFF3C4" {o(2.8)}/>
-  <path d="M330,462 L346,474 L330,474 Z" fill="#A9DDF2" {o(2.8)}/>
-  <circle cx="250" cy="472" r="10" fill="#7C8FA8" {o(3.4)}/><circle cx="250" cy="472" r="3" fill="#FFF6E9"/>
-  <circle cx="300" cy="472" r="10" fill="#7C8FA8" {o(3.4)}/><circle cx="300" cy="472" r="3" fill="#FFF6E9"/>
-  <rect x="204" y="430" width="26" height="40" rx="8" fill="#9FD3C7" {o(3.4)}/>
-  <g fill="#FFFFFF" {o(2.4)}><circle cx="310" cy="373" r="6"/><circle cx="300" cy="362" r="7.5"/><circle cx="313" cy="350" r="9"/></g>
-</g>'''
+  <path d="M330,462 L346,474 L330,474 Z" fill="#FFD9A0" {o(2.8)}/>
+  <circle cx="250" cy="472" r="10" fill="#6B5547" {o(3.4)}/><circle cx="250" cy="472" r="3" fill="#FFF6E9"/>
+  <circle cx="300" cy="472" r="10" fill="#6B5547" {o(3.4)}/><circle cx="300" cy="472" r="3" fill="#FFF6E9"/>
+  <rect x="204" y="430" width="26" height="40" rx="8" fill="#F2C14E" {o(3.4)}/>
+</g>"""
 misc('ic_launcher_bg', 108, 108, ICON_BG, 4)
 misc('ic_launcher_fg', 108, 108, ICON_FG, 4)
 
