@@ -1347,27 +1347,26 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, occupied: Boolean, see
     val u = density
     val fab = Color(0xFF7FA8CC)
     val fabD = Color(0xFF5C83A6)
-    // seat block: dark base, back-rest, then the cushion in front (facing up, toward the engine)
-    box(Color(0xFF3E4A57), cx - 15f, cy - 17f, 30f, 35f, 7f)
-    box(fabD, cx - 14f, cy - 16f, 28f, 33f, 6f)
-    box(fab, cx - 14f, cy - 16f, 28f, 13f, 6f)                 // head-rest at the top
-    box(fab.copy(alpha = 0.92f), cx - 13f, cy - 1f, 26f, 16f, 5f) // seat cushion
-    line(Color(0xFF3E4A57), cx - 14f, cy - 3f, cx + 14f, cy - 3f, 1f)
-    if (!occupied) return
-    val jacket = Color(PAX_JACKETS[Math.floorMod(seed, PAX_JACKETS.size)])
-    val hat = Color(PAX_HATS[Math.floorMod(seed * 3 + 1, PAX_HATS.size)])
-    val skin = Color(0xFFF3D3B3)
-    // shoulders/body seen from above
-    box(jacket, cx - 10.5f, cy - 2f, 21f, 15f, 8f)
-    drawRoundRect(Color(0xFF6B4A3A), Offset((cx - 10.5f) * u, (cy - 2f) * u), Size(21f * u, 15f * u), CornerRadius(8f * u, 8f * u), style = Stroke(1.6f * u))
-    // head with a cap (from above)
-    drawCircle(skin, 6.4f * u, Offset(cx * u, (cy - 6f) * u))
-    drawCircle(Color(0xFF6B4A3A), 6.4f * u, Offset(cx * u, (cy - 6f) * u), style = Stroke(1.7f * u))
-    drawArc(hat, 180f, 180f, true, topLeft = Offset((cx - 6.6f) * u, (cy - 10.5f) * u), size = Size(13.2f * u, 9f * u))
-    drawArc(Color(0xFF6B4A3A), 180f, 180f, false, topLeft = Offset((cx - 6.6f) * u, (cy - 10.5f) * u), size = Size(13.2f * u, 9f * u), style = Stroke(1.6f * u))
-    drawCircle(hat, 6.4f * u, Offset(cx * u, (cy - 6f) * u))    // cap crown over the head
-    drawCircle(Color(0xFF6B4A3A), 6.4f * u, Offset(cx * u, (cy - 6f) * u), style = Stroke(1.4f * u))
-    drawCircle(Color.White, 1.8f * u, Offset(cx * u, (cy - 6f) * u))
+    // seat back and head-rest (behind the rider)
+    box(Color(0xFF3E4A57), cx - 15f, cy - 17f, 30f, 26f, 7f)
+    box(fabD, cx - 14f, cy - 16f, 28f, 24f, 6f)
+    box(fab, cx - 14f, cy - 16f, 28f, 11f, 6f)
+    // a real cosy passenger (one of the survivor characters), sitting, facing out
+    if (occupied) {
+        val sp = sceneSprites
+        val img = sp?.survivors?.let { if (it.isNotEmpty()) it[Math.floorMod(seed, it.size)] else null } ?: sp?.npc
+        if (img != null) {
+            // soft shadow, then the character; legs are hidden behind the seat cushion below
+            drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
+            drawSprite(img, (cx - 11f) * u, (cy - 16f) * u, 22f * u, 27f * u)
+        }
+    }
+    // seat cushion + armrests in front, covering the rider's legs so they read as seated
+    box(Color(0xFF3E4A57), cx - 15f, cy + 4f, 30f, 14f, 6f)
+    box(fab.copy(alpha = 0.95f), cx - 14f, cy + 5f, 28f, 12f, 5f)
+    box(fabD, cx - 14f, cy + 5f, 28f, 4f, 3f)
+    box(Color(0xFF3E4A57), cx - 15f, cy - 4f, 3f, 20f, 1.5f)   // armrests
+    box(Color(0xFF3E4A57), cx + 12f, cy - 4f, 3f, 20f, 1.5f)
 }
 
 /** A toilet cubicle across the rear end of a coach. */
