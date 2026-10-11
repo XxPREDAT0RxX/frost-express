@@ -209,6 +209,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
     var showQuit by remember { mutableStateOf(false) }
     // a clean view: header, rails and footer slide away so only the train is left
     var uiHidden by remember { mutableStateOf(false) }
+    // looking out the window: a side-on parallax view of the land rolling past
+    var windowOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = sheet != 0) { sheet = 0 }
     // back on the main screen: ask before leaving the game
     BackHandler(enabled = sheet == 0) { showQuit = true }
@@ -228,6 +230,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 vm.tutorialAdvance(1)
                 detail = type
             }, link = link)
+            // "look out the window": a full-screen side view that rolls past with the train's speed
+            if (windowOpen) WindowView(vm, Modifier.align(Alignment.Center))
             if (!uiHidden) TopHud(
                 vm,
                 Modifier
@@ -253,6 +257,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                         zoom = link.zoom,
                         onToggleHide = { uiHidden = true; sheet = 0 },
                         onZoom = { link.zoom = (link.zoom * it).coerceIn(ZOOM_MIN, ZOOM_MAX) },
+                        windowOpen = windowOpen,
+                        onWindow = { windowOpen = !windowOpen },
                     )
                 },
                 modifier = Modifier
@@ -289,6 +295,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 zoom = link.zoom,
                 onToggleHide = { uiHidden = false },
                 onZoom = { link.zoom = (link.zoom * it).coerceIn(ZOOM_MIN, ZOOM_MAX) },
+                windowOpen = windowOpen,
+                onWindow = { windowOpen = !windowOpen },
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 8.dp, bottom = 16.dp + bottomInset),
@@ -2849,19 +2857,30 @@ const val ZOOM_MAX = 2.2f
 
 /** Hide/show the UI and zoom the camera in or out (pinch works too). */
 @Composable
-private fun SceneControls(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit, modifier: Modifier = Modifier, horizontal: Boolean = false) {
+private fun SceneControls(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit, modifier: Modifier = Modifier, horizontal: Boolean = false, windowOpen: Boolean = false, onWindow: (() -> Unit)? = null) {
     val box = modifier
         .clip(RoundedCornerShape(16.dp))
         .background(Panel.copy(alpha = 0.8f))
         .border(2.dp, Ink, RoundedCornerShape(16.dp))
         .padding(4.dp)
-    if (horizontal) Row(box, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { SceneControlButtons(hidden, zoom, onToggleHide, onZoom) }
-    else Column(box, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) { SceneControlButtons(hidden, zoom, onToggleHide, onZoom) }
+    if (horizontal) Row(box, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { SceneControlButtons(hidden, zoom, onToggleHide, onZoom, windowOpen, onWindow) }
+    else Column(box, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) { SceneControlButtons(hidden, zoom, onToggleHide, onZoom, windowOpen, onWindow) }
 }
 
 @Composable
-private fun SceneControlButtons(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit) {
+private fun SceneControlButtons(hidden: Boolean, zoom: Float, onToggleHide: () -> Unit, onZoom: (Float) -> Unit, windowOpen: Boolean = false, onWindow: (() -> Unit)? = null) {
     run {
+        if (onWindow != null) ControlButton(onWindow) {
+            Canvas(Modifier.size(20.dp)) {
+                val w = size.width; val h = size.height
+                // a little window: rounded pane with a sill, or an eye-out arrow when open
+                drawRoundRect(if (windowOpen) Ember else Color.Transparent, topLeft = Offset(w * 0.12f, h * 0.1f), size = Size(w * 0.76f, h * 0.7f), cornerRadius = CornerRadius(w * 0.18f, w * 0.18f), alpha = if (windowOpen) 0.18f else 1f)
+                drawRoundRect(Ink, topLeft = Offset(w * 0.12f, h * 0.1f), size = Size(w * 0.76f, h * 0.7f), cornerRadius = CornerRadius(w * 0.18f, w * 0.18f), style = Stroke(1.8.dp.toPx()))
+                drawLine(Ink, Offset(w * 0.5f, h * 0.1f), Offset(w * 0.5f, h * 0.8f), 1.4.dp.toPx())
+                drawLine(Ink, Offset(w * 0.12f, h * 0.45f), Offset(w * 0.88f, h * 0.45f), 1.4.dp.toPx())
+                drawLine(Ink, Offset(w * 0.06f, h * 0.9f), Offset(w * 0.94f, h * 0.9f), 2.2.dp.toPx(), StrokeCap.Round)
+            }
+        }
         ControlButton(onToggleHide) {
             Canvas(Modifier.size(20.dp)) {
                 val w = size.width

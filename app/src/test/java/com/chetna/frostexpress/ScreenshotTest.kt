@@ -125,6 +125,16 @@ class ScreenshotTest {
                 val v = vm()
                 shot("${size}_24_bigupgrades") { GameScreen(v, initialSheet = 1) }
             }
+            "window", "window_desert", "window_snow" -> {
+                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
+                val v = vm()
+                when (screen) {
+                    "window_desert" -> v.enterRegion(3, "the Red Desert", 39)
+                    "window_snow" -> v.enterRegion(5, "the Snowfields", -18)
+                    else -> v.enterRegion(0, "the Green Meadow", 22)
+                }
+                shot("${size}_26_$screen") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) { WindowView(v) } }
+            }
             "anims" -> shot("${size}_18_anims") { SceneAnimPreview() }
             "alltrains" -> shot("${size}_19_alltrains") {
                 androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFE8F0F7))) {
@@ -181,6 +191,9 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_brainforest() = runBiome("rainforest")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bigupgrades() = runAll("normal", "bigupgrades")
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_bigtrain() = runAll("small", "bigtrain")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window() = runAll("normal", "window")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_desert() = runAll("normal", "window_desert")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_snow() = runAll("normal", "window_snow")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_anims() = runAll("normal", "anims")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_alltrains() = runAll("normal", "alltrains")
 
