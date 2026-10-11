@@ -76,6 +76,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -2711,13 +2712,38 @@ internal fun RailButton(img: androidx.compose.ui.graphics.ImageBitmap?, label: S
 @Composable
 private fun LeftRail(vm: GameViewModel, onQuests: () -> Unit, onAwards: () -> Unit, onWheel: () -> Unit, onGift: () -> Unit, controls: @Composable () -> Unit = {}, modifier: Modifier = Modifier) {
     val sp = rememberGameSprites()
+    var open by rememberSaveable { mutableStateOf(false) }
+    val pending = vm.questsReady + vm.storiesReady + vm.meta.passReady +
+        (if (vm.meta.wheelFreeReady) 1 else 0) + (if (vm.dailyReady) 1 else 0)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        val q = vm.questsReady + vm.storiesReady
-        RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = q, glow = q > 0, onClick = onQuests)
-        if (vm.featureOpen(Feature.EVENTS)) RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
-        if (vm.featureOpen(Feature.WHEEL)) RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
-        RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
+        // a single toggle collapses the side icons so they do not cover the scene
+        RailButton(null, if (open) "Hide" else "Menu", Color(0xFFEDE4F5), badge = if (open) 0 else pending, glow = !open && pending > 0, icon = { MenuIcon(open, Modifier.size(26.dp)) }, onClick = { UiSound.click(); open = !open })
+        if (open) {
+            val q = vm.questsReady + vm.storiesReady
+            RailButton(sp.iconQuest, "Quests", Color(0xFFE2F3EA), badge = q, glow = q > 0, onClick = onQuests)
+            if (vm.featureOpen(Feature.EVENTS)) RailButton(null, "Events", Color(currentEvent().color).copy(alpha = 0.6f).compositeOver(Color.White), badge = vm.meta.passReady, icon = { FlakeIcon(Modifier.size(28.dp)) }, onClick = onAwards)
+            if (vm.featureOpen(Feature.WHEEL)) RailButton(null, "Wheel", Color(0xFFFFF0C8), badge = if (vm.meta.wheelFreeReady) 1 else 0, glow = vm.meta.wheelFreeReady, icon = { WheelIcon(Modifier.size(30.dp)) }, onClick = onWheel)
+            RailButton(sp.iconGift, if (vm.dailyReady) "Ready!" else vm.nextGiftIn, Color(0xFFFFE1E1), badge = if (vm.dailyReady) 1 else 0, glow = vm.dailyReady, onClick = onGift)
+        }
         controls()
+    }
+}
+
+/** The hamburger / close icon on the rail's collapse button. */
+@Composable
+private fun MenuIcon(open: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val col = Ink
+        if (open) {
+            drawLine(col, Offset(w * 0.22f, h * 0.22f), Offset(w * 0.78f, h * 0.78f), 3.2.dp.toPx(), StrokeCap.Round)
+            drawLine(col, Offset(w * 0.78f, h * 0.22f), Offset(w * 0.22f, h * 0.78f), 3.2.dp.toPx(), StrokeCap.Round)
+        } else {
+            for (i in 0 until 3) {
+                val y = h * (0.3f + i * 0.2f)
+                drawLine(col, Offset(w * 0.22f, y), Offset(w * 0.78f, y), 3.2.dp.toPx(), StrokeCap.Round)
+            }
+        }
     }
 }
 

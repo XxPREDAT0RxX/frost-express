@@ -260,7 +260,34 @@ def rails(seconds=8.8):
     return out / np.max(np.abs(out)) * 0.5
 
 
-if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v4":
+def cabin(seconds=10.0):
+    """Inside a full passenger coach: a warm murmur of voices over a muffled rail rumble, a seamless loop."""
+    n = int(SR * seconds)
+    # muffled rumble (heavily low-passed, like hearing the wheels through the floor)
+    rumble = lowpass(rng.standard_normal(n), 0.004) * 2.6
+    rumble += np.sin(2 * np.pi * 42 * np.arange(n) / SR) * 0.05
+    # a murmur of voices: band-limited noise with slow, overlapping amplitude swells
+    voices = np.zeros(n)
+    for _ in range(7):
+        band = lowpass(rng.standard_normal(n), 0.06)
+        band = band - lowpass(band, 0.012)          # keep the mid "speech" band
+        env = 0.5 + 0.5 * np.sin(2 * np.pi * (0.1 + rng.random() * 0.25) * np.arange(n) / SR + rng.random() * 6)
+        voices += band * env
+    voices = voices / np.max(np.abs(voices)) * 0.5
+    # the odd soft cup/clink now and then
+    for _ in range(5):
+        t = tvec(0.14)
+        clink = np.sin(2 * np.pi * (1200 + rng.random() * 800) * t) * np.exp(-t * 40) * 0.12
+        place(voices, clink, rng.random() * (seconds - 0.2))
+    out = rumble * 0.22 + voices
+    out = reverb(out, 0.5)                            # a boxy, enclosed room
+    out = loopify(out, 0.8)
+    return out / np.max(np.abs(out)) * 0.5
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v5":
+    save("amb_cabin", cabin(), q=2)
+elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v4":
     save("amb_rails", rails(), q=2)
 elif __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "v3":
     save("sfx_horn2", horn_deep(), q=4)

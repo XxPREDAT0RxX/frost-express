@@ -61,11 +61,23 @@ class GameAudio(private val ctx: Context) {
         ).forEach { ids[it] = pool.load(ctx, it, 1) }
     }
 
+    /** Per-sound loudness, normalised by measured volume and tuned so each effect sits at a life-like intensity. */
+    private val baseVol = hashMapOf(
+        R.raw.sfx_bird1 to 1.02f, R.raw.sfx_bird2 to 0.73f, R.raw.sfx_bird3 to 0.68f,
+        R.raw.sfx_boost to 0.83f, R.raw.sfx_brake to 1.50f, R.raw.sfx_buy to 1.05f,
+        R.raw.sfx_click to 0.99f, R.raw.sfx_coin to 0.62f, R.raw.sfx_deny to 0.72f,
+        R.raw.sfx_evolve to 1.08f, R.raw.sfx_horn to 0.72f, R.raw.sfx_horn2 to 0.51f,
+        R.raw.sfx_horn3 to 0.98f, R.raw.sfx_install to 1.50f, R.raw.sfx_pass to 0.88f,
+        R.raw.sfx_upgrade to 1.15f, R.raw.sfx_wolf to 0.80f,
+    )
+
     /** [rate] changes the pitch (0.5..2), used to give repeated sounds some variety. [pan] -1 left .. 1 right. */
     fun play(res: Int, volume: Float = 1f, rate: Float = 1f, pan: Float = 0f) {
         Haptics.forSound(res)
         if (!enabled || !foreground) return
-        val v = (volume * sfxVolume).coerceIn(0f, 1f)
+        // sounds coming from the world outside soften when the camera is zoomed inside the train
+        val outside = 1f - 0.45f * interiorAmt
+        val v = (volume * (baseVol[res] ?: 0.9f) * sfxVolume * outside).coerceIn(0f, 1f)
         val l = v * (1f - pan.coerceIn(0f, 1f))
         val r = v * (1f + pan.coerceIn(-1f, 0f))
         ids[res]?.let { pool.play(it, l, r, 1, 0, rate.coerceIn(0.5f, 2f)) }
@@ -116,7 +128,7 @@ class GameAudio(private val ctx: Context) {
     }
 
     private fun applyAmbienceVolume() {
-        val v = ambVol
+        val v = ambVol * (1f - 0.65f * interiorAmt)  // the outdoors is muffled when the ear is inside the coach
         ambience?.setVolume(v * mix, v * mix)
         fadingOut?.setVolume(v * (1f - mix), v * (1f - mix))
     }
@@ -150,16 +162,40 @@ class GameAudio(private val ctx: Context) {
         ambience?.let { if (it.isPlaying) it.pause() }
         fadingOut?.let { if (it.isPlaying) it.pause() }
         rails?.let { if (it.isPlaying) it.pause() }
+        interior?.let { if (it.isPlaying) it.pause() }
     }
 
     // ---- the soft clickety-clack of the wheels, quieter when the train slows and silent when it stops ----
     private var rails: MediaPlayer? = null
     private var railsLevel = -1f
+
+    // ---- inside vs outside: zooming in moves the ear into the coach (voices + muffled wheels) ----
+    private var interior: MediaPlayer? = null
+    private var zoomVal = 1f
+    /** 0 = fully outside (zoomed out), 1 = inside a passenger coach (zoomed in). */
+    private val interiorAmt: Float get() = ((zoomVal - 1f) / 1.2f).coerceIn(0f, 1f)
+    var zoom: Float
+        get() = zoomVal
+        set(v) { if (kotlin.math.abs(v - zoomVal) > 0.02f) { zoomVal = v; applyInterior() } }
+
+    private fun applyInterior() {
+        if (!enabled || !foreground) { interior?.let { if (it.isPlaying) it.pause() }; return }
+        val amt = interiorAmt
+        if (amt > 0.02f) {
+            if (interior == null) interior = MediaPlayer.create(ctx, R.raw.amb_cabin)?.apply { isLooping = true; setVolume(0f, 0f) }
+            val v = (sfxVolume * 0.6f * amt).coerceIn(0f, 1f)
+            interior?.setVolume(v, v)
+            interior?.let { if (!it.isPlaying) it.start() }
+        } else {
+            interior?.let { if (it.isPlaying) it.pause() }
+        }
+        applyAmbienceVolume()
+    }
     /** [motion] 0 standing still .. 1 full speed. */
     fun setRails(motion: Float) {
         if (!enabled || !foreground) { rails?.let { if (it.isPlaying) it.pause() }; return }
         if (rails == null) rails = MediaPlayer.create(ctx, R.raw.amb_rails)?.apply { isLooping = true; setVolume(0f, 0f) }
-        val v = (sfxVolume * 0.16f * motion.coerceIn(0f, 1f))
+        val v = (sfxVolume * 0.16f * motion.coerceIn(0f, 1f) * (1f - 0.5f * interiorAmt))
         if (kotlin.math.abs(v - railsLevel) > 0.01f) { railsLevel = v; rails?.setVolume(v, v) }
         rails?.let { if (v > 0.005f && !it.isPlaying) it.start() else if (v <= 0.005f && it.isPlaying) it.pause() }
     }
@@ -174,6 +210,8 @@ class GameAudio(private val ctx: Context) {
         fadingOut = null
         rails?.release()
         rails = null
+        interior?.release()
+        interior = null
         pool.release()
     }
 }

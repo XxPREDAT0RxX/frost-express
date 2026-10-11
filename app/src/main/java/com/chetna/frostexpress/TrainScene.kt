@@ -504,6 +504,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
     val stations = remember { ArrayList<Station>().apply { if (!vm.debugStationAt.isNaN()) add(Station(vm.debugStationAt)) } }
     val halfH = remember { floatArrayOf(300f) }
     val startStop = remember { booleanArrayOf(false) }
+    var seenEvolveStart by remember { mutableIntStateOf(vm.evolveSerial) }
     val stopFactor = remember { floatArrayOf(1f) }
     val shelterDwell = remember { floatArrayOf(-1f) }
     var seenStations by remember { mutableIntStateOf(vm.stationSerial) }
@@ -536,9 +537,15 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     acc = 0f
                     val boosting = vm.isBoosting
                     time += dt
+                    vm.audio.zoom = link?.zoom ?: 1f   // the ear moves inside the coach as you zoom in
                     // the train begins each session standing at a platform, then pulls away
                     if (!startStop[0] && halfH[0] > 1f) {
                         startStop[0] = true
+                        stations.add(Station(halfH[0]))
+                    }
+                    // after evolving, the new train also pulls out of a station
+                    if (seenEvolveStart != vm.evolveSerial && halfH[0] > 1f) {
+                        seenEvolveStart = vm.evolveSerial
                         stations.add(Station(halfH[0]))
                     }
                     while (seenStations < vm.stationSerial) { seenStations++; stations.add(Station(if (vm.debugStationAt.isNaN()) -160f else vm.debugStationAt)) }
@@ -1098,7 +1105,7 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val sx = x + 42f * u - (if (i % 3 == 1) 4f * u else 0f)
         val px = sx + (door - sx) * prog
         val bob = if (prog > 0f) kotlin.math.abs(sin(st.dwell * 14f + i)) * 1.2f * u else 0f
-        passenger(px, py - bob, cols[(i + st.seed) % cols.size], 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u)
+        passenger(px, py - bob, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed)
     }
     for (i in 0 until st.off) {
         val t = ((st.dwell - 0.2f - i * 0.4f) / 2.6f)
@@ -1108,17 +1115,22 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val px = if (t < 0.5f) door + (x + 30f * u - door) * (t / 0.5f) else x + 30f * u
         val yy = if (t < 0.5f) py else py + (t - 0.5f) / 0.5f * 120f * u
         val alpha = if (t < 0.12f) t / 0.12f else 1f - ((t - 0.75f) / 0.25f).coerceIn(0f, 1f)
-        passenger(px, yy, cols[(i + st.seed + 3) % cols.size], alpha, u)
+        passenger(px, yy, alpha, u, i + st.seed + 3)
     }
 }
 
-/** One person seen from above: a coat with a head. */
-private fun DrawScope.passenger(px: Float, py: Float, coat: Color, alpha: Float, u: Float) {
+/** One waiting or leaving passenger, drawn as a real cosy character (same faces as inside the train). */
+private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int) {
     if (alpha <= 0.01f) return
-    drawCircle(Color(0x33000000).copy(alpha = 0.2f * alpha), 5.5f * u, Offset(px, py + 1.5f * u))
-    drawCircle(Color(0xFF6B4A3A).copy(alpha = alpha), 5.6f * u, Offset(px, py))
-    drawCircle(coat.copy(alpha = alpha), 4.6f * u, Offset(px, py))
-    drawCircle(Color(0xFFF2C9A0).copy(alpha = alpha), 2.4f * u, Offset(px, py - 0.5f * u))
+    drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
+    val sp = sceneSprites
+    val img = sp?.survivors?.let { if (it.isNotEmpty()) it[Math.floorMod(seed, it.size)] else null } ?: sp?.npc
+    if (img != null) {
+        drawSprite(img, px - 9f * u, py - 16f * u, 18f * u, 22f * u, alpha = alpha)
+    } else {
+        drawCircle(Color(0xFF6B4A3A).copy(alpha = alpha), 5.6f * u, Offset(px, py))
+        drawCircle(Color(0xFFF2C9A0).copy(alpha = alpha), 2.4f * u, Offset(px, py - 0.5f * u))
+    }
 }
 
 /** Lamp light and warm windows; drawn after the night tint so they really glow. [on] 0..1. */
