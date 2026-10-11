@@ -340,6 +340,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var zone by mutableIntStateOf(-1); private set
     /** The current biome's typical temperature (°C), shown in the header. */
     var regionTemp by mutableIntStateOf(18); private set
+    // the world journey: which country we are in, how many of its 30 stations are done, and how many we have left behind
+    var countryIndex by mutableIntStateOf(prefs.getInt("country", 0)); private set
+    var countryStation by mutableIntStateOf(prefs.getInt("cstation", 0)); private set
+    var prestigeCount by mutableIntStateOf(prefs.getInt("prestige", 0)); private set
+    val country: Country get() = countryAt(countryIndex)
+    fun canPrestige(): Boolean = countryStation >= STATIONS_PER_COUNTRY
+    fun prestige() {
+        if (!canPrestige()) return
+        countryIndex++
+        countryStation = 0
+        prestigeCount++
+        audio.play(R.raw.sfx_evolve, 1f)
+        showToast("Prestige! Welcome to ${country.name}. +${(PRESTIGE_BONUS * 100).toInt()}% coins forever")
+        save()
+    }
     var postcardSerial by mutableIntStateOf(0); private set
     var critSerial by mutableIntStateOf(0); private set
     var critAmount by mutableDoubleStateOf(0.0); private set
@@ -737,6 +752,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             route(RouteBonus.BUSY_STATIONS, 2.0) * daily(DailySpecial.BUSY_DAY, 1.5)) * incomeMultiplier
         coins += gain
         stationsVisited++
+        if (countryStation < STATIONS_PER_COUNTRY) countryStation++
         if (shelter) stormsSheltered++
         totalBoarded += on
         meta.addStars(3)
@@ -1172,7 +1188,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0) * (1.0 + PRESTIGE_BONUS * prestigeCount)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -1640,6 +1656,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("inv", inventory.joinToString(","))
             .putInt("xp", xp).putInt("plvl", playerLevel)
             .putInt("crates", cratesCollected).putInt("stations", stationsVisited).putInt("storms", stormsSheltered).putInt("bused", boostersUsed).putInt("devinst", devicesInstalled).putString("jq", journeyClaimed.joinToString(",")).putInt("boarded", totalBoarded)
+            .putInt("country", countryIndex).putInt("cstation", countryStation).putInt("prestige", prestigeCount)
             .putLong("qDay", questDay).putString("qBase", questBase.joinToString(",")).putString("qClaim", questClaimed.joinToString(",") { if (it) "1" else "0" })
             .putLong("adDay", adDay)
             .putString("adCnt", adCounts.joinToString(","))

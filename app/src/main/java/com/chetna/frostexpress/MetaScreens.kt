@@ -387,7 +387,7 @@ fun WheelDialog(vm: GameViewModel, onClose: () -> Unit) {
 fun JourneySheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     SheetFrame("Journey", rememberGameSprites().iconTrophy, Color(0xFFCDE7F8), onClose, modifier) {
-        TabSwitch(listOf("Route", "Album", "Style", "Friends"), tab, { tab = it })
+        TabSwitch(listOf("Map", "Album", "Style", "Friends"), tab, { tab = it })
         when (tab) {
             0 -> RouteTab(vm)
             1 -> AlbumTab(vm)
@@ -399,55 +399,83 @@ fun JourneySheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -
 
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.RouteTab(vm: GameViewModel) {
-    val km = vm.totalDistance / 1000.0
-    val next = JOURNEY.indexOfFirst { it.km > km }
+    val country = vm.country
+    val done = vm.countryStation.coerceIn(0, STATIONS_PER_COUNTRY)
+    val accent = Color(country.accent)
+    val next = countryAt(vm.countryIndex + 1)
     LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
         item {
-            Card(bg = Color(0xFFFFF0C8).copy(alpha = 0.7f)) {
-                val ch2 = km >= JOURNEY[WARM_CITY].km
-                val goal = if (ch2) JOURNEY.last() else JOURNEY[WARM_CITY]
-                Text(if (ch2) "Chapter 2: Bring them home" else "Chapter 1: To the Warm City", fontSize = 18.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
-                Text(
-                    if (ch2) "The Warm City sends you back north to find everyone still out in the cold. Warm City bonus: +${(WARM_CITY_BONUS * 100).toInt()}% coins forever."
-                    else "Rumours say the snow melts in the south. Reaching the Warm City gives +${(WARM_CITY_BONUS * 100).toInt()}% coins forever.",
-                    fontSize = 12.sp, color = Muted,
-                )
-                Text("${fmt(km, 1)} km of ${goal.km} km", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Card(bg = accent.copy(alpha = 0.22f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(country.flag, fontSize = 30.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(country.name, fontSize = 20.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
+                        Text("Country ${vm.prestigeCount + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                    }
+                    if (vm.prestigeCount > 0) Column(horizontalAlignment = Alignment.End) {
+                        Text("+${(PRESTIGE_BONUS * vm.prestigeCount * 100).toInt()}%", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
+                        Text("coins forever", fontSize = 9.sp, color = Muted)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(country.tagline, fontSize = 12.sp, color = Muted)
+                Spacer(Modifier.height(6.dp))
+                Text("Station $done of $STATIONS_PER_COUNTRY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
                 Spacer(Modifier.height(4.dp))
                 Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(Track).border(1.2.dp, Ink, RoundedCornerShape(5.dp))) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth((km / goal.km).toFloat().coerceIn(0f, 1f)).background(Ember))
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(done / STATIONS_PER_COUNTRY.toFloat()).background(accent))
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
+            // the station board: a serpentine line of 30 stops, filling as you ride
+            StationBoard(done, accent, Modifier.fillMaxWidth().height(230.dp))
+            Spacer(Modifier.height(12.dp))
+            if (vm.canPrestige()) {
+                Card(bg = Color(0xFFFFF0C8).copy(alpha = 0.85f)) {
+                    Text("Loop complete! 🎉", fontSize = 16.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Text("Travel on to ${next.flag} ${next.name} and earn +${(PRESTIGE_BONUS * 100).toInt()}% coins forever. You keep your train and upgrades; the station loop starts fresh.", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(10.dp))
+                    BigButton("Travel to ${next.name}", { vm.prestige() }, Modifier.fillMaxWidth(), listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)))
+                }
+            } else {
+                Text("Stop at ${STATIONS_PER_COUNTRY - done} more stations to finish the loop and travel to ${next.flag} ${next.name}.", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp))
+            }
         }
-        items(JOURNEY.indices.toList()) { i ->
-            val leg = JOURNEY[i]
-            val done = km >= leg.km
-            val isNext = i == next
-            if (i == WARM_CITY + 1) SectionTitle("Chapter 2: Bring them home", XpPurple)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(58.dp)) {
-                Box(Modifier.width(34.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        val x = size.width / 2
-                        if (i > 0) drawLine(if (done) Ember else Track, Offset(x, 0f), Offset(x, size.height / 2), 6.dp.toPx())
-                        if (i < JOURNEY.lastIndex) drawLine(if (km >= JOURNEY[i + 1].km) Ember else Track, Offset(x, size.height / 2), Offset(x, size.height), 6.dp.toPx())
-                        drawCircle(if (done) Ember else if (isNext) Color(0xFFFFE49A) else Color.White, 11.dp.toPx())
-                        drawCircle(Ink, 11.dp.toPx(), style = Stroke(2.dp.toPx()))
-                    }
-                    Text("${i + 1}", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Color.White else Ink)
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(leg.name, fontSize = if (i == WARM_CITY || i == JOURNEY.lastIndex) 16.sp else 14.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = if (done || isNext) Ink else Muted)
-                    Text(
-                        if (done) "Arrived" else if (isNext) "${fmt(leg.km - km, 1)} km to go" else "${leg.km} km",
-                        fontSize = 11.sp, color = if (isNext) GoldText else Muted, fontWeight = FontWeight.Bold,
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GemIcon(Modifier.size(13.dp)); Spacer(Modifier.width(3.dp))
-                    Text("${leg.gems}", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (done) Muted else GemPink)
-                }
+    }
+}
+
+/** A serpentine board of [STATIONS_PER_COUNTRY] station nodes; the first [done] are stamped. */
+@Composable
+private fun StationBoard(done: Int, accent: Color, modifier: Modifier = Modifier) {
+    val cols = 5
+    val rows = (STATIONS_PER_COUNTRY + cols - 1) / cols
+    Canvas(modifier) {
+        val mx = 22.dp.toPx()
+        val cellW = (size.width - 2 * mx) / (cols - 1)
+        val cellH = (size.height - 2 * mx) / (rows - 1)
+        val r = 9.dp.toPx()
+        fun pos(i: Int): Offset {
+            val row = i / cols
+            var col = i % cols
+            if (row % 2 == 1) col = cols - 1 - col // serpentine: alternate rows run the other way
+            return Offset(mx + col * cellW, mx + row * cellH)
+        }
+        // connectors first
+        for (i in 0 until STATIONS_PER_COUNTRY - 1) {
+            val a = pos(i); val b = pos(i + 1)
+            val reached = i < done
+            drawLine(if (reached) accent else Track, a, b, 6.dp.toPx(), cap = StrokeCap.Round)
+        }
+        // nodes
+        for (i in 0 until STATIONS_PER_COUNTRY) {
+            val p = pos(i)
+            val reached = i < done
+            val current = i == done && done < STATIONS_PER_COUNTRY
+            when {
+                reached -> { drawCircle(accent, r, p); drawCircle(Ink, r, p, style = Stroke(2.dp.toPx())) }
+                current -> { drawCircle(Color(0xFFFFE49A), r + 2.dp.toPx(), p); drawCircle(Ink, r + 2.dp.toPx(), p, style = Stroke(2.5.dp.toPx())) }
+                else -> { drawCircle(Color.White, r, p); drawCircle(Ink.copy(alpha = 0.5f), r, p, style = Stroke(1.8.dp.toPx())) }
             }
         }
     }

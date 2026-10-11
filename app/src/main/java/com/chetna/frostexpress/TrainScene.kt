@@ -103,12 +103,15 @@ private val ZONES = listOf(
     Zone("the Snowfields", 0xFFDCE6EE, true, -18, mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("cliff", "ice"), 3 to listOf("dead_a", "pine_a"), 5 to listOf("ice", "rock_a"), 6 to listOf("shrub", "rock_b")), lakes = true),
 )
 
+/** The biome ZONES entry shown at environment loop step [step], remapped for the current country. */
+private fun zoneForStep(step: Int): Zone = ZONES[countryZoneAt(sceneCountry, step)]
+
 /** Ground colour at a world position, cross-faded across biome borders. */
 private fun groundColorAt(key: Float): Color {
     val raw = key / ZONE_LEN
     val n = Math.round(raw)
-    val before = ZONES[Math.floorMod(n - 1, ZONES.size)]
-    val after = ZONES[Math.floorMod(n, ZONES.size)]
+    val before = zoneForStep(n - 1)
+    val after = zoneForStep(n)
     val edge = 0.14f
     val d = raw - n
     val a = ((d + edge) / (2f * edge)).coerceIn(0f, 1f)
@@ -119,8 +122,8 @@ private fun groundColorAt(key: Float): Color {
 private fun snowAt(key: Float): Float {
     val raw = key / ZONE_LEN
     val n = Math.round(raw)
-    val before = if (ZONES[Math.floorMod(n - 1, ZONES.size)].snowy) 1f else 0f
-    val after = if (ZONES[Math.floorMod(n, ZONES.size)].snowy) 1f else 0f
+    val before = if (zoneForStep(n - 1).snowy) 1f else 0f
+    val after = if (zoneForStep(n).snowy) 1f else 0f
     val edge = 0.14f
     val a = ((raw - n + edge) / (2f * edge)).coerceIn(0f, 1f)
     return before + (after - before) * a
@@ -128,7 +131,7 @@ private fun snowAt(key: Float): Float {
 /** Distance (dp of scenery) the train spends in each region. */
 private const val ZONE_LEN = 2600f
 
-private fun zoneAt(key: Float): Int = Math.floorMod(kotlin.math.floor(key / ZONE_LEN).toInt(), ZONES.size)
+private fun zoneAt(key: Float): Int = countryZoneAt(sceneCountry, kotlin.math.floor(key / ZONE_LEN).toInt())
 
 private fun tiled(img: ImageBitmap) = ShaderBrush(ImageShader(img, TileMode.Repeated, TileMode.Repeated))
 
@@ -760,6 +763,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneDecor = vm.meta.decor.toList()
         sceneTier = vm.tierIndex
         scenePassengers = vm.passengers
+        sceneCountry = vm.countryIndex
         sceneWarm = vm.regionTemp >= 24
         sceneWalkers = FloatArray(2 + 2 + survivors.size * 2).also { a ->
             a[0] = npc.x; a[1] = npc.y
@@ -957,6 +961,8 @@ private var sceneStorm = 0f
 private var sceneSnow = 0f
 private var scenePassengers = 0
 private var sceneWarm = false
+/** Which country the environment is themed for; remaps the biome loop (see Countries). */
+private var sceneCountry = 0
 /** A rider's stable identity while aboard: which character sprite, and whether they boarded in warm weather. */
 private class ScenePax(val sprite: Int, val warm: Boolean)
 private var sceneRoster: List<ScenePax> = emptyList()
