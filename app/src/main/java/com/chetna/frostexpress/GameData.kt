@@ -378,7 +378,7 @@ object Balance {
 
     /** Evolve needs this many upgrade levels bought in the current run (grows with every evolve). */
     /** Upgrade levels needed to evolve (20% fewer than the first balance, so evolving comes sooner). */
-    fun evolveLevels(evolutions: Int): Int = ((100 + 120 * evolutions + 10 * evolutions * (evolutions - 1)) * 0.8).toInt()
+    fun evolveLevels(e: Int): Int = (28 + 22 * e + 2 * e * (e - 1))  // first evolve ~28 upgrade levels (~15-20 min), then a steady ramp
     /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
     fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
     const val GEM_TRADE_PER_DAY = 10         // gems you can buy with coins each day
@@ -421,8 +421,8 @@ object Balance {
 
     // ---- passenger economy: riders are the main income ----
     const val SEATS_PER_CAR = 8           // seats (and so max passengers) per car
-    const val PASSENGER_FARE = 0.105      // a seated passenger's fare per second (x the value of one full-speed metre)
-    const val DISTANCE_TRICKLE = 0.18     // small baseline income just for rolling along
+    const val PASSENGER_FARE = 0.18       // a seated passenger's fare per second (x the value of one full-speed metre)
+    const val DISTANCE_TRICKLE = 0.30     // small baseline income just for rolling along
     const val TRIP_BONUS = 1.2            // lump fare each passenger pays when they finish their trip at a station
     const val DINING_SEC = 6.0            // the dining car rings up a sale this often
     const val DINING_K = 0.6              // how much each diner spends (x a passenger's per-second fare)
