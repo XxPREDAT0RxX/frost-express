@@ -754,6 +754,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneDecor = vm.meta.decor.toList()
         sceneTier = vm.tierIndex
         scenePassengers = vm.passengers
+        sceneWarm = vm.regionTemp >= 24
         sceneWalkers = FloatArray(2 + 2 + survivors.size * 2).also { a ->
             a[0] = npc.x; a[1] = npc.y
             val crew = vm.permLevel(PermType.CREW) > 0
@@ -949,6 +950,7 @@ private var sceneTier = 0
 private var sceneStorm = 0f
 private var sceneSnow = 0f
 private var scenePassengers = 0
+private var sceneWarm = false
 private var sceneStationNear = false
 private var sceneGolden: List<String> = emptyList()
 private var sceneDecor: List<String> = emptyList()
@@ -1124,7 +1126,8 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
-    val img = sp?.survivors?.let { if (it.isNotEmpty()) it[Math.floorMod(seed, it.size)] else null } ?: sp?.npc
+    val pool = if (sceneWarm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
+    val img = if (pool.isNotEmpty()) pool[Math.floorMod(seed, pool.size)] else sp?.npc
     if (img != null) {
         drawSprite(img, px - 9f * u, py - 16f * u, 18f * u, 22f * u, alpha = alpha)
     } else {
@@ -1366,7 +1369,8 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, occupied: Boolean, see
     // a real cosy passenger (one of the survivor characters), sitting, facing out
     if (occupied) {
         val sp = sceneSprites
-        val img = sp?.survivors?.let { if (it.isNotEmpty()) it[Math.floorMod(seed, it.size)] else null } ?: sp?.npc
+        val pool = if (sceneWarm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
+        val img = if (pool.isNotEmpty()) pool[Math.floorMod(seed, pool.size)] else sp?.npc
         if (img != null) {
             // soft shadow, then the character; legs are hidden behind the seat cushion below
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
