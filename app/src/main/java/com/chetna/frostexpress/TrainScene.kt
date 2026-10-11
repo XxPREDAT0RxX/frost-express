@@ -1344,9 +1344,9 @@ private fun paxInCar(car: Int, cars: Int): Int {
 
 /** A padded bench seat. */
 private fun DrawScope.seatBench(x: Float, y: Float) {
-    box(Color(0xFF6B4A3A), x - 10f, y - 8f, 20f, 20f, 5f)
-    box(Color(0xFFCBAE86), x - 8.5f, y - 6.5f, 17f, 17f, 4f)
-    box(Color(0xFFBFA078), x - 8.5f, y + 3f, 17f, 7f, 3f)
+    box(Color(0xFF6B4A3A), x - 14f, y - 12f, 28f, 30f, 7f)
+    box(Color(0xFFCBAE86), x - 12f, y - 10f, 24f, 26f, 6f)
+    box(Color(0xFFBFA078), x - 12f, y + 5f, 24f, 11f, 4f)
 }
 
 /** A seated passenger, roughly survivor-sized, facing the aisle. [filled] false = an empty seat. */
@@ -1358,23 +1358,23 @@ private fun DrawScope.drawSeatPax(x: Float, y: Float, filled: Boolean, seed: Int
     val hat = Color(PAX_HATS[Math.floorMod(seed * 3 + 1, PAX_HATS.size)])
     val skin = Color(0xFFF3D3B3)
     // body (jacket)
-    drawCircle(jacket, 8.2f * u, Offset(x * u, (y + 5f) * u))
-    drawCircle(Color(0xFF6B4A3A), 8.2f * u, Offset(x * u, (y + 5f) * u), style = Stroke(1.6f * u))
+    drawCircle(jacket, 11.5f * u, Offset(x * u, (y + 7f) * u))
+    drawCircle(Color(0xFF6B4A3A), 11.5f * u, Offset(x * u, (y + 7f) * u), style = Stroke(2.1f * u))
     // scarf
-    drawArc(Color(0xFFE05A4E), 200f, 140f, false, topLeft = Offset((x - 6f) * u, (y - 2f) * u), size = Size(12f * u, 10f * u), style = Stroke(2.6f * u))
+    drawArc(Color(0xFFE05A4E), 200f, 140f, false, topLeft = Offset((x - 8.5f) * u, (y - 3f) * u), size = Size(17f * u, 14f * u), style = Stroke(3.6f * u))
     // head + hat
-    drawCircle(skin, 5.6f * u, Offset(x * u, (y - 3f) * u))
-    drawCircle(Color(0xFF6B4A3A), 5.6f * u, Offset(x * u, (y - 3f) * u), style = Stroke(1.5f * u))
-    drawArc(hat, 180f, 180f, true, topLeft = Offset((x - 5.8f) * u, (y - 8.5f) * u), size = Size(11.6f * u, 8f * u))
-    drawArc(Color(0xFF6B4A3A), 180f, 180f, false, topLeft = Offset((x - 5.8f) * u, (y - 8.5f) * u), size = Size(11.6f * u, 8f * u), style = Stroke(1.5f * u))
-    drawCircle(Color.White, 1.6f * u, Offset(x * u, (y - 9.5f) * u))
-    drawCircle(Color(0xFF6B4A3A), 1.6f * u, Offset(x * u, (y - 9.5f) * u), style = Stroke(0.8f * u))
+    drawCircle(skin, 7.8f * u, Offset(x * u, (y - 4f) * u))
+    drawCircle(Color(0xFF6B4A3A), 7.8f * u, Offset(x * u, (y - 4f) * u), style = Stroke(2f * u))
+    drawArc(hat, 180f, 180f, true, topLeft = Offset((x - 8.1f) * u, (y - 12f) * u), size = Size(16.2f * u, 11f * u))
+    drawArc(Color(0xFF6B4A3A), 180f, 180f, false, topLeft = Offset((x - 8.1f) * u, (y - 12f) * u), size = Size(16.2f * u, 11f * u), style = Stroke(2f * u))
+    drawCircle(Color.White, 2.2f * u, Offset(x * u, (y - 13.5f) * u))
+    drawCircle(Color(0xFF6B4A3A), 2.2f * u, Offset(x * u, (y - 13.5f) * u), style = Stroke(1f * u))
     // cheeks + eyes + smile
-    drawCircle(Color(0xFFF2A9A0).copy(alpha = 0.8f), 1.5f * u, Offset((x - 3.4f) * u, (y - 2f) * u))
-    drawCircle(Color(0xFFF2A9A0).copy(alpha = 0.8f), 1.5f * u, Offset((x + 3.4f) * u, (y - 2f) * u))
-    drawCircle(Color(0xFF4A3528), 1f * u, Offset((x - 1.8f) * u, (y - 3.2f) * u))
-    drawCircle(Color(0xFF4A3528), 1f * u, Offset((x + 1.8f) * u, (y - 3.2f) * u))
-    drawArc(Color(0xFF6B4A3A), 20f, 140f, false, topLeft = Offset((x - 2.2f) * u, (y - 2.6f) * u), size = Size(4.4f * u, 3.2f * u), style = Stroke(0.9f * u))
+    drawCircle(Color(0xFFF2A9A0).copy(alpha = 0.8f), 2.1f * u, Offset((x - 4.7f) * u, (y - 2.5f) * u))
+    drawCircle(Color(0xFFF2A9A0).copy(alpha = 0.8f), 2.1f * u, Offset((x + 4.7f) * u, (y - 2.5f) * u))
+    drawCircle(Color(0xFF4A3528), 1.4f * u, Offset((x - 2.5f) * u, (y - 4.4f) * u))
+    drawCircle(Color(0xFF4A3528), 1.4f * u, Offset((x + 2.5f) * u, (y - 4.4f) * u))
+    drawArc(Color(0xFF6B4A3A), 20f, 140f, false, topLeft = Offset((x - 3f) * u, (y - 3.6f) * u), size = Size(6f * u, 4.4f * u), style = Stroke(1.2f * u))
 }
 
 /** A small toilet cubicle in the corner of a seating car. */
@@ -1407,14 +1407,13 @@ private fun DrawScope.drawFoodCar(top: Float, look: Look, npc: Npc, time: Float)
     }
     // mugs and plates along the counter
     for (i in 0 until 5) { dot(Color(0xFFF2EAD8), 24f + i * 22f, top + 23f, 3.2f); dot(Color(0xFFE0A05A), 24f + i * 22f, top + 22f, 1.6f) }
-    // three booths of two diners, filled to the rider count in this car
+    // two booths of two diners, filled to the rider count in this car
     val here = paxInCar(1, look.cars)
-    val cols = floatArrayOf(40f, 95f, 150f)
-    val rows = floatArrayOf(top + 60f, top + 92f)
+    val cols = floatArrayOf(58f, 124f)
+    val rows = floatArrayOf(top + 62f, top + 96f)
     var seat = 0
-    for (r in 0 until 2) for (c in 0 until 3) {
-        // a little table between the rows
-        if (r == 0) box(Color(0xFF9C7E5A), cols[c] - 7f, top + 78f, 14f, 8f, 2f)
+    for (r in 0 until 2) for (c in 0 until 2) {
+        if (r == 0) box(Color(0xFF9C7E5A), cols[c] - 10f, top + 82f, 20f, 9f, 3f)  // a dining table
         drawSeatPax(cols[c], rows[r], seat < here, 100 + seat * 5)
         seat++
     }
@@ -1424,10 +1423,10 @@ private fun DrawScope.drawFoodCar(top: Float, look: Look, npc: Npc, time: Float)
 private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
     drawToilet(top)
     val here = paxInCar(car, cars)
-    val cols = floatArrayOf(72f, 128f)
-    val rows = floatArrayOf(top + 24f, top + 56f, top + 88f)
+    val cols = floatArrayOf(84f, 140f)
+    val rows = floatArrayOf(top + 34f, top + 82f)
     var seat = 0
-    for (r in 0 until 3) for (c in 0 until 2) {
+    for (r in 0 until 2) for (c in 0 until 2) {
         drawSeatPax(cols[c], rows[r], seat < here, car * 37 + seat * 11)
         seat++
     }
