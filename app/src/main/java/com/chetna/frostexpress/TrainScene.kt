@@ -1333,6 +1333,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             1 -> drawFoodCar(top, look, npc, time)
             else -> drawSeatingCar(top, i, cars)
         }
+        drawRoofStyle(top, body, accent)
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
     drawCarDoors(cars, npc)
@@ -1697,6 +1698,53 @@ private fun DrawScope.drawLivery(top: Float, body: Color, accent: Color) {
         }
         4 -> { stripe(2.5f, 4f, light, 0.7f); box(accent.copy(alpha = 0.85f), 2.5f, top + CAR_H / 2f - 2f, CAR_W - 5f, 4f, 1.5f) } // belt line
         else -> { stripe(2.5f, 6f, lerp(accent, Color.White, 0.3f), 0.85f); stripe(8.5f, 1.5f, dark, 0.6f) }
+    }
+}
+
+/** Each tier's coach silhouette: a roof style down the centre spine (clear of the seats) so trains look
+ *  different class to class — vents, ribs, AC units, a double-deck clerestory, a pantograph, a streamlined fairing. */
+private val ROOF_STYLE = intArrayOf(
+    0, 3, 2, 1, 4,   // tiers 0..4
+    5, 3, 1, 2, 4,   // 5..9
+    1, 5, 2, 4, 1,   // 10..14
+    3, 1, 4, 5, 2,   // 15..19
+    1, 4, 5, 3, 5,   // 20..24
+)
+
+private fun DrawScope.drawRoofStyle(top: Float, body: Color, accent: Color) {
+    val cx = AISLE_X
+    val spine = lerp(body, Color.White, 0.30f)
+    val spineD = lerp(body, Color.Black, 0.22f)
+    val glass = Color(0xFF9CC3E0)
+    when (ROOF_STYLE[Math.floorMod(sceneTier, ROOF_STYLE.size)]) {
+        0 -> { // plain roof with a couple of vents
+            for (vy in listOf(top + 30f, top + 70f)) { box(spineD, cx - 6f, vy, 12f, 8f, 2f); box(spine, cx - 5f, vy + 1f, 10f, 3f, 1f) }
+        }
+        1 -> { // double-deck clerestory: a raised, glassy strip down the middle
+            box(spineD, cx - 11f, top + 10f, 22f, CAR_H - 20f, 5f)
+            box(spine, cx - 9f, top + 12f, 18f, CAR_H - 24f, 4f)
+            var wy = top + 16f
+            while (wy < top + CAR_H - 16f) { box(glass, cx - 6f, wy, 12f, 7f, 1.5f); box(Color(0x66FFFFFF), cx - 5f, wy + 1f, 4f, 3f, 0.6f); wy += 12f }
+        }
+        2 -> { // ribbed metro roof
+            var ry = top + 14f
+            while (ry < top + CAR_H - 10f) { box(spineD.copy(alpha = 0.5f), 16f, ry, CAR_W - 32f, 1.6f, 0.8f); ry += 9f }
+            box(spine, cx - 4f, top + 10f, 8f, CAR_H - 20f, 2f)
+        }
+        3 -> { // diesel/AC coach: roof units along the spine
+            for (ay in listOf(top + 24f, top + 50f, top + 76f)) { box(spineD, cx - 9f, ay, 18f, 16f, 3f); box(spine, cx - 7f, ay + 2f, 14f, 6f, 2f); box(Color(0x55000000), cx - 6f, ay + 9f, 12f, 4f, 1f) }
+        }
+        4 -> { // electric: a pantograph arm on the roof
+            box(spineD, cx - 10f, top + 40f, 20f, 36f, 2f)
+            line(accent, cx - 7f, top + 74f, cx, top + 50f, 2f); line(accent, cx + 7f, top + 74f, cx, top + 50f, 2f)
+            line(accent, cx, top + 50f, cx - 8f, top + 42f, 2f); line(accent, cx, top + 50f, cx + 8f, top + 42f, 2f)
+            box(Color(0xFF3E4A57), cx - 10f, top + 40f, 20f, 3f, 1f)
+        }
+        else -> { // streamlined fairing: a smooth highlighted spine tapering toward the engine
+            box(spine.copy(alpha = 0.85f), cx - 8f, top + 6f, 16f, CAR_H - 12f, 8f)
+            box(Color(0x55FFFFFF), cx - 6f, top + 8f, 5f, CAR_H - 16f, 3f)
+            box(accent.copy(alpha = 0.8f), cx - 2f, top + 10f, 4f, CAR_H - 20f, 2f)
+        }
     }
 }
 
