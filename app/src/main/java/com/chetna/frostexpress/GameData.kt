@@ -420,8 +420,8 @@ object Balance {
     const val STATION_BONUS_SEC = 20.0    // bonus = 20 seconds of income
 
     // ---- passenger economy: riders are the main income ----
-    const val SEATS_PER_CAR = 4           // seats (and so max passengers) per car
-    const val PASSENGER_FARE = 0.21       // a seated passenger's fare per second (x the value of one full-speed metre)
+    const val SEATS_PER_CAR = 8           // seats (and so max passengers) per car
+    const val PASSENGER_FARE = 0.105      // a seated passenger's fare per second (x the value of one full-speed metre)
     const val DISTANCE_TRICKLE = 0.18     // small baseline income just for rolling along
     const val TRIP_BONUS = 1.2            // lump fare each passenger pays when they finish their trip at a station
     const val DINING_SEC = 6.0            // the dining car rings up a sale this often

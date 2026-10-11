@@ -1342,92 +1342,87 @@ private fun paxInCar(car: Int, cars: Int): Int {
     return (base + if (idx < extra) 1 else 0).coerceIn(0, Balance.SEATS_PER_CAR)
 }
 
-/** A padded bench seat. */
-private fun DrawScope.seatBench(x: Float, y: Float) {
-    box(Color(0xFF6B4A3A), x - 14f, y - 12f, 28f, 30f, 7f)
-    box(Color(0xFFCBAE86), x - 12f, y - 10f, 24f, 26f, 6f)
-    box(Color(0xFFBFA078), x - 12f, y + 5f, 24f, 11f, 4f)
-}
-
-/** A seated passenger, roughly survivor-sized, facing the aisle. [filled] false = an empty seat. */
-private fun DrawScope.drawSeatPax(x: Float, y: Float, filled: Boolean, seed: Int) {
+/** A forward-facing train seat seen from above, with its rider's head and shoulders if taken. */
+private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, occupied: Boolean, seed: Int) {
     val u = density
-    seatBench(x, y)
-    if (!filled) return
+    val fab = Color(0xFF7FA8CC)
+    val fabD = Color(0xFF5C83A6)
+    // seat block: dark base, back-rest, then the cushion in front (facing up, toward the engine)
+    box(Color(0xFF3E4A57), cx - 15f, cy - 17f, 30f, 35f, 7f)
+    box(fabD, cx - 14f, cy - 16f, 28f, 33f, 6f)
+    box(fab, cx - 14f, cy - 16f, 28f, 13f, 6f)                 // head-rest at the top
+    box(fab.copy(alpha = 0.92f), cx - 13f, cy - 1f, 26f, 16f, 5f) // seat cushion
+    line(Color(0xFF3E4A57), cx - 14f, cy - 3f, cx + 14f, cy - 3f, 1f)
+    if (!occupied) return
     val jacket = Color(PAX_JACKETS[Math.floorMod(seed, PAX_JACKETS.size)])
     val hat = Color(PAX_HATS[Math.floorMod(seed * 3 + 1, PAX_HATS.size)])
     val skin = Color(0xFFF3D3B3)
-    // body (jacket)
-    drawCircle(jacket, 11.5f * u, Offset(x * u, (y + 7f) * u))
-    drawCircle(Color(0xFF6B4A3A), 11.5f * u, Offset(x * u, (y + 7f) * u), style = Stroke(2.1f * u))
-    // scarf
-    drawArc(Color(0xFFE05A4E), 200f, 140f, false, topLeft = Offset((x - 8.5f) * u, (y - 3f) * u), size = Size(17f * u, 14f * u), style = Stroke(3.6f * u))
-    // head + hat
-    drawCircle(skin, 7.8f * u, Offset(x * u, (y - 4f) * u))
-    drawCircle(Color(0xFF6B4A3A), 7.8f * u, Offset(x * u, (y - 4f) * u), style = Stroke(2f * u))
-    drawArc(hat, 180f, 180f, true, topLeft = Offset((x - 8.1f) * u, (y - 12f) * u), size = Size(16.2f * u, 11f * u))
-    drawArc(Color(0xFF6B4A3A), 180f, 180f, false, topLeft = Offset((x - 8.1f) * u, (y - 12f) * u), size = Size(16.2f * u, 11f * u), style = Stroke(2f * u))
-    drawCircle(Color.White, 2.2f * u, Offset(x * u, (y - 13.5f) * u))
-    drawCircle(Color(0xFF6B4A3A), 2.2f * u, Offset(x * u, (y - 13.5f) * u), style = Stroke(1f * u))
-    // cheeks + eyes + smile
-    drawCircle(Color(0xFFF2A9A0).copy(alpha = 0.8f), 2.1f * u, Offset((x - 4.7f) * u, (y - 2.5f) * u))
-    drawCircle(Color(0xFFF2A9A0).copy(alpha = 0.8f), 2.1f * u, Offset((x + 4.7f) * u, (y - 2.5f) * u))
-    drawCircle(Color(0xFF4A3528), 1.4f * u, Offset((x - 2.5f) * u, (y - 4.4f) * u))
-    drawCircle(Color(0xFF4A3528), 1.4f * u, Offset((x + 2.5f) * u, (y - 4.4f) * u))
-    drawArc(Color(0xFF6B4A3A), 20f, 140f, false, topLeft = Offset((x - 3f) * u, (y - 3.6f) * u), size = Size(6f * u, 4.4f * u), style = Stroke(1.2f * u))
+    // shoulders/body seen from above
+    box(jacket, cx - 10.5f, cy - 2f, 21f, 15f, 8f)
+    drawRoundRect(Color(0xFF6B4A3A), Offset((cx - 10.5f) * u, (cy - 2f) * u), Size(21f * u, 15f * u), CornerRadius(8f * u, 8f * u), style = Stroke(1.6f * u))
+    // head with a cap (from above)
+    drawCircle(skin, 6.4f * u, Offset(cx * u, (cy - 6f) * u))
+    drawCircle(Color(0xFF6B4A3A), 6.4f * u, Offset(cx * u, (cy - 6f) * u), style = Stroke(1.7f * u))
+    drawArc(hat, 180f, 180f, true, topLeft = Offset((cx - 6.6f) * u, (cy - 10.5f) * u), size = Size(13.2f * u, 9f * u))
+    drawArc(Color(0xFF6B4A3A), 180f, 180f, false, topLeft = Offset((cx - 6.6f) * u, (cy - 10.5f) * u), size = Size(13.2f * u, 9f * u), style = Stroke(1.6f * u))
+    drawCircle(hat, 6.4f * u, Offset(cx * u, (cy - 6f) * u))    // cap crown over the head
+    drawCircle(Color(0xFF6B4A3A), 6.4f * u, Offset(cx * u, (cy - 6f) * u), style = Stroke(1.4f * u))
+    drawCircle(Color.White, 1.8f * u, Offset(cx * u, (cy - 6f) * u))
 }
 
-/** A small toilet cubicle in the corner of a seating car. */
+/** A toilet cubicle across the rear end of a coach. */
 private fun DrawScope.drawToilet(top: Float) {
-    // a little room with a door
-    box(Color(0xFF6B4A3A), 6f, top + 8f, 34f, 54f, 6f)
-    box(Color(0xFFBFE0F0), 8.5f, top + 10.5f, 29f, 49f, 5f)
-    box(Color(0xFFDCEFF8), 10f, top + 12f, 26f, 46f, 4f)
-    // the bowl
-    box(Color(0xFF6B4A3A), 16f, top + 30f, 16f, 22f, 5f)
-    box(Color.White, 17.5f, top + 31.5f, 13f, 13f, 5f)
-    box(Color(0xFFDDE8EE), 19f, top + 33f, 10f, 9f, 4f)
-    box(Color.White, 18f, top + 24f, 12f, 8f, 3f)   // cistern
-    // door handle + a small "WC" sign
-    dot(Color(0xFF6B4A3A), 35f, top + 36f, 1.6f)
-    box(Color(0xFF8FB7D8), 18f, top + 13f, 10f, 6f, 2f)
+    val y = top + CAR_H - 24f
+    box(Color(0xFF6B4A3A), 44f, y, CAR_W - 88f, 22f, 6f)
+    box(Color(0xFFBFE0F0), 46.5f, y + 2f, CAR_W - 93f, 18f, 5f)
+    box(Color(0xFFDCEFF8), 48f, y + 3.5f, CAR_W - 96f, 15f, 4f)
+    // the bowl + cistern, and a WC sign on the door
+    box(Color.White, AISLE_X - 7f, y + 7f, 14f, 11f, 4f)
+    box(Color(0xFFDDE8EE), AISLE_X - 5f, y + 8.5f, 10f, 8f, 3f)
+    box(Color.White, AISLE_X - 6f, y + 3f, 12f, 5f, 2f)
+    box(Color(0xFF8FB7D8), AISLE_X - 9f, y + 1f, 18f, 5f, 2f)
 }
 
-/** The food car: a dining counter along the top with the galley, and booths of diners below. */
-private fun DrawScope.drawFoodCar(top: Float, look: Look, npc: Npc, time: Float) {
-    val sp = sceneSprites
-    // counter / galley strip along the top
-    box(Color(0xFF8B5E3C), 6f, top + 8f, CAR_W - 12f, 30f, 6f)
-    box(Color(0xFFCB9A6A), 8f, top + 10f, CAR_W - 16f, 26f, 5f)
-    box(Color(0xFFE6C79A), 8f, top + 10f, CAR_W - 16f, 7f, 3f)
-    // the galley on the right of the counter, with the cooking pot
-    if (look.food > 0 && sp?.kitchen != null) {
-        furniture(sp.kitchen, 150f, top + 4f, 34f, 42f)
-        drawCookingPot(top, time)
-    }
-    // mugs and plates along the counter
-    for (i in 0 until 5) { dot(Color(0xFFF2EAD8), 24f + i * 22f, top + 23f, 3.2f); dot(Color(0xFFE0A05A), 24f + i * 22f, top + 22f, 1.6f) }
-    // two booths of two diners, filled to the rider count in this car
-    val here = paxInCar(1, look.cars)
-    val cols = floatArrayOf(58f, 124f)
-    val rows = floatArrayOf(top + 62f, top + 96f)
+/** The aisle floor strip down the middle of a coach. */
+private fun DrawScope.drawAisle(top: Float, h: Float) {
+    box(Color(0xFFEDE4D4), AISLE_X - 13f, top + 8f, 26f, h, 4f)
+    line(Color(0xFFD8CBB5), AISLE_X - 13f, top + 8f, AISLE_X - 13f, top + 8f + h, 1f)
+    line(Color(0xFFD8CBB5), AISLE_X + 13f, top + 8f, AISLE_X + 13f, top + 8f + h, 1f)
+}
+
+/** A passenger coach: a central aisle with two rows of 2+2 forward-facing seats, and a toilet at the rear. */
+private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
+    drawAisle(top, CAR_H - 32f)
+    val here = paxInCar(car, cars)
+    // 2 + 2 seating: two seats each side of the aisle, two rows
+    val cols = floatArrayOf(38f, 70f, 120f, 152f)
+    val rows = floatArrayOf(top + 24f, top + 62f)
     var seat = 0
-    for (r in 0 until 2) for (c in 0 until 2) {
-        if (r == 0) box(Color(0xFF9C7E5A), cols[c] - 10f, top + 82f, 20f, 9f, 3f)  // a dining table
-        drawSeatPax(cols[c], rows[r], seat < here, 100 + seat * 5)
+    for (r in 0 until 2) for (c in 0 until 4) {
+        drawTrainSeat(cols[c], rows[r], seat < here, car * 41 + seat * 7)
         seat++
     }
+    drawToilet(top)
 }
 
-/** A seating car: a toilet in the corner and two columns of bench seats with riders. */
-private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
-    drawToilet(top)
-    val here = paxInCar(car, cars)
-    val cols = floatArrayOf(84f, 140f)
-    val rows = floatArrayOf(top + 34f, top + 82f)
+/** The dining car: a galley counter at the front, then tables with diners. */
+private fun DrawScope.drawFoodCar(top: Float, look: Look, npc: Npc, time: Float) {
+    val sp = sceneSprites
+    drawAisle(top, CAR_H - 16f)
+    // counter / galley strip along the top
+    box(Color(0xFF8B5E3C), 6f, top + 8f, CAR_W - 12f, 26f, 6f)
+    box(Color(0xFFCB9A6A), 8f, top + 10f, CAR_W - 16f, 22f, 5f)
+    box(Color(0xFFE6C79A), 8f, top + 10f, CAR_W - 16f, 6f, 3f)
+    if (look.food > 0 && sp?.kitchen != null) { furniture(sp.kitchen, 150f, top + 2f, 34f, 40f); drawCookingPot(top, time) }
+    for (i in 0 until 5) { dot(Color(0xFFF2EAD8), 24f + i * 22f, top + 22f, 3.2f); dot(Color(0xFFE0A05A), 24f + i * 22f, top + 21f, 1.6f) }
+    // two rows of 2+2 diners with a table between each pair
+    val here = paxInCar(1, look.cars)
+    val cols = floatArrayOf(38f, 70f, 120f, 152f)
+    val rows = floatArrayOf(top + 56f, top + 92f)
     var seat = 0
-    for (r in 0 until 2) for (c in 0 until 2) {
-        drawSeatPax(cols[c], rows[r], seat < here, car * 37 + seat * 11)
+    for (r in 0 until 2) for (c in 0 until 4) {
+        if (c % 2 == 0) box(Color(0xFF9C7E5A), cols[c] + 16f - 7f, rows[r] - 6f, 14f, 12f, 3f) // a table between each pair
+        drawTrainSeat(cols[c], rows[r], seat < here, 100 + seat * 5)
         seat++
     }
 }
