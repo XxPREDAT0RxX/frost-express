@@ -706,7 +706,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Income multiplier from the passengers on board, rolled again at every station. */
     var paxMult by mutableDoubleStateOf(prefs.getFloat("paxMult", 1f).toDouble()); private set
     /** Seats, and so the most passengers the train can carry. */
-    val seats: Int get() = Balance.SEATS_PER_CAR * carsNow
+    val seats: Int get() = Balance.SEATS_PER_CAR * (carsNow - 1).coerceAtLeast(1)  // every car but the engine carries riders
     /** What one seated passenger pays per second (scales with every comfort/income upgrade). */
     val farePerPassenger: Double get() = coinsPerMeter * Balance.BASE_SPEED * Balance.PASSENGER_FARE
     /** Coins per second from the passengers riding right now — the main income. */
