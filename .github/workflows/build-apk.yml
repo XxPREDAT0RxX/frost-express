@@ -78,7 +78,7 @@ jobs:
         timeout-minutes: 25
         shell: bash
         run: |
-          gradle testDebugUnitTest --tests "com.chetna.frostexpress.ScreenshotTest" --no-daemon 2>&1 | tee test.log
+          gradle testDebugUnitTest --tests "com.chetna.frostexpress.SmokeTest" --tests "com.chetna.frostexpress.ScreenshotTest" --no-daemon 2>&1 | tee test.log
 
       - name: Pack screenshots
         id: pack
