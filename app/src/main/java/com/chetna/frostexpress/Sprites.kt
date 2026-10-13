@@ -53,6 +53,7 @@ class GameSprites(ctx: Context) {
     val kitchen = load("core_kitchen")
     val table = load("core_table")
     val crate = load("core_crate")
+    val carRoof = load("car_roof")      // AI-made coach roof, tinted with the train colour
     val carFill = load("car_fill")      // light layer, tinted with the train colour
     val carLine = load("car_line")      // outlines and windows on top
     val noseFill = load("nose_fill")

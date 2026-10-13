@@ -1428,6 +1428,12 @@ private fun DrawScope.drawCarRoof(top: Float, body: Color, accent: Color, i: Int
     val dark = lerp(body, Color.Black, 0.20f)
     val lite = lerp(body, Color.White, 0.14f)
     val ridge = lerp(body, Color.White, 0.26f)
+    val roofImg = sceneSprites?.carRoof
+    if (roofImg != null && i > 0) {
+        val u = density
+        drawSprite(roofImg, -3f * u, (top - 3f) * u, (CAR_W + 6f) * u, (CAR_H + 6f) * u, tint = lerp(body, Color.White, 0.55f), alpha = a)
+        return
+    }
     box(body.copy(alpha = a), 0f, top, CAR_W, CAR_H, 12f)
     // curved roof edges: darker eaves down each long side
     box(dark.copy(alpha = a * 0.9f), 1f, top + 2f, 13f, CAR_H - 4f, 7f)
