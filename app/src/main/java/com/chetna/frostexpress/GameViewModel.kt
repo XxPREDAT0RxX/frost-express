@@ -759,7 +759,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     val satisfactionMult: Double get() = (0.75 + 0.5 * happiness) * ratingMult * priceMult
     private val metreValue: Double get() = coinsPerMeter * Balance.BASE_SPEED
     val wagesPerSec: Double get() = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.STAFF_WAGE * (attendants + mechanics))
-    val fuelPerSec: Double get() = metreValue * Balance.FUEL_PER_MPS * speed
+    /** Fuel grows with the logarithm of speed: a very fast train burns more, but not in proportion to its speed. */
+    private fun fuelFactor(v: Double): Double = Balance.FUEL_PER_MPS * Balance.BASE_SPEED * (0.5 + kotlin.math.ln(1.0 + max(0.0, v) / Balance.BASE_SPEED))
+    val fuelPerSec: Double get() = metreValue * fuelFactor(speed)
     val upkeepPerSec: Double get() = metreValue * Balance.MAINT_PER_LEVEL * levels.sum() * (1.0 - min(0.5, Balance.MECHANIC_UPKEEP * mechanics))
     val interestPerSec: Double get() = debt * Balance.INTEREST_PER_SEC
     val expensesPerSec: Double get() = wagesPerSec + fuelPerSec + upkeepPerSec + interestPerSec
@@ -1832,7 +1834,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val meters = cruiseSpeed * secs * offlineRate
             // while away the train keeps carrying about 60% of its seats; ticket money minus running costs
             val grossOff = seats * 0.6 * farePerPassenger * 0.9 + trickleIncome
-            val spendOff = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.STAFF_WAGE * (attendants + mechanics) + Balance.FUEL_PER_MPS * cruiseSpeed + Balance.MAINT_PER_LEVEL * levels.sum()) + debt * Balance.INTEREST_PER_SEC
+            val spendOff = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.STAFF_WAGE * (attendants + mechanics) + fuelFactor(cruiseSpeed) + Balance.MAINT_PER_LEVEL * levels.sum()) + debt * Balance.INTEREST_PER_SEC
             val gain = max(0.0, grossOff - spendOff) * secs * offlineRate * route(RouteBonus.NIGHT_SHIFT, 1.5) * perkIncome(evolutions)
             if (away >= 1800L && tutorialDone) parcelReady = true
             if (gain >= 1.0) {
