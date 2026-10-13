@@ -30,6 +30,11 @@ class MainActivity : ComponentActivity() {
         // (no post-processing, 60 fps). A recorded crash is shown on screen so it can be reported.
         val prefs = getSharedPreferences("frost_express", MODE_PRIVATE)
         val crashFile = File(filesDir, FrostApp.CRASH_FILE)
+        // a report written before the last app update belongs to an older build: drop it
+        try {
+            val updated = packageManager.getPackageInfo(packageName, 0).lastUpdateTime
+            if (crashFile.exists() && crashFile.lastModified() < updated) crashFile.delete()
+        } catch (_: Exception) {}
         if (crashFile.exists() || prefs.getBoolean("running", false)) {
             prefs.edit().putBoolean("postfx", false).putInt("gfx", 1).putInt("fps", 60).putBoolean("running", false).apply()
         }
