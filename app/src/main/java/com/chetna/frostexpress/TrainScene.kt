@@ -58,6 +58,8 @@ import kotlin.math.sqrt
 // x runs across the car (0..CAR_W), y runs from the nose (0) back along the cars.
 // ---------------------------------------------------------------------------------------------
 private const val CAR_W = 190f
+/** The train is drawn this much narrower than its layout, so it looks long and slim instead of boxy. */
+private const val TRAIN_SQUEEZE = 0.78f
 private const val CAR_H = 116f
 private const val GAP = 10f
 private const val PITCH = CAR_H + GAP
@@ -719,7 +721,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     vm.chaseWolf()
                     return@detectTapGestures
                 }
-                val tx = (pos.x - npc.originXpx) / (u * npc.zoom)
+                val tx = (pos.x - npc.originXpx) / (u * npc.zoom * TRAIN_SQUEEZE)
                 val ty = pos.y / (u * npc.zoom) - (npc.centerOffDp - npc.camY)
                 hotspotAt(tx, ty, npc.cars)?.let(onDeviceTap)
             }
@@ -788,7 +790,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         drawScene(npc, if (vm.permLevel(PermType.CREW) > 0) npc2 else null, time, scroll, tier, look, vm.isBoosting, vm.event == GameEvent.AURORA, vm.stormLevel, vm.darkness, stations, vm.gfx >= 1)
         if (crate[0] > 0f) {
             val u = density
-            val trainPx = CAR_W * u * npc.zoom
+            val trainPx = CAR_W * u * npc.zoom * TRAIN_SQUEEZE
             val ox = npc.originXpx
             val cx = if (crate[2] < 0.5f) ox * 0.5f else ox + trainPx + (size.width - ox - trainPx) * 0.5f
             val cy = (crate[1] + (npc.camAuto - npc.camY) * npc.zoom) * u
@@ -797,7 +799,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         }
         run {
             val u = density
-            val trainPx = CAR_W * u * npc.zoom
+            val trainPx = CAR_W * u * npc.zoom * TRAIN_SQUEEZE
             val ox = npc.originXpx
             edges[0] = ox / u; edges[1] = (ox + trainPx) / u; edges[2] = size.width / u
             if (sparkle[0] > 0f) {
@@ -877,7 +879,7 @@ private fun DrawScope.drawScene(
     fxOn = fx
     fxDark = dark
     sceneStorm = storm
-    val trainPx = CAR_W * u * z
+    val trainPx = CAR_W * u * z * TRAIN_SQUEEZE
     val originX = (w - trainPx) / 2f
     val centerOff = 0f
     npc.originXpx = originX
@@ -905,7 +907,7 @@ private fun DrawScope.drawScene(
     val ny = (centerOff - npc.camY) * u * z
     // The outside world (track, ground, trees) gets the full night tint first...
     translate(left = originX, top = ny) {
-        scale(scaleX = z, scaleY = z, pivot = Offset.Zero) { drawTrack(scroll, npc.trainLen) }
+        scale(scaleX = z * TRAIN_SQUEEZE, scaleY = z, pivot = Offset.Zero) { drawTrack(scroll, npc.trainLen) }
     }
     if (dark > 0.01f) drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
     // station lamps and windows glow at night and in storms
@@ -914,7 +916,7 @@ private fun DrawScope.drawScene(
     // light spilling out of the windows onto the dark ground
     if (dark > 0.01f) {
         translate(left = originX, top = ny) {
-            scale(scaleX = z, scaleY = z, pivot = Offset.Zero) { drawWindowLight(look.cars, dark) }
+            scale(scaleX = z * TRAIN_SQUEEZE, scaleY = z, pivot = Offset.Zero) { drawWindowLight(look.cars, dark) }
         }
     }
     // sky effects and snowfall stay outside: the cars are sealed, so their insides stay clear in storms
@@ -922,7 +924,8 @@ private fun DrawScope.drawScene(
     if (sceneSnow > 0.01f || storm > 0f) drawSnowfall(time, w, h, u, storm)
     // ...and the lit train interior is drawn on top, only slightly dimmed and warmed by its lamps.
     translate(left = originX, top = ny) {
-        scale(scaleX = z, scaleY = z, pivot = Offset.Zero) {
+        spriteXScale = TRAIN_SQUEEZE
+        scale(scaleX = z * TRAIN_SQUEEZE, scaleY = z, pivot = Offset.Zero) {
             drawTrain(tier, look, npc, time, boosting)
             // the walking crew live on the floor, so once the roofs close over (zoomed right out) they are hidden
             val roofClosed = ((1f - sceneUserZoom) / 0.4f).coerceIn(0f, 1f) > 0.55f
@@ -941,6 +944,7 @@ private fun DrawScope.drawScene(
                 )
             }
         }
+        spriteXScale = 1f
     }
     if (dark > 0.01f) {
         val trainH = npc.trainLen * u * z
@@ -1473,7 +1477,7 @@ private fun DrawScope.drawCarRoof(top: Float, body: Color, accent: Color, i: Int
     val roofImg = sceneSprites?.carRoof
     if (roofImg != null && i > 0) {
         val u = density
-        drawSprite(roofImg, -3f * u, (top - 3f) * u, (CAR_W + 6f) * u, (CAR_H + 6f) * u, tint = lerp(body, Color.White, 0.55f), alpha = a)
+        squeezedSprites { drawSprite(roofImg, -3f * u, (top - 3f) * u, (CAR_W + 6f) * u, (CAR_H + 6f) * u, tint = lerp(body, Color.White, 0.55f), alpha = a) }
         return
     }
     box(body.copy(alpha = a), 0f, top, CAR_W, CAR_H, 12f)
@@ -1870,8 +1874,10 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     val t = sceneTier.coerceIn(0, TIERS.lastIndex)
     val tierFill = sceneSprites?.noseFills?.getOrNull(t)
     if (t > 0 && tierFill != null) {
-        drawSprite(tierFill, -6f * u, -26f * u, 202f * u, 64f * u, tint = body)
-        sceneSprites?.noseLines?.getOrNull(t)?.let { drawSprite(it, -6f * u, -26f * u, 202f * u, 64f * u) }
+        squeezedSprites {
+            drawSprite(tierFill, -6f * u, -26f * u, 202f * u, 64f * u, tint = body)
+            sceneSprites?.noseLines?.getOrNull(t)?.let { drawSprite(it, -6f * u, -26f * u, 202f * u, 64f * u) }
+        }
         val l = NOSE_LAMPS[TIER_SHAPE[t]]
         glow(l[0], l[1], 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
         glow(l[2], l[3], 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
@@ -1884,8 +1890,10 @@ private fun DrawScope.drawNose(body: Color, accent: Color, plow: Int) {
     }
     val noseImg = sceneSprites?.noseFill
     if (noseImg != null) {
-        drawSprite(noseImg, -6f * u, -6f * u, 202f * u, 44f * u, tint = body)
-        sceneSprites?.noseLine?.let { drawSprite(it, -6f * u, -6f * u, 202f * u, 44f * u) }
+        squeezedSprites {
+            drawSprite(noseImg, -6f * u, -6f * u, 202f * u, 44f * u, tint = body)
+            sceneSprites?.noseLine?.let { drawSprite(it, -6f * u, -6f * u, 202f * u, 44f * u) }
+        }
         glow(56f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
         glow(134f, 15f, 30f, Color(0xFFFFE680), 0.25f + fxDark * 1.6f)
         if (plow > 0) {
@@ -1925,10 +1933,12 @@ private fun DrawScope.drawCarShell(top: Float, body: Color, accent: Color, floor
         val floorBrush = if (!floors.isNullOrEmpty()) floors[floorIdx % floors.size] else if (metal) tex.metal else tex.wood
         texRect(floorBrush, 7f, top + 7f, CAR_W - 14f, CAR_H - 14f, 4f, ax = 7f, ay = top + 7f, r = 4f)
         val u = density
-        drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body)
+        squeezedSprites { drawSprite(walls, -8f * u, (top - 8f) * u, 206f * u, 132f * u, tint = body) }
         drawLivery(top, body, accent)
-        sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
-        sceneSprites?.carTrims?.getOrNull(sceneTier.coerceIn(0, TIERS.lastIndex))?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
+        squeezedSprites {
+            sceneSprites?.carLine?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
+            sceneSprites?.carTrims?.getOrNull(sceneTier.coerceIn(0, TIERS.lastIndex))?.let { drawSprite(it, -8f * u, (top - 8f) * u, 206f * u, 132f * u) }
+        }
         return
     }
     // layered soft shadow on the ground

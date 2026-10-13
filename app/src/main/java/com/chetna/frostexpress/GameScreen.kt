@@ -627,6 +627,15 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                     val temp = (vm.regionTemp - 7f * (vm.darkness / 0.42f) - 10f * vm.stormLevel).toInt()
                     StatChip("$temp°C", if (temp <= 0) Color(0xFF4C8DB8) else if (temp >= 30) Color(0xFFE08A4C) else Color(0xFF5BA06B))
                 }
+                // income and costs per second, so the net figure above is easy to read
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { UiSound.click(); onOpenFinance() },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text("Income +" + fmt(vm.coinsPerSec, 1) + "/s", fontSize = 10.5.sp, lineHeight = 11.sp, fontWeight = FontWeight.ExtraBold, color = Mint, maxLines = 1, softWrap = false)
+                    Text("   ·   ", fontSize = 10.5.sp, lineHeight = 11.sp, color = Muted, maxLines = 1, softWrap = false)
+                    Text("Costs -" + fmt(vm.expensesPerSec, 1) + "/s", fontSize = 10.5.sp, lineHeight = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFD0524F), maxLines = 1, softWrap = false)
+                }
                 // time of day and the evolve progress (label inside the bar)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                 TimeChip(vm)

@@ -105,11 +105,24 @@ fun rememberGameSprites(): GameSprites {
 }
 
 /** Draws a bitmap into a rectangle given in pixels, optionally tinted (multiplied) with a colour. */
+/** While the train is drawn it is squeezed sideways; sprites listen to this so characters and props keep their proportions. */
+var spriteXScale = 1f
+
+/** Draws [block] with the sideways squeeze off for sprites, so the squeeze applies to them (car frames, noses). */
+inline fun <T> squeezedSprites(block: () -> T): T {
+    val saved = spriteXScale
+    spriteXScale = 1f
+    try { return block() } finally { spriteXScale = saved }
+}
+
 fun DrawScope.drawSprite(img: ImageBitmap, x: Float, y: Float, w: Float, h: Float, tint: Color? = null, alpha: Float = 1f) {
+    val k = spriteXScale
+    val wide = if (k != 1f) w / k else w
+    val left = if (k != 1f) x + w / 2f - wide / 2f else x
     drawImage(
         img,
-        dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
-        dstSize = IntSize(w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+        dstOffset = IntOffset(left.roundToInt(), y.roundToInt()),
+        dstSize = IntSize(wide.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
         alpha = alpha,
         colorFilter = tint?.let { ColorFilter.tint(it, BlendMode.Modulate) },
         filterQuality = FilterQuality.Medium,
