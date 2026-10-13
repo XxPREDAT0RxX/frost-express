@@ -72,6 +72,7 @@ class ScreenshotTest {
             "events" -> { playing(); val v = vm(); shot("${size}_15_events") { GameScreen(v, initialSheet = 7) } }
             "journey" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("country", 1); putInt("cstation", 17); putInt("prestige", 1) }; val v = vm(); shot("${size}_16_journey") { GameScreen(v, initialSheet = 8) } }
             "journeyfull" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("country", 2); putInt("cstation", 30); putInt("prestige", 2) }; val v = vm(); shot("${size}_27_journeyfull") { GameScreen(v, initialSheet = 8) } }
+            "finance" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("pax", 14) }; val v = vm(); shot("${size}_29_finance") { GameScreen(v, initialSheet = 10) } }
             "profile" -> { playing(); val v = vm(); shot("${size}_17_profile") { GameScreen(v, initialSheet = 9) } }
             "shop" -> { playing(); val v = vm(); shot("${size}_11_shop") { GameScreen(v, initialSheet = 2) } }
             "gems" -> { playing(); val v = vm(); shot("${size}_12_gems") { GameScreen(v, initialSheet = 3) } }
@@ -199,6 +200,7 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bigupgrades() = runAll("normal", "bigupgrades")
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_bigtrain() = runAll("small", "bigtrain")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_journeyfull() = runAll("normal", "journeyfull")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_finance() = runAll("normal", "finance")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_roof() = runAll("normal", "roof")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window() = runAll("normal", "window")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_desert() = runAll("normal", "window_desert")
