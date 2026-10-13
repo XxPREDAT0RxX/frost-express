@@ -4039,6 +4039,7 @@ private fun EvolveSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClos
                     )
                 }
             }
+            item { PrestigeCard(vm) }
             // every train
             item {
                 SectionTitle("All trains", Ice, "${cur + 1} of ${TIERS.size}")

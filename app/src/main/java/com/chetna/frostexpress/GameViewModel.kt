@@ -350,15 +350,38 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var countryStation by mutableIntStateOf(prefs.getInt("cstation", 0)); private set
     var prestigeCount by mutableIntStateOf(prefs.getInt("prestige", 0)); private set
     val country: Country get() = countryAt(countryIndex)
-    fun canPrestige(): Boolean = countryStation >= STATIONS_PER_COUNTRY
+    /** Total permanent coin bonus from every prestige so far (0.4 = +40%). Saves from before this system keep their old +15% per country. */
+    var prestigePct by mutableDoubleStateOf(prefs.getFloat("prestigePct", -1f).let { if (it < 0f) PRESTIGE_BONUS * prefs.getInt("prestige", 0) else it.toDouble() }); private set
+    /** Prestige opens once the train has evolved this many times. */
+    fun canPrestige(): Boolean = evolutions >= PRESTIGE_MIN_EVO
+    /** The permanent bonus a prestige would add right now: the further you have come, the more it gives. */
+    val prestigeGain: Double get() = 0.10 + 0.06 * evolutions
+    /** Start over in the next country: back to the first train and no upgrades, keeping cores, gems and the permanent bonus. */
     fun prestige() {
         if (!canPrestige()) return
+        val gain = prestigeGain
+        cores += coreGain
+        prestigePct += gain
+        prestigeCount++
         countryIndex++
         countryStation = 0
-        prestigeCount++
+        evolutions = 0
+        evolveSerial++
+        routeBonus = null
+        routeChoices.clear()
+        for (i in levels.indices) levels[i] = 0
+        unlockedUpgrades.clear()
+        coins = startCoins
+        runDistance = 0.0
+        lastStationDist = 0.0
+        condition = 100.0; breakdownLeft = 0.0
+        runRevenue = 0.0; runExpenses = 0.0
+        attendants = 0; mechanics = 0; debt = 0.0
+        passengers = 0; paxMult = 1.0
+        boostMeter = 1.0; boostTimeLeft = 0.0; boostLocked = false
         audio.play(R.raw.sfx_evolve, 1f)
-        showToast("Prestige! Welcome to ${country.name}. +${(PRESTIGE_BONUS * 100).toInt()}% coins forever")
-        save()
+        showToast("Prestige! Welcome to ${country.name}. +${(gain * 100).toInt()}% coins forever")
+        addXp(150) // also saves
     }
     var postcardSerial by mutableIntStateOf(0); private set
     var critSerial by mutableIntStateOf(0); private set
@@ -1314,7 +1337,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     val isBoosting: Boolean get() = boostTimeLeft > 0.0
     val incomeMultiplier: Double
-        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0) * (1.0 + PRESTIGE_BONUS * prestigeCount)
+        get() = (if (isBoosting) boostMultiplier else 1.0) * (if (adBoostLeft > 0.0) Balance.AD_BOOST_MULT else 1.0) * (if (evolveRushLeft > 0.0) evolveRushMult else 1.0) * perkIncome(evolutions) * route(RouteBonus.GOLD_LINE, 1.4) * daily(DailySpecial.COIN_DAY, 1.25) * eventIncomeMult * nightMult * shopIncomeMult * (1.0 + SET_BONUS * meta.setsDone) * (if (WARM_CITY in meta.legsDone) 1.0 + WARM_CITY_BONUS else 1.0) * (1.0 + prestigePct)
     private val nightMult: Double get() = if (darkness > 0.2f) 1.0 + effSum(Eff.NIGHT) else 1.0
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
@@ -1786,7 +1809,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putString("inv", inventory.joinToString(","))
             .putInt("xp", xp).putInt("plvl", playerLevel)
             .putInt("crates", cratesCollected).putInt("stations", stationsVisited).putInt("storms", stormsSheltered).putInt("bused", boostersUsed).putInt("devinst", devicesInstalled).putString("jq", journeyClaimed.joinToString(",")).putInt("boarded", totalBoarded)
-            .putInt("country", countryIndex).putInt("cstation", countryStation).putInt("prestige", prestigeCount)
+            .putInt("country", countryIndex).putInt("cstation", countryStation).putInt("prestige", prestigeCount).putFloat("prestigePct", prestigePct.toFloat())
             .putLong("qDay", questDay).putString("qBase", questBase.joinToString(",")).putString("qClaim", questClaimed.joinToString(",") { if (it) "1" else "0" })
             .putLong("adDay", adDay)
             .putString("adCnt", adCounts.joinToString(","))

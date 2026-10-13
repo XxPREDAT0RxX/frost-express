@@ -19,7 +19,8 @@ class Country(
 const val STATIONS_PER_COUNTRY = 30
 
 /** Permanent coin bonus for every country left behind (prestige). */
-const val PRESTIGE_BONUS = 0.15
+const val PRESTIGE_BONUS = 0.15   // old per-country bonus, kept for saves made before the new prestige
+const val PRESTIGE_MIN_EVO = 5
 
 // Biome indices match ZONES in TrainScene: 0 meadow, 1 pine woods, 2 savanna, 3 desert, 4 rainforest, 5 snowfields.
 val COUNTRIES = listOf(

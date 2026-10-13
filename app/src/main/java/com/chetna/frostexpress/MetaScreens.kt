@@ -414,7 +414,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RouteTab(vm: GameView
                         Text("Country ${vm.prestigeCount + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
                     }
                     if (vm.prestigeCount > 0) Column(horizontalAlignment = Alignment.End) {
-                        Text("+${(PRESTIGE_BONUS * vm.prestigeCount * 100).toInt()}%", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
+                        Text("+${(vm.prestigePct * 100).toInt()}%", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
                         Text("coins forever", fontSize = 9.sp, color = Muted)
                     }
                 }
@@ -431,16 +431,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RouteTab(vm: GameView
             // the station board: a serpentine line of 30 stops, filling as you ride
             StationBoard(done, accent, Modifier.fillMaxWidth().height(230.dp))
             Spacer(Modifier.height(12.dp))
-            if (vm.canPrestige()) {
-                Card(bg = Color(0xFFFFF0C8).copy(alpha = 0.85f)) {
-                    Text("Loop complete! 🎉", fontSize = 16.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    Text("Travel on to ${next.flag} ${next.name} and earn +${(PRESTIGE_BONUS * 100).toInt()}% coins forever. You keep your train and upgrades; the station loop starts fresh.", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(10.dp))
-                    BigButton("Travel to ${next.name}", { vm.prestige() }, Modifier.fillMaxWidth(), listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)))
-                }
-            } else {
-                Text("Stop at ${STATIONS_PER_COUNTRY - done} more stations to finish the loop and travel to ${next.flag} ${next.name}.", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp))
-            }
+            PrestigeCard(vm)
         }
     }
 }
@@ -1309,6 +1300,35 @@ fun FinanceSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -
                     FinRow("All-time profit", fmt(vm.lifetimeRevenue - vm.lifetimeExpenses), GoldText)
                 }
             }
+        }
+    }
+}
+
+
+/** Prestige: start again in the next country with the first train, for a permanent coin bonus that grows with how far you got. */
+@Composable
+internal fun PrestigeCard(vm: GameViewModel) {
+    val next = countryAt(vm.countryIndex + 1)
+    var confirm by remember { mutableStateOf(false) }
+    LaunchedEffect(confirm) { if (confirm) { kotlinx.coroutines.delay(4000); confirm = false } }
+    Card(bg = Color(0xFFFFF0C8).copy(alpha = 0.85f)) {
+        Text("Prestige", fontSize = 17.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(
+            "Travel on to ${next.flag} ${next.name} and start again with the first train. You keep your cores, gems and permanent upgrades, and gain a permanent coin bonus. The further you have evolved, the bigger it is.",
+            fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text("Bonus now: +${(vm.prestigePct * 100).toInt()}% coins", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        if (vm.canPrestige()) {
+            Text("Prestige now: +${(vm.prestigeGain * 100).toInt()}% more (+${vm.coreGain} cores)", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = GoldText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            BigButton(
+                if (confirm) "Tap again: back to the first train" else "Prestige to ${next.name}",
+                { if (confirm) { confirm = false; vm.prestige() } else confirm = true },
+                Modifier.fillMaxWidth(), listOf(Color(0xFFFFE49A), Color(0xFFFFC85C)),
+            )
+        } else {
+            Text("Evolve ${PRESTIGE_MIN_EVO - vm.evolutions} more time(s) to unlock prestige.", fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
         }
     }
 }
