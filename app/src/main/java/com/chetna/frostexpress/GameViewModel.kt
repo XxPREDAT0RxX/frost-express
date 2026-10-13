@@ -771,10 +771,21 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putFloat("price", priceMult.toFloat()).apply()
     }
     /** How many riders turn up at a station, compared to a standard fare. */
-    private val demandMult: Double get() = (1.0 / priceMult).pow(0.9)
+    private val demandMult: Double get() = (1.0 / priceMult).pow(0.9) * (if (campaignLeft > 0.0) Balance.CAMPAIGN_DEMAND else 1.0)
     /** Train condition 0..100: wears down while running; a worn train is slower and can break down. */
     var condition by mutableDoubleStateOf(prefs.getFloat("cond", 100f).toDouble()); private set
     var breakdownLeft by mutableDoubleStateOf(0.0); private set
+    /** Seconds left of a paid marketing campaign: more riders turn up at every station. */
+    var campaignLeft by mutableDoubleStateOf(0.0); private set
+    val campaignCost: Double get() = Math.floor(metreValue * Balance.CAMPAIGN_COST)
+    fun runCampaign() {
+        val c = campaignCost
+        if (campaignLeft > 0.0 || coins < c) return
+        coins -= c; campaignLeft = Balance.CAMPAIGN_SEC
+        audio.play(R.raw.sfx_buy)
+        showToast("Campaign running: ${(Balance.CAMPAIGN_DEMAND * 100 - 100).toInt()}% more riders for ${(Balance.CAMPAIGN_SEC / 60).toInt()} min")
+        save()
+    }
     val serviceCost: Double get() = Math.floor(metreValue * Balance.SERVICE_COST * ((100.0 - condition) / 100.0))
     fun serviceTrain() {
         val c = serviceCost
@@ -1871,6 +1882,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         tickMeta(dt)
         audio.setRails(moveFactor.toFloat())
         if (adBoostLeft > 0.0) adBoostLeft = max(0.0, adBoostLeft - dt)
+        if (campaignLeft > 0.0) campaignLeft = max(0.0, campaignLeft - dt)
         if (evolveRushLeft > 0.0) evolveRushLeft = max(0.0, evolveRushLeft - dt)
         if (trailComboLeft > 0.0) { trailComboLeft -= dt; if (trailComboLeft <= 0.0) trailCombo = 0 }
         if (autoBuy && autoBuyUnlocked) {

@@ -435,6 +435,9 @@ object Balance {
     const val WEAR_PER_SEC = 0.0667       // condition lost per second (100% in about 25 minutes of running)
     const val BREAKDOWN_BELOW = 45.0      // below this condition the train can break down
     const val BREAKDOWN_SEC = 25.0        // a breakdown slows the train and cuts income for this long
+    const val CAMPAIGN_COST = 600.0
+    const val CAMPAIGN_SEC = 300.0
+    const val CAMPAIGN_DEMAND = 1.5
     const val SERVICE_COST = 300.0        // full service = this x metre value x (share of condition missing)
     const val INTEREST_PER_SEC = 0.00035  // about 2% per minute on a loan
     const val CREDIT_SECONDS = 1800.0     // credit limit = this many seconds of gross income

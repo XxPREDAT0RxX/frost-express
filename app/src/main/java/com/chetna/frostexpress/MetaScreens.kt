@@ -1234,6 +1234,14 @@ fun FinanceSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -
                 }
             }
             item {
+                FinCard("Marketing", Color(0xFFFBDDE8)) {
+                    Text("Posters and radio ads bring more people to every platform for a while.", fontSize = 11.sp, color = Muted)
+                    ChunkyButton(vm.campaignLeft <= 0.0 && vm.coins >= vm.campaignCost, listOf(Color(0xFFFFC9DA), Color(0xFFF49AB2)), { vm.runCampaign() }, Modifier.fillMaxWidth()) {
+                        Text(if (vm.campaignLeft > 0.0) "Campaign running: ${vm.campaignLeft.toInt()}s left" else "Run a campaign  ·  " + fmt(vm.campaignCost), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    }
+                }
+            }
+            item {
                 FinCard("Train condition", Color(0xFFD9EBC9)) {
                     val cond = vm.condition
                     Box(Modifier.fillMaxWidth().height(18.dp).clip(RoundedCornerShape(9.dp)).background(Panel).border(1.5.dp, Ink, RoundedCornerShape(9.dp))) {
