@@ -425,10 +425,10 @@ object Balance {
     const val PASSENGER_FARE = 0.18       // a seated passenger's fare per second (x the value of one full-speed metre)
     const val DISTANCE_TRICKLE = 0.30     // a small steady subsidy for running the scheduled service (not tied to speed any more)
     // ---- finances: running costs, as a share of a full-speed metre's value (they grow with the tier like income does) ----
-    const val WAGE_PER_CAR = 0.25         // crew wages per second, per car (and per rescued survivor)
-    const val FUEL_PER_MPS = 0.05         // fuel per second, per m/s of speed
-    const val MAINT_PER_LEVEL = 0.010     // upkeep per second for every upgrade level installed
-    const val STAFF_WAGE = 0.08           // each attendant / mechanic costs this much per second (x metre value)
+    const val WAGE_PER_CAR = 0.06         // crew wages per second, per car (and per rescued survivor)
+    const val FUEL_PER_MPS = 0.02         // fuel per second, per m/s of speed
+    const val MAINT_PER_LEVEL = 0.004     // upkeep per second for every upgrade level installed
+    const val STAFF_WAGE = 0.03           // each attendant / mechanic costs this much per second (x metre value)
     const val STAFF_HIRE = 150.0          // hiring fee = this x metre value x (staff already hired + 1)
     const val ATTENDANT_HAPPY = 0.04      // each attendant adds this much happiness
     const val MECHANIC_UPKEEP = 0.08      // each mechanic cuts upkeep and wear by this much (max 50%)

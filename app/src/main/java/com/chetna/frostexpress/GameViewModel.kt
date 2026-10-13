@@ -729,7 +729,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Coins per second from the passengers riding right now — the main income. */
     val fareIncome: Double get() = passengers * farePerPassenger
     /** A small steady subsidy for running the scheduled service; deliberately independent of speed. */
-    private val trickleIncome: Double get() = coinsPerMeter * Balance.BASE_SPEED * Balance.DISTANCE_TRICKLE * 0.5
+    private val trickleIncome: Double get() = coinsPerMeter * Balance.BASE_SPEED * Balance.DISTANCE_TRICKLE * 1.0
     // ---- finances and satisfaction: happy passengers pay more, running the train costs money ----
     /** 0..1: how comfortable the carriages are (heating, food, lounge, blankets, tea, springs...). */
     val comfortScore: Double get() {
