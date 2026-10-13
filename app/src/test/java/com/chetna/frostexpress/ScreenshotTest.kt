@@ -107,6 +107,17 @@ class ScreenshotTest {
                 val v = vm()
                 shot("${size}_25_$screen") { GameScreen(v) }
             }
+            "int1", "int2", "int3", "int4" -> {
+                val evo = screen.removePrefix("int").toInt() * 5
+                prefs {
+                    putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
+                    putString("coins", "90000000"); putInt("evo", evo); putInt("plvl", 5); putInt("pax", 24)
+                    putString("levels", "30,20,15,12,10,8,8,6,6,6,5,5,5,4,4,4,3,3,3,3,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1")
+                    putString("unl", UPGRADES.joinToString(",") { it.type.name })
+                }
+                val v = vm()
+                shot("${size}_30_$screen") { GameScreen(v) }
+            }
             "bigtrain" -> {
                 prefs {
                     putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
@@ -201,6 +212,10 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_bigtrain() = runAll("small", "bigtrain")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_journeyfull() = runAll("normal", "journeyfull")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_finance() = runAll("normal", "finance")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int1() = runAll("normal", "int1")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int2() = runAll("normal", "int2")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int3() = runAll("normal", "int3")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int4() = runAll("normal", "int4")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_roof() = runAll("normal", "roof")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window() = runAll("normal", "window")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_desert() = runAll("normal", "window_desert")
