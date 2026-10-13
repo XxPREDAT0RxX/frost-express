@@ -727,7 +727,47 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     val farePerPassenger: Double get() = coinsPerMeter * Balance.BASE_SPEED * Balance.PASSENGER_FARE
     /** Coins per second from the passengers riding right now — the main income. */
     val fareIncome: Double get() = passengers * farePerPassenger
-    private val trickleIncome: Double get() = speed * coinsPerMeter * Balance.DISTANCE_TRICKLE
+    /** A small steady subsidy for running the scheduled service; deliberately independent of speed. */
+    private val trickleIncome: Double get() = coinsPerMeter * Balance.BASE_SPEED * Balance.DISTANCE_TRICKLE * 0.5
+    // ---- finances and satisfaction: happy passengers pay more, running the train costs money ----
+    /** 0..1: how comfortable the carriages are (heating, food, lounge, blankets, tea, springs...). */
+    val comfortScore: Double get() {
+        val sum = level(UpgradeType.HEAT) + level(UpgradeType.FOOD) + level(UpgradeType.LOUNGE) + level(UpgradeType.WOOL_BLANKETS) +
+            level(UpgradeType.CABIN_HEATER) + level(UpgradeType.TEA_BREWER) + level(UpgradeType.BOGIE_SPRINGS) +
+            level(UpgradeType.CHEFS_OVEN) + level(UpgradeType.INSULATION)
+        return (sum / (10.0 * max(1, carsNow))).coerceIn(0.0, 1.0)
+    }
+    /** 0..1 passenger happiness right now: comfort, minus crowding and storms. */
+    val happiness: Double get() {
+        var h = 0.40 + 0.50 * comfortScore
+        if (occupancy > 0.92f) h -= 0.08
+        if (stormLeft > 0.0) h -= 0.15 * (1.0 - min(0.9, effSum(Eff.STORM)))
+        return h.coerceIn(0.0, 1.0)
+    }
+    /** Service rating, 1..5 stars. It drifts slowly towards what passengers feel and brings more riders at stations. */
+    var rating by mutableDoubleStateOf(prefs.getFloat("rating", 3f).toDouble()); private set
+    private val ratingMult: Double get() = 0.85 + 0.075 * (rating - 1.0)
+    /** Fare multiplier from happiness and rating (about 0.65x .. 1.5x). */
+    val satisfactionMult: Double get() = (0.75 + 0.5 * happiness) * ratingMult
+    private val metreValue: Double get() = coinsPerMeter * Balance.BASE_SPEED
+    val wagesPerSec: Double get() = metreValue * Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS))
+    val fuelPerSec: Double get() = metreValue * Balance.FUEL_PER_MPS * speed
+    val upkeepPerSec: Double get() = metreValue * Balance.MAINT_PER_LEVEL * levels.sum()
+    val expensesPerSec: Double get() = wagesPerSec + fuelPerSec + upkeepPerSec
+    /** Ticket money per second (passengers x fare x satisfaction), without the subsidy or boosts. */
+    val ticketsPerSec: Double get() = fareIncome * satisfactionMult * incomeMultiplier
+    val subsidyPerSec: Double get() = trickleIncome * incomeMultiplier
+    val netPerSec: Double get() = coinsPerSec - expensesPerSec
+    var tripsCompleted by mutableIntStateOf(prefs.getInt("trips", 0)); private set
+    var tripMetersTotal by mutableDoubleStateOf(prefs.getFloat("tripM", 0f).toDouble()); private set
+    var lastTripMeters by mutableDoubleStateOf(0.0); private set
+    private var lastStationDist = runDistance
+    var lifetimeRevenue by mutableDoubleStateOf(prefs.getString("lifeRev", "0")?.toDoubleOrNull() ?: 0.0); private set
+    var lifetimeExpenses by mutableDoubleStateOf(prefs.getString("lifeExp", "0")?.toDoubleOrNull() ?: 0.0); private set
+    var runRevenue by mutableDoubleStateOf(0.0); private set
+    var runExpenses by mutableDoubleStateOf(0.0); private set
+    val avgTripMeters: Double get() = if (tripsCompleted > 0) tripMetersTotal / tripsCompleted else 0.0
+
     /** How full the train is, 0..1. */
     val occupancy: Float get() = if (seats <= 0) 0f else (passengers.toFloat() / seats).coerceIn(0f, 1f)
     /** The dining car: counts down to the next sale. */
@@ -744,11 +784,16 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val off = if (passengers > 0) Math.round(passengers * (0.25 + Math.random() * 0.25)).toInt() else 0
         val left = passengers - off
         // ...and a fresh crowd boards, filling the empty seats
-        val want = (Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random()
+        val want = ((Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random() * (0.6 + 0.1 * rating)).toInt().coerceAtLeast(2)
         val on = want.coerceAtMost(max(0, seats - left))
+        // how far this stretch of line was: longer trips pay a better fare
+        val tripM = max(0.0, runDistance - lastStationDist)
+        lastStationDist = runDistance
+        val distFactor = (1.0 + 0.5 * kotlin.math.ln(1.0 + tripM / Balance.TRIP_DIST_REF)).coerceIn(0.7, 3.0)
+        if (off > 0) { tripsCompleted += off; tripMetersTotal += tripM * off; lastTripMeters = tripM }
         passengers = left + on
         // each passenger who finished a trip pays a lump fare (bigger with a ticket booster or a storm shelter)
-        val gain = (max(30.0, farePerPassenger * off * Balance.TRIP_BONUS) * (1.0 + effSum(Eff.STATION)) *
+        val gain = (max(30.0, farePerPassenger * off * Balance.TRIP_BONUS * distFactor * satisfactionMult) * (1.0 + effSum(Eff.STATION)) *
             (if (shopTicketLeft > 0.0) 2.0 else 1.0) * (if (shelter) 2.0 else 1.0) *
             route(RouteBonus.BUSY_STATIONS, 2.0) * daily(DailySpecial.BUSY_DAY, 1.5)) * incomeMultiplier
         coins += gain
@@ -1194,7 +1239,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     /** Visual travel speed for the scene (station stops are applied by the scene itself). */
     val travelSpeed: Double get() = cruiseSpeed * shopSpeedMult
     val speed: Double get() = travelSpeed * moveFactor
-    val coinsPerSec: Double get() = (fareIncome + trickleIncome) * incomeMultiplier
+    /** Gross ticket + subsidy income per second; happy passengers and a good rating pay more. */
+    val coinsPerSec: Double get() = (fareIncome * satisfactionMult + trickleIncome) * incomeMultiplier
     /** Steady income without boosts, shop items or stops; used to size rewards and shop prices. */
     private val baseCoinsPerSec: Double get() = cruiseSpeed * coinsPerMeter
 
@@ -1454,7 +1500,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     private fun route(r: RouteBonus, v: Double): Double = if (routeBonus == r) v else 1.0
     private fun daily(d: DailySpecial, v: Double): Double = if (todaysSpecial() == d) v else 1.0
     private val boostLenMult: Double get() = route(RouteBonus.LONG_BOOST, 1.5) * daily(DailySpecial.BOOST_DAY, 1.5)
-    private val costMult: Double get() = route(RouteBonus.CHEAP_PARTS, 0.8)
+    private val costMult: Double get() = route(RouteBonus.CHEAP_PARTS, 0.8) * Balance.TIER_COST.pow(evolutions)
 
     /** The one next step shown in the header. */
     val goal: Goal
@@ -1568,6 +1614,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         unlockedUpgrades.clear()                // the unlock chain (and the extra cars) start again
         coins = startCoins
         runDistance = 0.0
+        lastStationDist = 0.0
+        runRevenue = 0.0; runExpenses = 0.0
         boostMeter = 1.0
         boostTimeLeft = 0.0
         boostLocked = false
@@ -1669,6 +1717,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putFloat("shopFuel", shopFuelLeft.toFloat())
             .putFloat("rush5", rushLeft[0].toFloat()).putFloat("rush10", rushLeft[1].toFloat()).putFloat("rush100", rushLeft[2].toFloat())
             .putInt("pax", passengers).putFloat("paxMult", paxMult.toFloat())
+            .putFloat("rating", rating.toFloat()).putInt("trips", tripsCompleted).putFloat("tripM", tripMetersTotal.toFloat())
+            .putString("lifeRev", lifetimeRevenue.toString()).putString("lifeExp", lifetimeExpenses.toString())
             .putLong("last", System.currentTimeMillis())
             .apply()
     }
@@ -1700,7 +1750,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             offlineAwaySec = away
             offlineCountedSec = secs
             val meters = cruiseSpeed * secs * offlineRate
-            val gain = meters * coinsPerMeter * route(RouteBonus.NIGHT_SHIFT, 1.5) * perkIncome(evolutions)
+            // while away the train keeps carrying about 60% of its seats; ticket money minus running costs
+            val grossOff = seats * 0.6 * farePerPassenger * 0.9 + trickleIncome
+            val spendOff = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.FUEL_PER_MPS * cruiseSpeed + Balance.MAINT_PER_LEVEL * levels.sum())
+            val gain = max(0.0, grossOff - spendOff) * secs * offlineRate * route(RouteBonus.NIGHT_SHIFT, 1.5) * perkIncome(evolutions)
             if (away >= 1800L && tutorialDone) parcelReady = true
             if (gain >= 1.0) {
                 runDistance += meters
@@ -1716,7 +1769,11 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val meters = speed * dt
         runDistance += meters
         totalDistance += meters
-        coins += coinsPerSec * dt
+        val gross = coinsPerSec * dt
+        val spend = expensesPerSec * dt
+        coins = max(0.0, coins + gross - spend)
+        runRevenue += gross; runExpenses += spend; lifetimeRevenue += gross; lifetimeExpenses += spend
+        rating += ((1.0 + 4.0 * happiness) - rating) * (dt / 90.0)
         // the dining car: seated passengers buy food now and then for extra income (needs the galley)
         diningLeft -= dt
         if (diningLeft <= 0.0) {
@@ -1725,7 +1782,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             if (foodLvl > 0 && passengers > 0) {
                 val diners = max(1, passengers / 2)
                 val sale = diners * farePerPassenger * Balance.DINING_K * (1.0 + 0.08 * foodLvl) * incomeMultiplier
-                coins += sale
+                coins += sale; runRevenue += sale; lifetimeRevenue += sale
                 diningAmount = sale
                 diningSerial++
             }

@@ -129,7 +129,7 @@ private fun snowAt(key: Float): Float {
     return before + (after - before) * a
 }
 /** Distance (dp of scenery) the train spends in each region. */
-private const val ZONE_LEN = 2600f
+private const val ZONE_LEN = 5200f
 
 private fun zoneAt(key: Float): Int = countryZoneAt(sceneCountry, kotlin.math.floor(key / ZONE_LEN).toInt())
 
@@ -584,7 +584,10 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     vm.setMoveFactor(factor)
                     stopFactor[0] = factor
                     shelterDwell[0] = shelter?.takeIf { it.paid && !it.done }?.dwell ?: -1f
-                    val ds = (40f + 26f * sqrt(vm.travelSpeed.toFloat())) * (if (boosting) 1.6f else 1f) * dt * factor
+                    // scenery scroll speed grows only slowly (logarithmically) and is capped, so even a very fast train
+                    // still shows the landscape and the biomes do not whip past
+                    val scenery = (46f + 30f * kotlin.math.ln(1f + vm.travelSpeed.toFloat())).coerceAtMost(185f)
+                    val ds = scenery * (if (boosting) 1.35f else 1f) * dt * factor
                     scroll += ds
                     // a new region of the frozen world reaches the train
                     val zoneNow = zoneAt(scroll - halfH[0])

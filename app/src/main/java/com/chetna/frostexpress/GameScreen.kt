@@ -241,6 +241,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onOpenSettings = { showSettings = true },
                 onOpenGems = { sheet = 3 },
                 onOpenLevel = { sheet = if (sheet == 9) 0 else 9 },
+                onOpenFinance = { sheet = if (sheet == 10) 0 else 10 },
                 onGoal = { sheet = it },
             )
             // side rails: they use the snowy space left and right of the train
@@ -364,6 +365,8 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     JourneySheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else if (shownSheet[0] == 9) {
                     ProfileSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
+                } else if (shownSheet[0] == 10) {
+                    FinanceSheet(vm, Modifier.height(sheetHeight), onClose = { sheet = 0 })
                 } else {
                     UpgradesSheet(
                         vm, Modifier.height(sheetHeight),
@@ -385,7 +388,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
         TutorialCard(
             title = "Welcome aboard!",
             step = 0,
-            text = "The world outside has frozen, but your little train keeps rolling. It earns coins for every metre it travels, even while the app is closed.\n\nLet me show you the ropes. It only takes a minute!",
+            text = "The world outside has frozen, but your little train keeps rolling. It earns money from the passengers it carries, even while the app is closed. Keep them happy, watch your running costs and grow your railway.\n\nLet me show you the ropes. It only takes a minute!",
             button = "Let's go!",
             onButton = { vm.tutorialAdvance(0) },
             onSkip = vm::finishTutorial,
@@ -549,7 +552,7 @@ private fun UpgradeIcon(type: UpgradeType, color: Color, modifier: Modifier = Mo
 // ---------- HUD ----------
 
 @Composable
-private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}, onOpenLevel: () -> Unit = {}, onGoal: (Int) -> Unit = {}) {
+private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSettings: () -> Unit = {}, onOpenGems: () -> Unit = {}, onOpenLevel: () -> Unit = {}, onOpenFinance: () -> Unit = {}, onGoal: (Int) -> Unit = {}) {
     val goal = vm.goal
     val progress = goal.progress
     val shape = RoundedCornerShape(20.dp)
@@ -599,8 +602,9 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally)) {
                     StatChip("${fmt(vm.speed, 1)} m/s", Ice)
-                    StatChip("+${fmt(vm.coinsPerSec, 1)}/s", Mint)
-                    PassengerChip(vm)
+                    val net = vm.netPerSec
+                    StatChip((if (net >= 0) "+" else "-") + fmt(kotlin.math.abs(net), 1) + "/s", if (net >= 0) Mint else Color(0xFFD0524F), onClick = onOpenFinance)
+                    PassengerChip(vm, onOpenFinance)
                     val temp = (vm.regionTemp - 7f * (vm.darkness / 0.42f) - 10f * vm.stormLevel).toInt()
                     StatChip("$temp°C", if (temp <= 0) Color(0xFF4C8DB8) else if (temp >= 30) Color(0xFFE08A4C) else Color(0xFF5BA06B))
                 }
@@ -640,10 +644,10 @@ private fun TopHud(vm: GameViewModel, modifier: Modifier = Modifier, onOpenSetti
 
 /** Passengers on board and the coin bonus they give (rolled again at every station). */
 @Composable
-private fun PassengerChip(vm: GameViewModel) {
+private fun PassengerChip(vm: GameViewModel, onClick: () -> Unit = {}) {
     val c = Color(0xFFB0578A)
     Row(
-        Modifier.background(c.copy(alpha = 0.13f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 3.dp),
+        Modifier.clip(RoundedCornerShape(8.dp)).clickable { UiSound.click(); onClick() }.background(c.copy(alpha = 0.13f), RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Canvas(Modifier.size(10.dp)) {
@@ -1037,7 +1041,7 @@ private fun SpeakerButton(on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StatChip(text: String, color: Color) {
+private fun StatChip(text: String, color: Color, onClick: (() -> Unit)? = null) {
     Text(
         text,
         fontSize = 10.sp,
@@ -1046,6 +1050,8 @@ private fun StatChip(text: String, color: Color) {
         maxLines = 1,
         softWrap = false,
         modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (onClick != null) Modifier.clickable { UiSound.click(); onClick() } else Modifier)
             .background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
             .padding(horizontal = 7.dp, vertical = 3.dp),
     )
@@ -3307,6 +3313,25 @@ fun LoadingScreen(progress: Float) {
             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
             alignment = Alignment.TopCenter,
         )
+        // the game's name, on a cream signboard near the top of the loading art
+        Column(
+            Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(top = 64.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color(0xF2FFF8EA))
+                    .border(4.dp, Ink, RoundedCornerShape(26.dp))
+                    .padding(horizontal = 26.dp, vertical = 10.dp),
+            ) {
+                Text("Little Express", fontSize = 38.sp, fontFamily = CozyFont, fontWeight = FontWeight.ExtraBold, color = Color(0xFF2F6B4F))
+            }
+            Text("An idle train adventure", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.padding(top = 8.dp))
+        }
         Column(
             Modifier
                 .align(Alignment.BottomCenter)

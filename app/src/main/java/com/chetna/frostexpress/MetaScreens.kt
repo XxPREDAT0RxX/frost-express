@@ -1153,3 +1153,81 @@ private fun AvatarPicker(vm: GameViewModel, onClose: () -> Unit) {
         }
     }
 }
+
+// ---------- Finances: income sources, running costs and passenger happiness ----------
+
+@Composable
+private fun FinRow(label: String, value: String, color: Color = Ink, note: String? = null) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
+            if (note != null) Text(note, fontSize = 10.sp, color = Muted)
+        }
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = color)
+    }
+}
+
+@Composable
+private fun FinCard(title: String, tint: Color, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tint.copy(alpha = 0.35f)).border(2.dp, Ink, RoundedCornerShape(18.dp)).padding(12.dp),
+    ) {
+        Text(title, fontSize = 15.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(4.dp))
+        content()
+    }
+}
+
+@Composable
+fun FinanceSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -> Unit) {
+    val net = vm.netPerSec
+    SheetFrame("Finances", rememberGameSprites().iconGems, Color(0xFFD7EEDD), onClose, modifier) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                FinCard("Profit per second", Color(0xFFBFE6CF)) {
+                    Text((if (net >= 0) "+" else "-") + fmt(kotlin.math.abs(net), 1) + " / s", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = if (net >= 0) Mint else Color(0xFFD0524F))
+                    FinRow("Income", "+" + fmt(vm.coinsPerSec, 1), Mint)
+                    FinRow("Running costs", "-" + fmt(vm.expensesPerSec, 1), Color(0xFFD0524F))
+                    Text("Your train earns from riders, not from speed. Keep them happy, fill the seats and keep the costs in check.", fontSize = 11.sp, color = Muted)
+                }
+            }
+            item {
+                FinCard("Passengers", Color(0xFFF6D7E6)) {
+                    FinRow("On board now", "${vm.passengers} / ${vm.seats}")
+                    FinRow("Happiness", "${(vm.happiness * 100).toInt()}%", if (vm.happiness >= 0.6) Mint else Color(0xFFD0524F), "Comfort, crowding and storms. Upgrade heating, food, lounge, blankets, tea and springs.")
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Service rating", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f))
+                        val full = vm.rating.toInt().coerceIn(0, 5)
+                        Text("★".repeat(full) + "☆".repeat(5 - full) + "  " + fmt(vm.rating, 1), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = GoldText)
+                    }
+                    FinRow("Fare bonus", "x" + fmt(vm.satisfactionMult, 2), Mint, "A high rating also brings more riders at every station.")
+                }
+            }
+            item {
+                FinCard("Income sources", Color(0xFFFFE8B8)) {
+                    FinRow("Tickets", "+" + fmt(vm.ticketsPerSec, 1) + "/s", Mint, "${vm.passengers} riders x fare x happiness")
+                    FinRow("Service subsidy", "+" + fmt(vm.subsidyPerSec, 1) + "/s", Mint)
+                    FinRow("Trip fares", "at stations", Mint, "Paid when riders get off; longer trips pay more")
+                    FinRow("Dining car", if (vm.level(UpgradeType.FOOD) > 0) "active" else "needs Galley", Mint)
+                }
+            }
+            item {
+                FinCard("Running costs", Color(0xFFF8D2CF)) {
+                    FinRow("Crew wages", "-" + fmt(vm.wagesPerSec, 1) + "/s", Color(0xFFD0524F), "${vm.carsNow} cars + ${vm.level(UpgradeType.SURVIVORS)} survivors")
+                    FinRow("Fuel", "-" + fmt(vm.fuelPerSec, 1) + "/s", Color(0xFFD0524F), "Faster trains burn more")
+                    FinRow("Upkeep", "-" + fmt(vm.upkeepPerSec, 1) + "/s", Color(0xFFD0524F), "Every installed upgrade level needs servicing")
+                }
+            }
+            item {
+                FinCard("Journey ledger", Color(0xFFD6E6F8)) {
+                    FinRow("Trips completed", fmt(vm.tripsCompleted.toDouble()))
+                    FinRow("Average trip", fmtDistance(vm.avgTripMeters))
+                    FinRow("This run: revenue", fmt(vm.runRevenue), Mint)
+                    FinRow("This run: costs", fmt(vm.runExpenses), Color(0xFFD0524F))
+                    FinRow("This run: profit", fmt(vm.runRevenue - vm.runExpenses), if (vm.runRevenue >= vm.runExpenses) Mint else Color(0xFFD0524F))
+                    FinRow("All-time profit", fmt(vm.lifetimeRevenue - vm.lifetimeExpenses), GoldText)
+                }
+            }
+        }
+    }
+}

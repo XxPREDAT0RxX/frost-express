@@ -373,12 +373,13 @@ object Balance {
     const val FOOD_BONUS = 0.05
     const val TIER_SPEED_BONUS = 0.2      // +20% speed per tier
     const val TIER_INCOME = 1.6           // coins x1.6 per tier
+    const val TIER_COST = 1.85            // every upgrade (and survivor) costs x1.85 more per evolve, so high tiers stay a challenge
     val MILESTONES = listOf(25, 50, 100) // each doubles that upgrade's effect
     const val CORE_BONUS = 0.10           // each core = +10% coins (permanent)
 
     /** Evolve needs this many upgrade levels bought in the current run (grows with every evolve). */
     /** Upgrade levels needed to evolve (20% fewer than the first balance, so evolving comes sooner). */
-    fun evolveLevels(e: Int): Int = (28 + 28 * e + 5 * e * (e - 1))  // ~28 for the first evolve, then each higher tier needs a lot more
+    fun evolveLevels(e: Int): Int = (28 + 30 * e + 9 * e * (e - 1))  // ~28 for the first evolve, then each higher tier needs a lot more
     /** Cars (5 upgrades each) available on a train tier: 4 at first, 2 more per evolve. */
     fun maxCars(evolutions: Int): Int = minOf(4 + 2 * evolutions, 11)
     const val GEM_TRADE_PER_DAY = 10         // gems you can buy with coins each day
@@ -422,7 +423,12 @@ object Balance {
     // ---- passenger economy: riders are the main income ----
     const val SEATS_PER_CAR = 8           // seats (and so max passengers) per car
     const val PASSENGER_FARE = 0.18       // a seated passenger's fare per second (x the value of one full-speed metre)
-    const val DISTANCE_TRICKLE = 0.30     // small baseline income just for rolling along
+    const val DISTANCE_TRICKLE = 0.30     // a small steady subsidy for running the scheduled service (not tied to speed any more)
+    // ---- finances: running costs, as a share of a full-speed metre's value (they grow with the tier like income does) ----
+    const val WAGE_PER_CAR = 0.25         // crew wages per second, per car (and per rescued survivor)
+    const val FUEL_PER_MPS = 0.05         // fuel per second, per m/s of speed
+    const val MAINT_PER_LEVEL = 0.010     // upkeep per second for every upgrade level installed
+    const val TRIP_DIST_REF = 400.0       // a trip of this many metres pays the standard trip fare
     const val TRIP_BONUS = 1.2            // lump fare each passenger pays when they finish their trip at a station
     const val DINING_SEC = 6.0            // the dining car rings up a sale this often
     const val DINING_K = 0.6              // how much each diner spends (x a passenger's per-second fare)
