@@ -100,7 +100,7 @@ private val ZONES = listOf(
     Zone("the Golden Savanna", 0xFFE6CE86, false, 31, mapOf(0 to listOf("grass_tuft", "dry_bush"), 1 to listOf("acacia"), 3 to listOf("acacia"), 5 to listOf("boulder", "grass_tuft"), 6 to listOf("grass_tuft", "dry_bush"))),
     Zone("the Red Desert", 0xFFE7BC89, false, 39, mapOf(0 to listOf("cactus_ball", "dry_bush"), 1 to listOf("cactus", "mesa"), 3 to listOf("cactus", "mesa"), 5 to listOf("boulder", "cactus_ball"), 6 to listOf("dry_bush", "grass_tuft"))),
     Zone("the Rainforest", 0xFF86C58F, false, 28, mapOf(0 to listOf("fern", "jungle"), 1 to listOf("palm", "jungle"), 3 to listOf("palm"), 5 to listOf("jungle", "fern"), 6 to listOf("fern", "grass_tuft"))),
-    Zone("the Snowfields", 0xFFDCE6EE, true, -18, mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("cliff", "ice"), 3 to listOf("dead_a", "pine_a"), 5 to listOf("ice", "rock_a"), 6 to listOf("shrub", "rock_b")), lakes = true),
+    Zone("the Snowfields", 0xFFDCE6EE, true, -18, mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("cliff", "ice"), 3 to listOf("dead_a", "pine_a", "xmas"), 5 to listOf("ice", "rock_a", "snowman", "birdhouse"), 6 to listOf("snow_bush", "rock_b", "logs", "snow_bush")), lakes = true),
 )
 
 /** The biome ZONES entry shown at environment loop step [step], remapped for the current country. */
@@ -170,6 +170,8 @@ private fun rememberSceneArt(): SceneArt {
         "mesa" to R.drawable.spr_mesa, "dry_bush" to R.drawable.spr_dry_bush, "palm" to R.drawable.spr_palm,
         "jungle" to R.drawable.spr_jungle, "fern" to R.drawable.spr_fern, "acacia" to R.drawable.spr_acacia,
         "grass_tuft" to R.drawable.spr_grass_tuft, "boulder" to R.drawable.spr_boulder,
+        "xmas" to R.drawable.spr_xmas, "snowman" to R.drawable.spr_snowman, "logs" to R.drawable.spr_logs,
+        "snow_bush" to R.drawable.spr_snow_bush, "birdhouse" to R.drawable.spr_birdhouse,
     ).map { (n, id) -> n to ImageBitmap.imageResource(id) }
     return remember(snow, track, wood) {
         SceneArt(
