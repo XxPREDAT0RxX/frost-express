@@ -37,6 +37,7 @@ class ScreenshotTest {
 
     private fun playing() = prefs {
         putBoolean("tut", true)
+        putInt("simTour", 5)
         putInt("tstage", 4)
         putLong("dailyDay", java.time.LocalDate.now().toEpochDay())
         putString("coins", "48250")
@@ -70,18 +71,19 @@ class ScreenshotTest {
             "welcome" -> { prefs { }; val v = vm(); shot("${size}_5_welcome") { GameScreen(v) } }
             "evolve" -> { playing(); val v = vm(); shot("${size}_14_evolve") { GameScreen(v, initialSheet = 6) } }
             "events" -> { playing(); val v = vm(); shot("${size}_15_events") { GameScreen(v, initialSheet = 7) } }
-            "journey" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("country", 1); putInt("cstation", 17); putInt("prestige", 1) }; val v = vm(); shot("${size}_16_journey") { GameScreen(v, initialSheet = 8) } }
-            "journeyfull" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("country", 2); putInt("cstation", 30); putInt("prestige", 2) }; val v = vm(); shot("${size}_27_journeyfull") { GameScreen(v, initialSheet = 8) } }
-            "finance" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("pax", 14) }; val v = vm(); shot("${size}_29_finance") { GameScreen(v, initialSheet = 10) } }
+            "journey" -> { prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("country", 1); putInt("cstation", 17); putInt("prestige", 1) }; val v = vm(); shot("${size}_16_journey") { GameScreen(v, initialSheet = 8) } }
+            "journeyfull" -> { prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("country", 2); putInt("cstation", 30); putInt("prestige", 2) }; val v = vm(); shot("${size}_27_journeyfull") { GameScreen(v, initialSheet = 8) } }
+            "finance" -> { prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "48250"); putInt("gems", 42); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putInt("plvl", 4); putInt("pax", 14) }; val v = vm(); shot("${size}_29_finance") { GameScreen(v, initialSheet = 10) } }
+            "simtour" -> { prefs { putBoolean("tut", true); putInt("simTour", 2); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1") }; val v = vm(); shot("${size}_31_simtour") { GameScreen(v) } }
             "profile" -> { playing(); val v = vm(); shot("${size}_17_profile") { GameScreen(v, initialSheet = 9) } }
             "shop" -> { playing(); val v = vm(); shot("${size}_11_shop") { GameScreen(v, initialSheet = 2) } }
             "gems" -> { playing(); val v = vm(); shot("${size}_12_gems") { GameScreen(v, initialSheet = 3) } }
-            "bag" -> { playing(); prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("inv", "2,1,0,3,1"); putFloat("shopInc", 200f); putFloat("shopFuel", 90f) }; val v = vm(); shot("${size}_13_bag") { GameScreen(v, initialSheet = 4) } }
+            "bag" -> { playing(); prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("inv", "2,1,0,3,1"); putFloat("shopInc", 200f); putFloat("shopFuel", 90f) }; val v = vm(); shot("${size}_13_bag") { GameScreen(v, initialSheet = 4) } }
             "quests" -> { playing(); val v = vm(); shot("${size}_7_quests") { GameScreen(v, initialSheet = 5) } }
             "evolved" -> {
                 playing()
                 prefs {
-                    putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay())
+                    putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay())
                     putString("coins", "9000000"); putInt("evo", 3); putInt("cores", 6)
                     putString("levels", "20,10,8,6,4,3,5,5,6,6,4,4,3,3,2,2,1,1")
                     putString("unl", UPGRADES.take(18).joinToString(",") { it.type.name })
@@ -97,20 +99,20 @@ class ScreenshotTest {
                     }
                 }
             }
-            "route" -> { playing(); prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("evo", 4); putInt("plvl", 3); putString("routeCh", "GOLD_LINE,FAST_TRACK,CHEAP_PARTS,NIGHT_SHIFT") }; val v = vm(); shot("${size}_20_route") { GameScreen(v) } }
-            "feature" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("plvl", 2); putString("featSeen", "") }; val v = vm(); shot("${size}_21_feature") { GameScreen(v) } }
-            "away" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putLong("last", System.currentTimeMillis() - 2 * 3600_000L) }; val v = vm(); v.openParcel(); shot("${size}_22_away") { GameScreen(v) } }
+            "route" -> { playing(); prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("evo", 4); putInt("plvl", 3); putString("routeCh", "GOLD_LINE,FAST_TRACK,CHEAP_PARTS,NIGHT_SHIFT") }; val v = vm(); shot("${size}_20_route") { GameScreen(v) } }
+            "feature" -> { prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("plvl", 2); putString("featSeen", "") }; val v = vm(); shot("${size}_21_feature") { GameScreen(v) } }
+            "away" -> { prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1"); putLong("last", System.currentTimeMillis() - 2 * 3600_000L) }; val v = vm(); v.openParcel(); shot("${size}_22_away") { GameScreen(v) } }
             "meadow", "savanna", "desert", "rainforest" -> {
                 val dists = mapOf("meadow" to "1700", "savanna" to "8200", "desert" to "9500", "rainforest" to "12100")
                 val d = dists[screen] ?: "1700"
-                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("totalDist", d); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
+                prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("totalDist", d); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
                 val v = vm()
                 shot("${size}_25_$screen") { GameScreen(v) }
             }
             "int1", "int2", "int3", "int4" -> {
                 val evo = screen.removePrefix("int").toInt() * 5
                 prefs {
-                    putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
+                    putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
                     putString("coins", "90000000"); putInt("evo", evo); putInt("plvl", 5); putInt("pax", 24)
                     putString("levels", "30,20,15,12,10,8,8,6,6,6,5,5,5,4,4,4,3,3,3,3,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1")
                     putString("unl", UPGRADES.joinToString(",") { it.type.name })
@@ -120,7 +122,7 @@ class ScreenshotTest {
             }
             "bigtrain" -> {
                 prefs {
-                    putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
+                    putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
                     putString("coins", "90000000"); putInt("evo", 4); putInt("cores", 8); putInt("plvl", 5)
                     putString("levels", "30,20,15,12,10,8,8,6,6,6,5,5,5,4,4,4,3,3,3,3,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1")
                     putString("unl", UPGRADES.joinToString(",") { it.type.name })
@@ -130,7 +132,7 @@ class ScreenshotTest {
             }
             "bigupgrades" -> {
                 prefs {
-                    putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
+                    putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
                     putString("coins", "900000"); putInt("evo", 4); putInt("plvl", 5)
                     putString("levels", "30,20,15,12,10,8,8,6,6,6,5,5,5,4,4,4,3,3,3,3,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1")
                     putString("unl", UPGRADES.joinToString(",") { it.type.name })
@@ -139,7 +141,7 @@ class ScreenshotTest {
                 shot("${size}_24_bigupgrades") { GameScreen(v, initialSheet = 1) }
             }
             "window", "window_desert", "window_snow" -> {
-                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
+                prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
                 val v = vm()
                 when (screen) {
                     "window_desert" -> v.enterRegion(3, "the Red Desert", 39)
@@ -149,7 +151,7 @@ class ScreenshotTest {
                 shot("${size}_26_$screen") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) { WindowView(v) } }
             }
             "roof" -> {
-                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "9000000"); putInt("evo", 3); putString("levels", "20,10,8,6,4,3,5,5,6,6") }
+                prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putString("coins", "9000000"); putInt("evo", 3); putString("levels", "20,10,8,6,4,3,5,5,6,6") }
                 val v = vm()
                 val link = SceneLink().apply { zoom = 0.6f }
                 shot("${size}_28_roof") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) { TrainScene(v, androidx.compose.ui.Modifier.fillMaxSize(), link = link) } }
@@ -164,12 +166,12 @@ class ScreenshotTest {
             }
             "newtrain" -> {
                 playing()
-                prefs { putBoolean("tut", true); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "60,40,30,20,10,5,0,0,0,0") }
+                prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putString("levels", "60,40,30,20,10,5,0,0,0,0") }
                 val v = vm()
                 v.evolve()
                 shot("${size}_10_newtrain") { GameScreen(v) }
             }
-            "daily" -> { prefs { putBoolean("tut", true); putInt("tstage", 4); putInt("streak", 2); putLong("dailyDay", java.time.LocalDate.now().toEpochDay() - 1) }; val v = vm(); shot("${size}_6_daily") { GameScreen(v) } }
+            "daily" -> { prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putInt("streak", 2); putLong("dailyDay", java.time.LocalDate.now().toEpochDay() - 1) }; val v = vm(); shot("${size}_6_daily") { GameScreen(v) } }
         }
     }
 
@@ -216,6 +218,7 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int2() = runAll("normal", "int2")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int3() = runAll("normal", "int3")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int4() = runAll("normal", "int4")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_simtour() = runAll("normal", "simtour")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_roof() = runAll("normal", "roof")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window() = runAll("normal", "window")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_desert() = runAll("normal", "window_desert")

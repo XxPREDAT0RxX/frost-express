@@ -429,6 +429,24 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
     }
     MetaPopups(vm)
     MinigameDialog(vm)
+    if (vm.tutorialDone && vm.simTour < SIM_TOUR_PAGES && !showTutorialDone && !vm.dailyReady && vm.offlineCoins <= 0.0 && !showGift && vm.cloudConflict == null) {
+        val page = vm.simTour
+        val (title, text) = when (page) {
+            0 -> "Passengers pay the fare" to "At every station people get on and off. Each rider on board pays a fare every second, so full seats mean more money. Longer trips pay a better fare."
+            1 -> "Happy riders pay more" to "Heating, food, lounge and blankets keep riders comfy. Happy riders and a high star rating bring bigger crowds and better fares."
+            2 -> "Running costs" to "Wages, fuel and upkeep cost coins every second. The green chip at the top is your net income: what is left after the costs. Tap it, or the green chart button in the footer, to open Finances."
+            3 -> "Manage your railway" to "In Finances you set the ticket price, service the train before it breaks down, hire attendants and mechanics, run ad campaigns and take a bank loan."
+            else -> "Aim for a profit" to "Keep the net income green. Evolve to grow: bigger trains carry more riders and have a brand new interior."
+        }
+        TutorialCard(
+            title = title,
+            step = page,
+            text = text,
+            button = if (page == SIM_TOUR_PAGES - 1) "Open Finances" else "Next",
+            onButton = { vm.simTourNext(); if (page == SIM_TOUR_PAGES - 1) sheet = 10 },
+            onSkip = vm::simTourSkip,
+        )
+    }
     if (showTutorialDone) {
         TutorialCard(
             title = "You're all set!",

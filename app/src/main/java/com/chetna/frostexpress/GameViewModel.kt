@@ -69,6 +69,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     // Guided tutorial, first launch only: 0 welcome, 1 open upgrades, 2 buy Engine, 3 tap Boost, 4 done.
     var tutorialStage by mutableIntStateOf(if (prefs.getBoolean("tut", false)) 4 else prefs.getInt("tstage", 0)); private set
     val tutorialDone: Boolean get() = tutorialStage >= 4
+    /** Page of the railway-management tour shown after the basic tutorial (SIM_TOUR_PAGES = finished). */
+    var simTour by mutableIntStateOf(prefs.getInt("simTour", 0)); private set
+    fun simTourNext() { simTour = min(SIM_TOUR_PAGES, simTour + 1); prefs.edit().putInt("simTour", simTour).apply() }
+    fun simTourSkip() { simTour = SIM_TOUR_PAGES; prefs.edit().putInt("simTour", simTour).apply() }
 
     fun tutorialAdvance(from: Int) {
         if (tutorialStage != from) return
@@ -856,7 +860,9 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val off = if (passengers > 0) Math.round(passengers * (0.25 + Math.random() * 0.25)).toInt() else 0
         val left = passengers - off
         // ...and a fresh crowd boards, filling the empty seats
-        val want = ((Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random() * (0.6 + 0.1 * rating) * demandMult).toInt().coerceAtLeast(2)
+        // a longer train draws a bigger crowd: at least a platform's worth, and up to nearly all of the seats
+        val crowd = max((Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random().toDouble(), seats * (0.5 + 0.5 * Math.random()))
+        val want = (crowd * (0.6 + 0.1 * rating) * demandMult).toInt().coerceAtLeast(2)
         val on = want.coerceAtMost(max(0, seats - left))
         // how far this stretch of line was: longer trips pay a better fare
         val tripM = max(0.0, runDistance - lastStationDist)
