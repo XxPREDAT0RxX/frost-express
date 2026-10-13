@@ -505,6 +505,7 @@ class SceneLink {
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}, link: SceneLink? = null) {
     val npc = remember { Npc() }
     val roster = remember { ArrayList<ScenePax>() }
+    var rosterReady by remember { mutableStateOf(false) }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val survivors = remember { List(10) { Npc() } }
     val stations = remember { ArrayList<Station>().apply { if (!vm.debugStationAt.isNaN()) add(Station(vm.debugStationAt)) } }
@@ -546,7 +547,11 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     vm.audio.zoom = link?.zoom ?: 1f   // the ear moves inside the coach as you zoom in
                     val warmNow = vm.regionTemp >= 24
                     val tgt = vm.passengers
-                    while (roster.size < tgt) roster.add(ScenePax((Math.random() * 1000).toInt(), warmNow))
+                    val fresh = rosterReady
+                    var joined = 0
+                    while (roster.size < tgt) roster.add(ScenePax((Math.random() * 1000).toInt(), warmNow, if (fresh) time + 0.5f + 0.55f * (joined++) else -100f))
+                    rosterReady = true
+                    sceneClock = time
                     while (roster.size > tgt && roster.isNotEmpty()) roster.removeAt(roster.size - 1)
                     sceneRoster = roster
                     // the train begins each session standing at a platform, then pulls away
@@ -974,7 +979,12 @@ private var sceneWarm = false
 /** Which country the environment is themed for; remaps the biome loop (see Countries). */
 private var sceneCountry = 0
 /** A rider's stable identity while aboard: which character sprite, and whether they boarded in warm weather. */
-private class ScenePax(val sprite: Int, val warm: Boolean)
+private class ScenePax(val sprite: Int, val warm: Boolean, val boardAt: Float = -100f)
+/** Passengers still walking to their seat this frame: filled while the cars are drawn, drawn and used by the doors after. */
+private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float)
+private val sceneBoarders = ArrayList<BoardWalker>()
+private var sceneClock = 0f
+private const val BOARD_WALK_SEC = 2.4f
 private var sceneRoster: List<ScenePax> = emptyList()
 private var sceneStationNear = false
 private var sceneGolden: List<String> = emptyList()
@@ -1407,6 +1417,15 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
     drawCarDoors(cars, npc)
+    run {
+        val u = density
+        for (b in sceneBoarders) {
+            val img = b.img ?: continue
+            drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
+            drawSprite(img, (b.x - 11f) * u, (b.y - 17f - b.bob) * u, 22f * u, 27f * u)
+        }
+        sceneBoarders.clear()
+    }
     if ("LIGHTS" in sceneDecor || "LANTERNS" in sceneDecor) for (i in 0 until cars) {
         val top = NOSE + i * PITCH
         if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
@@ -1491,8 +1510,23 @@ private fun paxInCar(car: Int, cars: Int): Int {
 }
 
 /** A forward-facing train seat seen from above, with its rider's head and shoulders if taken. */
-private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax: ScenePax?) {
+private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY: Float) {
     val u = density
+    // a rider who has just boarded is still walking in: in through the car door, down the aisle, then to the seat
+    var pax = pax0
+    if (pax != null && sceneClock < pax.boardAt + BOARD_WALK_SEC) {
+        val t = (sceneClock - pax.boardAt) / BOARD_WALK_SEC
+        if (t >= 0f) {
+            val sp = sceneSprites
+            val pool = if (pax.warm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
+            val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
+            val a = 0.7f
+            val wx = if (t < a) AISLE_X else AISLE_X + (cx - AISLE_X) * ((t - a) / (1f - a))
+            val wy = if (t < a) doorY + (cy - doorY) * (t / a) else cy
+            sceneBoarders.add(BoardWalker(img, wx, wy, kotlin.math.abs(sin(sceneClock * 12f + pax.sprite)) * 1.5f))
+        }
+        pax = null
+    }
     val fab = Color(0xFF7FA8CC)
     val fabD = Color(0xFF5C83A6)
     // seat back and head-rest (behind the rider)
@@ -1581,7 +1615,7 @@ private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
     val baseIdx = (car - 1) * Balance.SEATS_PER_CAR
     var seat = 0
     for (r in 0 until 2) for (c in 0 until 4) {
-        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat))
+        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat), top - 6f)
         seat++
     }
     drawToilet(top)
@@ -1603,7 +1637,7 @@ private fun DrawScope.drawFoodCar(top: Float, look: Look, npc: Npc, time: Float)
     var seat = 0
     for (r in 0 until 2) for (c in 0 until 4) {
         if (c % 2 == 0) box(Color(0xFF9C7E5A), cols[c] + 16f - 7f, rows[r] - 6f, 14f, 12f, 3f) // a table between each pair
-        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(seat))
+        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(seat), top - 6f)
         seat++
     }
 }
@@ -1687,6 +1721,7 @@ private fun DrawScope.drawCarDoors(cars: Int, npc: Npc) {
             if (abs(w[k] - AISLE_X) < 48f) open = max(open, ((44f - abs(w[k + 1] - cy)) / 22f).coerceIn(0f, 1f))
             k += 2
         }
+        for (b in sceneBoarders) if (abs(b.x - AISLE_X) < 48f) open = max(open, ((44f - abs(b.y - cy)) / 22f).coerceIn(0f, 1f))
         val o = open * open * (3f - 2f * open)
         // gangway between the cars: dark rubber bellows and a floor plate
         box(Color(0xFF6B4A3A), AISLE_X - 16f, y0 + 4f, 32f, y1 - y0 - 8f, 3f)
