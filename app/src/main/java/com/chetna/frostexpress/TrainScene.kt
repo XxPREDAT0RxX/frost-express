@@ -1374,8 +1374,8 @@ private fun DrawScope.drawTrack(scroll: Float, len: Float) {
     val total = len + 1800f
     val art = sceneArt
     if (art != null) {
-        // ballast, wooden sleepers and steel rails from one 66 x 28 dp tile
-        texRect(art.track, cx - 33f, top, 66f, total, 4f, ax = cx - 33f, ay = scroll % 28f)
+        // ballast, wooden sleepers and steel rails from one 66 x 111 dp photo-based tile
+        texRect(art.track, cx - 33f, top, 66f, total, 4f, ax = cx - 33f, ay = scroll % 111f)
         return
     }
     // gravel bed with darker edges
