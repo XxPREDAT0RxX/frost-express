@@ -1545,8 +1545,10 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
         }
         pax = null
     }
-    val fab = if (kind == 2) Color(0xFFA85A62) else Color(0xFF7FA8CC)
-    val fabD = if (kind == 2) Color(0xFF7E3F49) else Color(0xFF5C83A6)
+    // upholstery picks up the train's own colour, so every tier's coach looks a little different
+    val tierCol = Color(TIERS[sceneTier.coerceIn(0, TIERS.lastIndex)].body)
+    val fab = if (kind == 2) androidx.compose.ui.graphics.lerp(Color(0xFFA85A62), tierCol, 0.3f) else androidx.compose.ui.graphics.lerp(Color(0xFF7FA8CC), tierCol, 0.5f)
+    val fabD = if (kind == 2) androidx.compose.ui.graphics.lerp(Color(0xFF7E3F49), tierCol, 0.3f) else androidx.compose.ui.graphics.lerp(Color(0xFF5C83A6), tierCol, 0.5f)
     // seat back and head-rest (behind the rider); a commuter bench (kind 1) has a shared back drawn by the car instead
     if (kind != 1) {
         box(Color(0xFF3E4A57), cx - 15f, cy - 17f, 30f, 26f, 7f)
