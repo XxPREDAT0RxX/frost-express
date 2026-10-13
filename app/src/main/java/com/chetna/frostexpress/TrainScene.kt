@@ -1632,6 +1632,30 @@ private fun DrawScope.drawAisle(top: Float, h: Float) {
  *  kind of real passenger train: classic benches, saloon tables, commuter benches, sleeper cabins, luxury lounge. */
 private fun interiorStyle(tier: Int): Int = (tier / 5).coerceAtLeast(0) % 5
 
+/** Draws the fit-out of one passenger coach for the evolve and trains pictures. ([ox],[oy]) is the coach's top-left in pixels
+ *  and [k] the pixels per train dp. Scene state is saved and restored, so the live scene is untouched. */
+fun DrawScope.drawTierCoachPreview(tier: Int, ox: Float, oy: Float, k: Float) {
+    val saveTier = sceneTier
+    val saveRoster = sceneRoster
+    val saveClock = sceneClock
+    sceneTier = tier
+    sceneRoster = emptyList()
+    val floor = when (interiorStyle(tier)) {
+        1 -> Color(0xFFE3DCCB)
+        2 -> Color(0xFFA9B1B9)
+        3 -> Color(0xFFD9CBB4)
+        4 -> Color(0xFFE8C9B8)
+        else -> Color(0xFFC49A6C)
+    }
+    withTransform({ translate(ox, oy); scale(k / density, k / density, Offset.Zero) }) {
+        box(floor, 8f, 8f, 190f, 100f, 8f)
+        drawSeatingCar(0f, 2, 3)
+    }
+    sceneTier = saveTier
+    sceneRoster = saveRoster
+    sceneClock = saveClock
+}
+
 /** A passenger coach. Eight seats in every style; the fit-out depends on the train tier. */
 private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
     val baseIdx = (car - 1) * Balance.SEATS_PER_CAR

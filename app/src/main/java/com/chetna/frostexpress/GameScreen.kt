@@ -333,6 +333,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onToggleShop = { sheet = if (sheet == 2) 0 else 2 },
                 onToggleGems = { sheet = if (sheet == 3) 0 else 3 },
                 onToggleBag = { sheet = if (sheet == 4) 0 else 4 },
+                onToggleFinance = { sheet = if (sheet == 10) 0 else 10 },
                 pulseGear = vm.tutorialStage == 1 || (vm.tutorialStage == 2 && !showUpgrades),
                 pulseBoost = vm.tutorialStage == 3,
                 modifier = Modifier
@@ -1066,6 +1067,7 @@ private fun BottomBar(
     onToggleShop: () -> Unit = {},
     onToggleGems: () -> Unit = {},
     onToggleBag: () -> Unit = {},
+    onToggleFinance: () -> Unit = {},
     modifier: Modifier = Modifier,
     pulseGear: Boolean = false,
     pulseBoost: Boolean = false,
@@ -1141,6 +1143,8 @@ private fun BottomBar(
         FooterIcon(sprites.iconGems, openSheet == 3, Color(0xFFFFE1EA), onToggleGems)
         Spacer(Modifier.width(6.dp))
         FooterIcon(sprites.iconBag, openSheet == 4, Color(0xFFDDEEFB), onToggleBag)
+        Spacer(Modifier.width(6.dp))
+        FinanceFooterButton(openSheet == 10, vm.netPerSec < 0.0 || vm.breakdownLeft > 0.0, onToggleFinance)
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.width(6.dp))
         Row(
@@ -2252,6 +2256,36 @@ private fun FooterIcon(img: androidx.compose.ui.graphics.ImageBitmap?, open: Boo
     }
 }
 
+/** Footer button that opens the Finances sheet: a little bar chart; a red dot warns about losses or a breakdown. */
+@Composable
+private fun FinanceFooterButton(open: Boolean, warn: Boolean, onClick: () -> Unit) {
+    val bg = Color(0xFFD5EFD9)
+    Box(Modifier.size(38.dp)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(if (open) bg.copy(red = bg.red * 0.9f, green = bg.green * 0.9f, blue = bg.blue * 0.88f) else bg)
+                .border(if (open) 3.dp else 2.dp, Ink, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.size(22.dp)) {
+                val w = size.width
+                val h = size.height
+                val bar = w * 0.22f
+                val hs = floatArrayOf(0.38f, 0.62f, 0.9f)
+                for (i in 0 until 3) {
+                    val x = w * 0.08f + i * (bar + w * 0.1f)
+                    drawRoundRect(Color(0xFF3FAE7A), Offset(x, h * (1f - hs[i])), Size(bar, h * hs[i]), CornerRadius(2.dp.toPx()))
+                    drawRoundRect(Ink, Offset(x, h * (1f - hs[i])), Size(bar, h * hs[i]), CornerRadius(2.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
+                }
+            }
+        }
+        if (warn) Box(Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp).size(12.dp).clip(CircleShape).background(Color(0xFFE5484D)).border(1.5.dp, Ink, CircleShape))
+    }
+}
+
 /** The red notification dot with a number. Drawn outside the round button so it is never cut off. */
 @Composable
 internal fun NotifyBadge(count: Int, modifier: Modifier = Modifier) {
@@ -2621,7 +2655,7 @@ fun TrainPicture(tierIndex: Int, modifier: Modifier = Modifier) {
         val t = tierIndex.coerceIn(0, TIERS.lastIndex)
         for (c in 0 until 2) {
             val top = 52f + c * 126f
-            drawRoundRect(Color(0xFFEFE6D8), Offset(ox + 8f * k, oy + (top + 8f) * k), Size(190f * k, 100f * k), CornerRadius(8f * k))
+            drawTierCoachPreview(t, ox, oy + top * k, k)
             img(sp.carFill, 0f, top - 8f, 206f, 132f, body)
             img(sp.carLine, 0f, top - 8f, 206f, 132f)
             img(sp.carTrims.getOrNull(t), 0f, top - 8f, 206f, 132f)
