@@ -1341,300 +1341,50 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zon
             drawOval(Color(0xFFA3AFBA), Offset(x - r * 0.85f, y - r * 0.7f), Size(r * 1.5f, r * 1.0f))
             drawOval(Color(0xFFF4F9FC), Offset(x - r * 0.6f, y - r * 0.7f), Size(r * 1.2f, r * 0.6f))
         }
-        3 -> { // shrub
-            drawOval(Color(0x33203040), Offset(x - r * 0.9f, y - r * 0.2f), Size(r * 2.2f, r * 1.4f))
-            drawCircle(Color(0xFF3B5E4F), r * 0.8f, Offset(x - r * 0.45f, y))
-            drawCircle(Color(0xFF486F5C), r * 0.85f, Offset(x + r * 0.4f, y + r * 0.1f))
-            drawCircle(Color(0xFF557F69), r * 0.7f, Offset(x, y - r * 0.4f))
-            drawCircle(Color(0xFFF4F9FC), r * 0.35f, Offset(x - r * 0.1f, y - r * 0.55f))
-        }
-        else -> { // pine seen from above: soft shadow, layered needle rings, snow dusting
-            drawOval(Color(0x30203040), Offset(x - r * 0.45f, y - r * 0.35f), Size(r * 2.1f, r * 1.9f))
-            val rings = listOf(
-                Color(0xFF244B41), Color(0xFF2F6052), Color(0xFF3E7864), Color(0xFF54927B),
-            )
-            for (i in rings.indices) {
-                val rr = r * (1f - i * 0.22f)
-                drawPath(starPath(x, y, rr, rr * 0.66f, 11, seed + i * 0.35f), rings[i])
+        3 -> { // sleeper cabins: two compartments, bench seats, partitions and a sliding glass door onto the corridor
+            drawAisle(top, CAR_H - 32f)
+            val cols = floatArrayOf(34f, 64f, 126f, 156f)
+            val rows = floatArrayOf(top + 24f, top + 62f)
+            var seat = 0
+            for (r in 0 until 2) for (c in 0 until 4) {
+                drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat), door)
+                seat++
             }
-            drawCircle(Color(0xFF6BA891), r * 0.12f, Offset(x, y))
-            for (i in 0 until 5) {
-                val ang = seed * 3f + i * 1.26f
-                val d = r * (0.45f + 0.12f * (i % 2))
-                drawCircle(Color.White.copy(alpha = 0.8f), r * 0.14f, Offset(x + cos(ang) * d, y + sin(ang) * d))
-            }
-            drawCircle(Color.White.copy(alpha = 0.85f), r * 0.2f, Offset(x - r * 0.12f, y - r * 0.14f))
-        }
-    }
-}
-
-private fun DrawScope.drawTrack(scroll: Float, len: Float) {
-    val cx = CAR_W / 2f
-    val top = -900f
-    val total = len + 1800f
-    val art = sceneArt
-    if (art != null) {
-        // ballast, wooden sleepers and steel rails from one 66 x 28 dp tile
-        texRect(art.track, cx - 33f, top, 66f, total, 4f, ax = cx - 33f, ay = scroll % 28f)
-        return
-    }
-    // gravel bed with darker edges
-    box(Color(0xFF7C8793), cx - 33f, top, 66f, total)
-    box(Color(0xFF99A5B0), cx - 30f, top, 60f, total)
-    // sleepers: ids stay attached to the ground as the track scrolls
-    val n = (scroll / 14f).toInt()
-    val off = scroll % 14f
-    var y = top - 2f + off
-    var k = 0
-    while (y < len + 900f) {
-        val id = n - k
-        val dark = (id * 7 + 3) % 5 == 0
-        box(Color(0x33000000), cx - 24f, y + 1.5f, 50f, 4.5f, 1f)
-        box(if (dark) Color(0xFF5A4A3B) else Color(0xFF6E5B49), cx - 25f, y, 50f, 4.5f, 1f)
-        box(Color(0x22FFFFFF), cx - 25f, y, 50f, 1f)
-        y += 14f
-        k++
-    }
-    // steel rails with a bright top edge
-    for (rx in listOf(cx - 16f, cx + 12f)) {
-        box(Color(0x33000000), rx + 1.5f, top, 4f, total)
-        box(Color(0xFF4A5560), rx, top, 4f, total)
-        box(Color(0xFFC5CED6), rx + 1.2f, top, 1.2f, total)
-    }
-}
-
-private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Float, boosting: Boolean) {
-    val body = Color(tier.body)
-    val accent = Color(tier.accent)
-    val cars = look.cars
-    drawNose(body, accent, look.plow)
-    for (i in 0 until cars) {
-        val top = NOSE + i * PITCH
-        // skip cars that are off screen (each car draws several layers)
-        if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
-        val floor: Color
-        val plank: Color
-        when (i) {
-            0 -> { floor = Color(0xFF98A3AD); plank = Color(0xFF8A949E) }
-            1 -> { floor = Color(0xFFE3DCCB); plank = Color(0xFFD3CBB8) }
-            else -> when ((i - 2) % 4) {
-                1 -> { floor = Color(0xFFD9CBB4); plank = Color(0xFFC9B99F) }   // passenger lounge
-                2 -> { floor = Color(0xFFB9CDB0); plank = Color(0xFFA6BC9D) }   // greenhouse
-                3 -> { floor = Color(0xFFA9B1B9); plank = Color(0xFF99A2AB) }   // workshop
-                else -> { floor = Color(0xFFC49A6C); plank = Color(0xFFAF8559) } // cargo hold
+            val wall = Color(0xFF8A6A4A)
+            for (side in 0..1) {
+                val wx = if (side == 0) AISLE_X - 17f else AISLE_X + 14f
+                box(wall, wx, top + 8f, 3f, CAR_H - 32f, 1.5f)
+                for (r in 0 until 2) box(Color(0xFFBFE0F0).copy(alpha = 0.75f), wx - 0.5f, rows[r] - 8f, 4f, 16f, 1f)  // glass of each sliding door
+                val px = if (side == 0) 8f else AISLE_X + 14f
+                box(wall, px, top + 43f, AISLE_X - 22f, 2.6f, 1f)  // partition between the two cabins
             }
         }
-        drawCarShell(top, body, accent, floor, plank, metal = i == 0, floorIdx = i)
-        if ("RUG" in sceneDecor) drawRug(top)
-        when (i) {
-            0 -> drawEngineCar(top, look, npc, time, boosting)
-            1 -> drawFoodCar(top, look, npc, time)
-            else -> drawSeatingCar(top, i, cars)
+        4 -> { // luxury lounge: armchairs, side tables, a rug and a lamp
+            box(Color(0xFFB9605C), 12f, top + 10f, CAR_W - 24f, CAR_H - 36f, 8f)
+            box(Color(0xFFD98B7E), 16f, top + 14f, CAR_W - 32f, CAR_H - 44f, 6f)
+            val cols = floatArrayOf(34f, 64f, 126f, 156f)
+            val rows = floatArrayOf(top + 24f, top + 62f)
+            var seat = 0
+            for (r in 0 until 2) for (c in 0 until 4) {
+                if (c == 1 || c == 3) {
+                    dot(Color(0xFF6B4A3A), if (c == 1) cols[c] + 18f else cols[c] - 18f, rows[r] + 9f, 5.5f)
+                    dot(Color(0xFFD7B98E), if (c == 1) cols[c] + 18f else cols[c] - 18f, rows[r] + 9f, 4.2f)
+                    dot(Color(0xFFFFE9A8), if (c == 1) cols[c] + 18f else cols[c] - 18f, rows[r] + 9f, 1.8f)
+                }
+                drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat), door, 2)
+                seat++
+            }
         }
-        if (i >= 2) drawRoofStyle(top, body, accent)  // only the plain seating coaches carry the roof detail
-        if (i < cars - 1) drawVestibule(top + CAR_H)
-    }
-    drawCarDoors(cars, npc)
-    run {
-        val u = density
-        for (b in sceneBoarders) {
-            val img = b.img ?: continue
-            drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
-            drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, 22f, 27f, sceneClock * 10f + b.bob, 1f, flip = b.flip)
+        else -> { // classic coach: 2 + 2 forward-facing seats down a central aisle
+            drawAisle(top, CAR_H - 32f)
+            val cols = floatArrayOf(38f, 70f, 120f, 152f)
+            val rows = floatArrayOf(top + 24f, top + 62f)
+            var seat = 0
+            for (r in 0 until 2) for (c in 0 until 4) {
+                drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat), door)
+                seat++
+            }
         }
-        sceneBoarders.clear()
-    }
-    if ("LIGHTS" in sceneDecor || "LANTERNS" in sceneDecor) for (i in 0 until cars) {
-        val top = NOSE + i * PITCH
-        if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
-        if ("LIGHTS" in sceneDecor) drawStringLights(top, time)
-        if ("LANTERNS" in sceneDecor) drawLanterns(top, time)
-    }
-    // Closed roofs slide over the whole train when you zoom right out, and fade away to reveal
-    // the interior as you zoom back in (so from far off it reads as a real train seen from above).
-    val roofA = ((1f - sceneUserZoom) / 0.4f).coerceIn(0f, 1f)
-    if (roofA > 0.01f) {
-        drawNoseRoof(body, accent, roofA)
-        for (i in 0 until cars) {
-            val top = NOSE + i * PITCH
-            if (top + CAR_H < npc.camY - 80f || top > npc.camY + npc.viewH + 80f) continue
-            drawCarRoof(top, body, accent, i, roofA)
-            if (i < cars - 1) box(lerp(body, Color.Black, 0.12f).copy(alpha = roofA), AISLE_X - 14f, top + CAR_H, 28f, GAP, 2f)
-        }
-    }
-}
-
-/** A coach roof seen from above: body panel, shaded eaves, a raised centre ridge, seams and vents.
- *  Drawn at [a] alpha so it can fade in when zoomed out and vanish when zoomed in. */
-private fun DrawScope.drawCarRoof(top: Float, body: Color, accent: Color, i: Int, a: Float) {
-    val dark = lerp(body, Color.Black, 0.20f)
-    val lite = lerp(body, Color.White, 0.14f)
-    val ridge = lerp(body, Color.White, 0.26f)
-    val roofImg = sceneSprites?.carRoof
-    if (roofImg != null && i > 0) {
-        val u = density
-        drawSprite(roofImg, -3f * u, (top - 3f) * u, (CAR_W + 6f) * u, (CAR_H + 6f) * u, tint = lerp(body, Color.White, 0.55f), alpha = a)
-        return
-    }
-    box(body.copy(alpha = a), 0f, top, CAR_W, CAR_H, 12f)
-    // curved roof edges: darker eaves down each long side
-    box(dark.copy(alpha = a * 0.9f), 1f, top + 2f, 13f, CAR_H - 4f, 7f)
-    box(dark.copy(alpha = a * 0.9f), CAR_W - 14f, top + 2f, 13f, CAR_H - 4f, 7f)
-    // raised centre ridge with a soft highlight
-    box(ridge.copy(alpha = a), AISLE_X - 20f, top + 4f, 40f, CAR_H - 8f, 10f)
-    box(lite.copy(alpha = a * 0.7f), AISLE_X - 3f, top + 8f, 5f, CAR_H - 16f, 2f)
-    // transverse roof seams
-    var sy = top + 18f
-    while (sy < top + CAR_H - 10f) { box(dark.copy(alpha = a * 0.5f), 10f, sy, CAR_W - 20f, 1.4f, 0.6f); sy += 22f }
-    // accent band toward the front
-    box(accent.copy(alpha = a * 0.85f), 22f, top + 2.5f, CAR_W - 44f, 3f, 1.2f)
-    if (i == 0) {
-        // engine roof: a chimney and an exhaust vent
-        dot(Color(0xFF2B2F36).copy(alpha = a), AISLE_X.toFloat(), top + 26f, 9f)
-        dot(Color(0xFF4B525C).copy(alpha = a), AISLE_X.toFloat(), top + 26f, 5f)
-        box(dark.copy(alpha = a), AISLE_X - 8f, top + 60f, 16f, 14f, 3f)
-    } else {
-        for (vy in listOf(top + 30f, top + 62f, top + 94f)) {
-            box(dark.copy(alpha = a), AISLE_X - 9f, vy, 18f, 13f, 3f)
-            box(lite.copy(alpha = a), AISLE_X - 7f, vy + 2f, 14f, 4f, 2f)
-        }
-    }
-}
-
-/** The rounded nose cap, roofed to match the coaches when zoomed out. */
-private fun DrawScope.drawNoseRoof(body: Color, accent: Color, a: Float) {
-    val u = density
-    val dark = lerp(body, Color.Black, 0.20f)
-    val p = Path().apply {
-        moveTo(16f * u, (NOSE + 2f) * u); lineTo(46f * u, 4f * u); lineTo(144f * u, 4f * u); lineTo(174f * u, (NOSE + 2f) * u); close()
-    }
-    drawPath(p, body.copy(alpha = a))
-    box(dark.copy(alpha = a * 0.8f), 22f, 5f, 10f, NOSE - 2f, 4f)
-    box(dark.copy(alpha = a * 0.8f), CAR_W - 32f, 5f, 10f, NOSE - 2f, 4f)
-    box(accent.copy(alpha = a * 0.8f), 60f, 8f, 70f, 4f, 2f)
-}
-
-private val PAX_JACKETS = longArrayOf(0xFFEF8A5C, 0xFF6FB07A, 0xFFE07AA0, 0xFF7FB3D8, 0xFFB59CE8, 0xFFE8C05C, 0xFF5BBE9E, 0xFFD98A6A)
-private val PAX_HATS = longArrayOf(0xFF7FD8FF, 0xFFFFD36A, 0xFFF2A0B5, 0xFFA6D9BB, 0xFFFFFFFF, 0xFFD6B8F0)
-
-/** How many riders sit in [car] right now (0 in the engine; the rest spread across the other cars). */
-private fun paxInCar(car: Int, cars: Int): Int {
-    if (car == 0) return 0
-    val nonEngine = max(1, cars - 1)
-    val base = scenePassengers / nonEngine
-    val extra = scenePassengers % nonEngine
-    val idx = car - 1
-    return (base + if (idx < extra) 1 else 0).coerceIn(0, Balance.SEATS_PER_CAR)
-}
-
-/** A forward-facing train seat seen from above, with its rider's head and shoulders if taken. */
-private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY: Float) {
-    val u = density
-    // a rider who has just boarded is still walking in: in through the car door, down the aisle, then to the seat
-    var pax = pax0
-    if (pax != null && sceneClock < pax.boardAt + BOARD_WALK_SEC) {
-        val t = (sceneClock - pax.boardAt) / BOARD_WALK_SEC
-        if (t >= 0f) {
-            val sp = sceneSprites
-            val pool = if (pax.warm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
-            val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
-            val a = 0.7f
-            val wx = if (t < a) AISLE_X else AISLE_X + (cx - AISLE_X) * ((t - a) / (1f - a))
-            val wy = if (t < a) doorY + (cy - doorY) * (t / a) else cy
-            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X))
-        }
-        pax = null
-    }
-    val fab = Color(0xFF7FA8CC)
-    val fabD = Color(0xFF5C83A6)
-    // seat back and head-rest (behind the rider)
-    box(Color(0xFF3E4A57), cx - 15f, cy - 17f, 30f, 26f, 7f)
-    box(fabD, cx - 14f, cy - 16f, 28f, 24f, 6f)
-    box(fab, cx - 14f, cy - 16f, 28f, 11f, 6f)
-    // a real cosy passenger (one of the survivor characters), sitting, facing out
-    if (pax != null) {
-        val sp = sceneSprites
-        val pool = if (pax.warm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
-        val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
-        if (img != null) {
-            // soft shadow, then the character; legs are hidden behind the seat cushion below
-            drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
-            drawSprite(img, (cx - 11f) * u, (cy - 16f) * u, 22f * u, 27f * u)
-        }
-    }
-    // seat cushion + armrests in front, covering the rider's legs so they read as seated
-    box(Color(0xFF3E4A57), cx - 15f, cy + 4f, 30f, 14f, 6f)
-    box(fab.copy(alpha = 0.95f), cx - 14f, cy + 5f, 28f, 12f, 5f)
-    box(fabD, cx - 14f, cy + 5f, 28f, 4f, 3f)
-    box(Color(0xFF3E4A57), cx - 15f, cy - 4f, 3f, 20f, 1.5f)   // armrests
-    box(Color(0xFF3E4A57), cx + 12f, cy - 4f, 3f, 20f, 1.5f)
-}
-
-/** The driver at the controls of the engine car: a swivel seat and a capped crew member,
- *  hands on the console with a gentle bob while the train is rolling. */
-private fun DrawScope.drawDriver(cx: Float, cy: Float, time: Float, driving: Boolean) {
-    val u = density
-    // control desk / dashboard in front of the driver (toward the nose), with a screen and buttons
-    box(Color(0xFF3A424C), cx - 17f, cy - 23f, 34f, 11f, 3f)
-    box(Color(0xFF2B2F36), cx - 15f, cy - 22f, 30f, 9f, 2f)
-    box(lerp(Color(0xFF2E6F8E), Color(0xFF7FD8FF), 0.5f + 0.5f * sin(time * 2f)).copy(alpha = 0.85f), cx - 13f, cy - 21f, 13f, 6f, 1.5f)
-    dot(Color(0xFFE5484D), cx + 6f, cy - 18f, 1.7f)
-    dot(Color(0xFF3FAE5A), cx + 11f, cy - 18f, 1.7f)
-    // swivel chair seen from above: dark base, padded back
-    box(Color(0xFF2B2F36), cx - 12f, cy - 11f, 24f, 24f, 9f)
-    box(Color(0xFF3E4651), cx - 11f, cy - 10f, 22f, 15f, 7f)
-    box(Color(0xFF4C8DB8).copy(alpha = 0.5f), cx - 10f, cy - 9f, 20f, 7f, 5f)
-    // the driver (a crew character), seated, facing forward
-    val sp = sceneSprites
-    val img = sp?.survivors?.firstOrNull() ?: sp?.npc
-    drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 4f) * u), Size(18f * u, 5f * u))
-    if (img != null) {
-        drawSprite(img, (cx - 11f) * u, (cy - 14f) * u, 22f * u, 26f * u)
-    } else {
-        dot(Color(0xFFE9B48F), cx, cy - 5f, 6.5f)      // head
-        box(Color(0xFF3E6B8E), cx - 8f, cy - 1f, 16f, 14f, 5f) // shoulders
-    }
-    // a peaked driver's cap over the head so they read as the driver
-    box(Color(0xFF24324A), cx - 6.5f, cy - 12f, 13f, 6f, 3f)
-    box(Color(0xFF2E4A6E), cx - 6f, cy - 9f, 12f, 3f, 1.5f)
-    dot(Color(0xFFF2C14E), cx, cy - 11f, 1.6f)         // cap badge
-    // hands resting on the controls, bobbing a little while driving
-    val bob = if (driving) 1.3f * sin(time * 3f) else 0.5f * sin(time)
-    dot(Color(0xFFE9B48F), cx - 7f, cy + 3f + bob, 2.3f)
-    dot(Color(0xFFE9B48F), cx + 7f, cy + 3f - bob, 2.3f)
-}
-
-/** A toilet cubicle across the rear end of a coach. */
-private fun DrawScope.drawToilet(top: Float) {
-    val y = top + CAR_H - 24f
-    box(Color(0xFF6B4A3A), 44f, y, CAR_W - 88f, 22f, 6f)
-    box(Color(0xFFBFE0F0), 46.5f, y + 2f, CAR_W - 93f, 18f, 5f)
-    box(Color(0xFFDCEFF8), 48f, y + 3.5f, CAR_W - 96f, 15f, 4f)
-    // the bowl + cistern, and a WC sign on the door
-    box(Color.White, AISLE_X - 7f, y + 7f, 14f, 11f, 4f)
-    box(Color(0xFFDDE8EE), AISLE_X - 5f, y + 8.5f, 10f, 8f, 3f)
-    box(Color.White, AISLE_X - 6f, y + 3f, 12f, 5f, 2f)
-    box(Color(0xFF8FB7D8), AISLE_X - 9f, y + 1f, 18f, 5f, 2f)
-}
-
-/** The aisle floor strip down the middle of a coach. */
-private fun DrawScope.drawAisle(top: Float, h: Float) {
-    box(Color(0xFFEDE4D4), AISLE_X - 13f, top + 8f, 26f, h, 4f)
-    line(Color(0xFFD8CBB5), AISLE_X - 13f, top + 8f, AISLE_X - 13f, top + 8f + h, 1f)
-    line(Color(0xFFD8CBB5), AISLE_X + 13f, top + 8f, AISLE_X + 13f, top + 8f + h, 1f)
-}
-
-/** A passenger coach: a central aisle with two rows of 2+2 forward-facing seats, and a toilet at the rear. */
-private fun DrawScope.drawSeatingCar(top: Float, car: Int, cars: Int) {
-    drawAisle(top, CAR_H - 32f)
-    // 2 + 2 seating: two seats each side of the aisle, two rows; riders come from the shared roster
-    val cols = floatArrayOf(38f, 70f, 120f, 152f)
-    val rows = floatArrayOf(top + 24f, top + 62f)
-    val baseIdx = (car - 1) * Balance.SEATS_PER_CAR
-    var seat = 0
-    for (r in 0 until 2) for (c in 0 until 4) {
-        drawTrainSeat(cols[c], rows[r], sceneRoster.getOrNull(baseIdx + seat), top - 6f)
-        seat++
     }
     drawToilet(top)
 }
