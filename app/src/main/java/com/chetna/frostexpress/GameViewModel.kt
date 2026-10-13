@@ -803,7 +803,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         save()
     }
     var debt by mutableDoubleStateOf(prefs.getString("debt", "0")?.toDoubleOrNull() ?: 0.0); private set
-    val creditLimit: Double get() = Math.floor(max(coinsPerSec, metreValue) * Balance.CREDIT_SECONDS)
+    val creditLimit: Double get() = Math.floor(max((fareIncome + trickleIncome) * incomeMultiplier, metreValue) * Balance.CREDIT_SECONDS) // no happiness inside: it would loop back through debtTrouble
     val debtTrouble: Boolean get() = debt > creditLimit * 0.8
     fun borrow(share: Double) {
         val amount = Math.floor(creditLimit * share)
