@@ -120,6 +120,20 @@ class ScreenshotTest {
                 val v = vm()
                 shot("${size}_30_$screen") { GameScreen(v) }
             }
+            "st0", "st1", "st2", "st3", "st4" -> {
+                debugStationType = screen.removePrefix("st").toInt()
+                playing()
+                prefs {
+                    putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay())
+                    putString("coins", "9000000"); putInt("evo", 3); putInt("cores", 6)
+                    putString("levels", "20,10,8,6,4,3,5,5,6,6,4,4,3,3,2,2,1,1")
+                    putString("unl", UPGRADES.take(18).joinToString(",") { it.type.name })
+                }
+                val v = vm()
+                v.debugScene(10.0, 330f)
+                shot("${size}_32_$screen") { GameScreen(v) }
+                debugStationType = -1
+            }
             "bigtrain" -> {
                 prefs {
                     putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
@@ -219,6 +233,11 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int3() = runAll("normal", "int3")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_int4() = runAll("normal", "int4")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_simtour() = runAll("normal", "simtour")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_st0() = runAll("normal", "st0")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_st1() = runAll("normal", "st1")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_st2() = runAll("normal", "st2")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_st3() = runAll("normal", "st3")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_st4() = runAll("normal", "st4")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_roof() = runAll("normal", "roof")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window() = runAll("normal", "window")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_window_desert() = runAll("normal", "window_desert")

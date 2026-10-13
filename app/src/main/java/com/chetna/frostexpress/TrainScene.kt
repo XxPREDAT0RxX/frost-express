@@ -258,7 +258,12 @@ private class Station(var y: Float, var paid: Boolean = false, val stop: Boolean
     var on = 0
     var off = 0
     val seed = (Math.random() * 1000).toInt()
+    /** Which kind of station this is (see ST_PW): village halt, country station, city terminal, chalet, modern. */
+    val type = if (debugStationType >= 0) debugStationType else (0..4).random()
 }
+
+/** Tests set this to force one station type (-1 = random). */
+internal var debugStationType = -1
 
 /** How long the train stands at a normal station (a storm shelter waits longer). */
 private const val STATION_DWELL = 4.6f
@@ -1087,13 +1092,17 @@ private fun DrawScope.drawAurora(time: Float, w: Float, h: Float) {
 private const val ST_W = 58f
 private const val ST_LEN = 290f
 private val ST_LAMPS = floatArrayOf(-125f, -75f, -25f, 25f, 75f, 125f)
+/** Per station type: platform width, how far the building reaches out over the grass, and the building sprite's width / height. */
+private val ST_PW = floatArrayOf(64f, 78f, 92f, 80f, 88f)
+private val ST_EXT = floatArrayOf(0f, 14f, 30f, 16f, 24f)
+private val ST_ASPECT = floatArrayOf(0.665f, 0.49f, 0.50f, 0.623f, 0.46f)
 
 /** A long platform with a station building, benches, lamp posts and waiting passengers, next to the train. */
 /** A country road that runs alongside the line on the outer side, linking the stations.
  *  It is drawn continuously (not per station) so every stop sits on the same road. */
 private fun DrawScope.drawStationRoad(scroll: Float, originX: Float, h: Float, u: Float) {
     val roadW = 20f * u
-    val cx = originX - (ST_W + 70f) * u
+    val cx = originX - (ST_W + 70f + 30f) * u
     if (cx < roadW) return
     val left = cx - roadW / 2f
     // soft grass shoulders, then asphalt
@@ -1110,7 +1119,8 @@ private fun DrawScope.drawStationRoad(scroll: Float, originX: Float, h: Float, u
 }
 
 private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
-    val pw = ST_W * u
+    val pw = ST_PW[st.type] * u
+    val ext = ST_EXT[st.type]
     if (originX < pw + 8f * u) return
     val x = originX - pw - 6f * u
     val y = st.y * u
@@ -1132,16 +1142,22 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     drawOval(Color.White, Offset(x - 4f * u, y - len / 2f - 10f * u), Size(pw + 8f * u, 22f * u))
     drawOval(Color.White, Offset(x - 4f * u, y + len / 2f - 12f * u), Size(pw + 8f * u, 22f * u))
     // station building on the outer half
-    val bldg = sp?.stationBldg
+    val bldg = sp?.stationBlds?.getOrNull(st.type)
+    val bw = ST_PW[st.type] - 24f + ext
+    val bh = bw / ST_ASPECT[st.type]
     if (bldg != null) {
-        drawSprite(bldg, x + 1f * u, y - 48f * u, 34f * u, 90f * u)
+        // the building stands on the outer half of the platform and reaches out over the grass
+        drawOval(Color(0x2A203040), Offset(x - ext * u + 4f * u, y - bh / 2f * u + 6f * u), Size(bw * u, bh * u))
+        drawSprite(bldg, x - ext * u + 1f * u, y - bh / 2f * u, bw * u, bh * u)
     } else {
-        sp?.stationRoof?.let { drawSprite(it, x, y - 44f * u, 26f * u, 88f * u) }
+        val old = sp?.stationBldg
+        if (old != null) drawSprite(old, x + 1f * u, y - 48f * u, 34f * u, 90f * u)
+        else sp?.stationRoof?.let { drawSprite(it, x, y - 44f * u, 26f * u, 88f * u) }
     }
     // benches and lamp posts
     sp?.stationBench?.let { b ->
-        drawSprite(b, x + 6f * u, y - 112f * u, 10f * u, 22f * u)
-        drawSprite(b, x + 6f * u, y + 76f * u, 10f * u, 22f * u)
+        drawSprite(b, x + 6f * u, y - (bh / 2f + 26f) * u, 10f * u, 22f * u)
+        drawSprite(b, x + 6f * u, y + (bh / 2f + 4f) * u, 10f * u, 22f * u)
     }
     for (ly in ST_LAMPS) {
         val lx = x + pw - 14f * u
@@ -1155,7 +1171,7 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         drawRect(Color.White, Offset(x + 8f * u, y + 57f * u), Size(18f * u, 2f * u))
     }
     // a little parking lot on the outer side, linked to the road, with a few parked cars
-    val parkLeft = x - 46f * u
+    val parkLeft = x - (46f + ext) * u
     if (parkLeft > -20f * u) {
         val parkW = 42f * u
         val parkTop = y - 68f * u
@@ -1188,7 +1204,7 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val boards = i < st.on
         val prog = if (boards && st.dwell > 0f) ((st.dwell - 1.0f - i * 0.45f) / 1.5f).coerceIn(0f, 1f) else 0f
         if (prog >= 1f) continue
-        val sx = x + 42f * u - (if (i % 3 == 1) 4f * u else 0f)
+        val sx = x + pw - 16f * u - (if (i % 3 == 1) 4f * u else 0f)
         val px = sx + (door - sx) * prog
         val walking = if (prog > 0f && prog < 1f) 1f else 0f
         passenger(px, py, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed, st.dwell * 9f + i * 1.7f, walking, flip = false)
@@ -1240,7 +1256,7 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
 
 /** Lamp light and warm windows; drawn after the night tint so they really glow. [on] 0..1. */
 private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, on: Float) {
-    val pw = ST_W * u
+    val pw = ST_PW[st.type] * u
     if (originX < pw + 8f * u) return
     val x = originX - pw - 6f * u
     val y = st.y * u
@@ -1254,8 +1270,8 @@ private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, o
     }
     // light from the station windows spilling onto the platform
     for (wy in listOf(-26f, 10f)) {
-        val c = Offset(x + 38f * u, y + wy * u)
-        val r = 28f * u
+        val c = Offset(x + (ST_PW[st.type] * 0.45f - ST_EXT[st.type] * 0.4f) * u, y + wy * 1.6f * u)
+        val r = 34f * u
         drawOval(
             Brush.radialGradient(listOf(warm.copy(alpha = 0.26f * on), Color.Transparent), c, r),
             Offset(c.x - r, c.y - r * 0.8f), Size(r * 2f, r * 1.6f), blendMode = BlendMode.Plus,

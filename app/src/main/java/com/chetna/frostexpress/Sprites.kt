@@ -62,6 +62,8 @@ class GameSprites(ctx: Context) {
     val npcSleep = load("npc_sleep")
     val stationRoof = load("station_roof")
     val stationBldg = load("station_bldg")
+    /** Five kinds of station building: village halt, brick country station, city terminal, mountain chalet, modern station. */
+    val stationBlds: List<ImageBitmap?> = (0..4).map { load("station_t$it") }
     val stationLamp = load("station_lamp")
     val stationBench = load("station_bench")
     /** A different nose for every train tier (index 0 = the classic nose above). */
