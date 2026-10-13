@@ -286,7 +286,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val eventSpeedMult: Double
-        get() = if (stormLeft > 0.0) 1.0 - (1.0 - Balance.STORM_SPEED) * (1.0 - min(0.9, effSum(Eff.STORM))) else 1.0
+        get() = (if (stormLeft > 0.0) 1.0 - (1.0 - Balance.STORM_SPEED) * (1.0 - min(0.9, effSum(Eff.STORM))) else 1.0) *
+            (if (breakdownLeft > 0.0) 0.25 else 0.7 + 0.3 * (condition / 100.0))
     private val eventIncomeMult: Double
         get() = if (event == GameEvent.AURORA) Balance.AURORA_INCOME + effSum(Eff.AURORA) else 1.0
 
@@ -739,7 +740,10 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     /** 0..1 passenger happiness right now: comfort, minus crowding and storms. */
     val happiness: Double get() {
-        var h = 0.40 + 0.50 * comfortScore
+        var h = 0.40 + 0.50 * comfortScore + Balance.ATTENDANT_HAPPY * attendants
+        h -= 0.25 * (priceMult - 1.0)                       // a dear ticket annoys riders, a cheap one pleases them
+        if (debtTrouble) h -= 0.05
+        if (condition < Balance.BREAKDOWN_BELOW) h -= 0.08  // a worn-out train is unpleasant
         if (occupancy > 0.92f) h -= 0.08
         if (stormLeft > 0.0) h -= 0.15 * (1.0 - min(0.9, effSum(Eff.STORM)))
         return h.coerceIn(0.0, 1.0)
@@ -748,16 +752,73 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     var rating by mutableDoubleStateOf(prefs.getFloat("rating", 3f).toDouble()); private set
     private val ratingMult: Double get() = 0.85 + 0.075 * (rating - 1.0)
     /** Fare multiplier from happiness and rating (about 0.65x .. 1.5x). */
-    val satisfactionMult: Double get() = (0.75 + 0.5 * happiness) * ratingMult
+    val satisfactionMult: Double get() = (0.75 + 0.5 * happiness) * ratingMult * priceMult
     private val metreValue: Double get() = coinsPerMeter * Balance.BASE_SPEED
-    val wagesPerSec: Double get() = metreValue * Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS))
+    val wagesPerSec: Double get() = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.STAFF_WAGE * (attendants + mechanics))
     val fuelPerSec: Double get() = metreValue * Balance.FUEL_PER_MPS * speed
-    val upkeepPerSec: Double get() = metreValue * Balance.MAINT_PER_LEVEL * levels.sum()
-    val expensesPerSec: Double get() = wagesPerSec + fuelPerSec + upkeepPerSec
+    val upkeepPerSec: Double get() = metreValue * Balance.MAINT_PER_LEVEL * levels.sum() * (1.0 - min(0.5, Balance.MECHANIC_UPKEEP * mechanics))
+    val interestPerSec: Double get() = debt * Balance.INTEREST_PER_SEC
+    val expensesPerSec: Double get() = wagesPerSec + fuelPerSec + upkeepPerSec + interestPerSec
     /** Ticket money per second (passengers x fare x satisfaction), without the subsidy or boosts. */
     val ticketsPerSec: Double get() = fareIncome * satisfactionMult * incomeMultiplier
     val subsidyPerSec: Double get() = trickleIncome * incomeMultiplier
     val netPerSec: Double get() = coinsPerSec - expensesPerSec
+    // ---- simulator controls: ticket price, train condition, staff and the bank ----
+    /** Ticket price multiplier (0.6x .. 1.8x): dearer tickets pay more per rider but annoy them and bring fewer riders. */
+    var priceMult by mutableDoubleStateOf(prefs.getFloat("price", 1f).toDouble()); private set
+    fun changePrice(delta: Double) {
+        priceMult = (Math.round((priceMult + delta) * 10.0) / 10.0).coerceIn(0.6, 1.8)
+        prefs.edit().putFloat("price", priceMult.toFloat()).apply()
+    }
+    /** How many riders turn up at a station, compared to a standard fare. */
+    private val demandMult: Double get() = (1.0 / priceMult).pow(0.9)
+    /** Train condition 0..100: wears down while running; a worn train is slower and can break down. */
+    var condition by mutableDoubleStateOf(prefs.getFloat("cond", 100f).toDouble()); private set
+    var breakdownLeft by mutableDoubleStateOf(0.0); private set
+    val serviceCost: Double get() = Math.floor(metreValue * Balance.SERVICE_COST * ((100.0 - condition) / 100.0))
+    fun serviceTrain() {
+        val c = serviceCost
+        if (condition >= 99.5 || coins < c) return
+        coins -= c; condition = 100.0; breakdownLeft = 0.0
+        audio.play(R.raw.sfx_buy)
+        showToast("Train serviced: condition 100%")
+        save()
+    }
+    var attendants by mutableIntStateOf(prefs.getInt("attend", 0)); private set
+    var mechanics by mutableIntStateOf(prefs.getInt("mech", 0)); private set
+    val staffMax: Int get() = max(1, carsNow)
+    private fun hireFee(already: Int): Double = Math.floor(metreValue * Balance.STAFF_HIRE * (already + 1))
+    val attendantFee: Double get() = hireFee(attendants)
+    val mechanicFee: Double get() = hireFee(mechanics)
+    fun hire(mechanic: Boolean) {
+        val n = if (mechanic) mechanics else attendants
+        val fee = hireFee(n)
+        if (n >= staffMax || coins < fee) return
+        coins -= fee
+        if (mechanic) mechanics++ else attendants++
+        audio.play(R.raw.sfx_buy); save()
+    }
+    fun fire(mechanic: Boolean) {
+        if (mechanic && mechanics > 0) mechanics-- else if (!mechanic && attendants > 0) attendants--
+        save()
+    }
+    var debt by mutableDoubleStateOf(prefs.getString("debt", "0")?.toDoubleOrNull() ?: 0.0); private set
+    val creditLimit: Double get() = Math.floor(max(coinsPerSec, metreValue) * Balance.CREDIT_SECONDS)
+    val debtTrouble: Boolean get() = debt > creditLimit * 0.8
+    fun borrow(share: Double) {
+        val amount = Math.floor(creditLimit * share)
+        if (amount < 1.0 || debt + amount > creditLimit) return
+        debt += amount; coins += amount
+        audio.play(R.raw.sfx_buy); showToast("Loan taken: +${fmt(amount)} coins"); save()
+    }
+    fun repay(share: Double) {
+        val pay = min(debt, if (share >= 1.0) debt else Math.floor(debt * share))
+        if (pay < 1.0 || coins < pay) return
+        coins -= pay; debt -= pay
+        if (debt < 1.0) debt = 0.0
+        audio.play(R.raw.sfx_buy); showToast("Repaid ${fmt(pay)}"); save()
+    }
+
     var tripsCompleted by mutableIntStateOf(prefs.getInt("trips", 0)); private set
     var tripMetersTotal by mutableDoubleStateOf(prefs.getFloat("tripM", 0f).toDouble()); private set
     var lastTripMeters by mutableDoubleStateOf(0.0); private set
@@ -784,7 +845,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val off = if (passengers > 0) Math.round(passengers * (0.25 + Math.random() * 0.25)).toInt() else 0
         val left = passengers - off
         // ...and a fresh crowd boards, filling the empty seats
-        val want = ((Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random() * (0.6 + 0.1 * rating)).toInt().coerceAtLeast(2)
+        val want = ((Balance.SEATS_PER_CAR..max(Balance.SEATS_PER_CAR, waiting * 4)).random() * (0.6 + 0.1 * rating) * demandMult).toInt().coerceAtLeast(2)
         val on = want.coerceAtMost(max(0, seats - left))
         // how far this stretch of line was: longer trips pay a better fare
         val tripM = max(0.0, runDistance - lastStationDist)
@@ -1615,6 +1676,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         coins = startCoins
         runDistance = 0.0
         lastStationDist = 0.0
+        condition = 100.0; breakdownLeft = 0.0
         runRevenue = 0.0; runExpenses = 0.0
         boostMeter = 1.0
         boostTimeLeft = 0.0
@@ -1717,6 +1779,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             .putFloat("shopFuel", shopFuelLeft.toFloat())
             .putFloat("rush5", rushLeft[0].toFloat()).putFloat("rush10", rushLeft[1].toFloat()).putFloat("rush100", rushLeft[2].toFloat())
             .putInt("pax", passengers).putFloat("paxMult", paxMult.toFloat())
+            .putFloat("cond", condition.toFloat()).putFloat("price", priceMult.toFloat()).putInt("attend", attendants).putInt("mech", mechanics).putString("debt", debt.toString())
             .putFloat("rating", rating.toFloat()).putInt("trips", tripsCompleted).putFloat("tripM", tripMetersTotal.toFloat())
             .putString("lifeRev", lifetimeRevenue.toString()).putString("lifeExp", lifetimeExpenses.toString())
             .putLong("last", System.currentTimeMillis())
@@ -1752,7 +1815,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             val meters = cruiseSpeed * secs * offlineRate
             // while away the train keeps carrying about 60% of its seats; ticket money minus running costs
             val grossOff = seats * 0.6 * farePerPassenger * 0.9 + trickleIncome
-            val spendOff = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.FUEL_PER_MPS * cruiseSpeed + Balance.MAINT_PER_LEVEL * levels.sum())
+            val spendOff = metreValue * (Balance.WAGE_PER_CAR * (carsNow + level(UpgradeType.SURVIVORS)) + Balance.STAFF_WAGE * (attendants + mechanics) + Balance.FUEL_PER_MPS * cruiseSpeed + Balance.MAINT_PER_LEVEL * levels.sum()) + debt * Balance.INTEREST_PER_SEC
             val gain = max(0.0, grossOff - spendOff) * secs * offlineRate * route(RouteBonus.NIGHT_SHIFT, 1.5) * perkIncome(evolutions)
             if (away >= 1800L && tutorialDone) parcelReady = true
             if (gain >= 1.0) {
@@ -1769,7 +1832,17 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val meters = speed * dt
         runDistance += meters
         totalDistance += meters
-        val gross = coinsPerSec * dt
+        // wear and breakdowns
+        condition = max(0.0, condition - Balance.WEAR_PER_SEC * dt * (1.0 - min(0.5, Balance.MECHANIC_UPKEEP * mechanics)))
+        if (breakdownLeft > 0.0) {
+            breakdownLeft -= dt
+        } else if (condition < Balance.BREAKDOWN_BELOW && tutorialDone && Math.random() < (Balance.BREAKDOWN_BELOW - condition) / Balance.BREAKDOWN_BELOW * 0.01 * dt) {
+            breakdownLeft = Balance.BREAKDOWN_SEC
+            val bill = min(coins, Math.floor(metreValue * 20.0))
+            coins -= bill; condition = 55.0
+            showToast("Breakdown! The train crawls for ${Balance.BREAKDOWN_SEC.toInt()}s · repair bill ${fmt(bill)}")
+        }
+        val gross = coinsPerSec * dt * (if (breakdownLeft > 0.0) 0.3 else 1.0)
         val spend = expensesPerSec * dt
         coins = max(0.0, coins + gross - spend)
         runRevenue += gross; runExpenses += spend; lifetimeRevenue += gross; lifetimeExpenses += spend

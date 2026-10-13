@@ -1216,6 +1216,79 @@ fun FinanceSheet(vm: GameViewModel, modifier: Modifier = Modifier, onClose: () -
                     FinRow("Crew wages", "-" + fmt(vm.wagesPerSec, 1) + "/s", Color(0xFFD0524F), "${vm.carsNow} cars + ${vm.level(UpgradeType.SURVIVORS)} survivors")
                     FinRow("Fuel", "-" + fmt(vm.fuelPerSec, 1) + "/s", Color(0xFFD0524F), "Faster trains burn more")
                     FinRow("Upkeep", "-" + fmt(vm.upkeepPerSec, 1) + "/s", Color(0xFFD0524F), "Every installed upgrade level needs servicing")
+                    FinRow("Loan interest", "-" + fmt(vm.interestPerSec, 1) + "/s", Color(0xFFD0524F))
+                }
+            }
+            item {
+                FinCard("Ticket price", Color(0xFFFFE3B0)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        ChunkyButton(vm.priceMult > 0.61, listOf(Color(0xFFFFD9B3), Color(0xFFFFB878)), { vm.changePrice(-0.1) }, Modifier.width(52.dp)) {
+                            Text("-", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                        Text("x" + fmt(vm.priceMult, 1), fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                        ChunkyButton(vm.priceMult < 1.79, listOf(Color(0xFFFFD9B3), Color(0xFFFFB878)), { vm.changePrice(0.1) }, Modifier.width(52.dp)) {
+                            Text("+", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                    }
+                    Text("Higher prices pay more per rider, but riders get unhappy and fewer turn up. Cheaper tickets fill the seats and raise your rating.", fontSize = 11.sp, color = Muted)
+                }
+            }
+            item {
+                FinCard("Train condition", Color(0xFFD9EBC9)) {
+                    val cond = vm.condition
+                    Box(Modifier.fillMaxWidth().height(18.dp).clip(RoundedCornerShape(9.dp)).background(Panel).border(1.5.dp, Ink, RoundedCornerShape(9.dp))) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth((cond / 100.0).toFloat().coerceIn(0.02f, 1f)).background(if (cond > 60) Mint else if (cond > 35) Color(0xFFE8A23A) else Color(0xFFD0524F)))
+                    }
+                    FinRow("Condition", "${cond.toInt()}%", if (cond > 45) Mint else Color(0xFFD0524F), if (vm.breakdownLeft > 0.0) "BROKEN DOWN: crawling for ${vm.breakdownLeft.toInt()}s" else "Wears while running. Below 45% it can break down.")
+                    ChunkyButton(cond < 99.5 && vm.coins >= vm.serviceCost, listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)), { vm.serviceTrain() }, Modifier.fillMaxWidth()) {
+                        Text(if (cond >= 99.5) "Train is in top shape" else "Service the train  ·  " + fmt(vm.serviceCost), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    }
+                }
+            }
+            item {
+                FinCard("Staff", Color(0xFFE2D6F6)) {
+                    Text("At most ${vm.staffMax} of each. Staff draw wages every second.", fontSize = 11.sp, color = Muted)
+                    FinRow("Attendants: ${vm.attendants}", "+${(vm.attendants * Balance.ATTENDANT_HAPPY * 100).toInt()}% happy", Mint, "Look after passengers")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ChunkyButton(vm.attendants < vm.staffMax && vm.coins >= vm.attendantFee, listOf(Color(0xFFFFD9E6), Color(0xFFF2A9C4)), { vm.hire(false) }, Modifier.weight(1f)) {
+                            Text("Hire  ·  " + fmt(vm.attendantFee), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                        ChunkyButton(vm.attendants > 0, listOf(Color(0xFFEDE4DA), Color(0xFFD7C8B8)), { vm.fire(false) }, Modifier.width(70.dp)) {
+                            Text("Let go", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    FinRow("Mechanics: ${vm.mechanics}", "-${(minOf(0.5, vm.mechanics * Balance.MECHANIC_UPKEEP) * 100).toInt()}% wear and upkeep", Mint, "Keep the train in shape")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ChunkyButton(vm.mechanics < vm.staffMax && vm.coins >= vm.mechanicFee, listOf(Color(0xFFCFE4F6), Color(0xFF9CC4E6)), { vm.hire(true) }, Modifier.weight(1f)) {
+                            Text("Hire  ·  " + fmt(vm.mechanicFee), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                        ChunkyButton(vm.mechanics > 0, listOf(Color(0xFFEDE4DA), Color(0xFFD7C8B8)), { vm.fire(true) }, Modifier.width(70.dp)) {
+                            Text("Let go", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                    }
+                }
+            }
+            item {
+                FinCard("Bank", Color(0xFFCFE9F2)) {
+                    FinRow("Loan owed", fmt(vm.debt), if (vm.debt > 0) Color(0xFFD0524F) else Mint, "Interest costs about 2% a minute. Credit limit ${fmt(vm.creditLimit)}")
+                    if (vm.debtTrouble) Text("Heavy debt is worrying your passengers. Repay some soon.", fontSize = 11.sp, color = Color(0xFFD0524F))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ChunkyButton(vm.debt + vm.creditLimit * 0.25 <= vm.creditLimit, listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)), { vm.borrow(0.25) }, Modifier.weight(1f)) {
+                            Text("Borrow 25%", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                        ChunkyButton(vm.debt + vm.creditLimit * 0.5 <= vm.creditLimit, listOf(Color(0xFFBFE0D2), Color(0xFF8FC2AE)), { vm.borrow(0.5) }, Modifier.weight(1f)) {
+                            Text("Borrow 50%", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ChunkyButton(vm.debt > 0 && vm.coins >= vm.debt * 0.25, listOf(Color(0xFFFFD9B3), Color(0xFFFFB878)), { vm.repay(0.25) }, Modifier.weight(1f)) {
+                            Text("Repay 25%", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                        ChunkyButton(vm.debt > 0 && vm.coins >= vm.debt, listOf(Color(0xFFFFD9B3), Color(0xFFFFB878)), { vm.repay(1.0) }, Modifier.weight(1f)) {
+                            Text("Repay all", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
+                    }
                 }
             }
             item {

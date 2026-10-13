@@ -428,6 +428,16 @@ object Balance {
     const val WAGE_PER_CAR = 0.25         // crew wages per second, per car (and per rescued survivor)
     const val FUEL_PER_MPS = 0.05         // fuel per second, per m/s of speed
     const val MAINT_PER_LEVEL = 0.010     // upkeep per second for every upgrade level installed
+    const val STAFF_WAGE = 0.08           // each attendant / mechanic costs this much per second (x metre value)
+    const val STAFF_HIRE = 150.0          // hiring fee = this x metre value x (staff already hired + 1)
+    const val ATTENDANT_HAPPY = 0.04      // each attendant adds this much happiness
+    const val MECHANIC_UPKEEP = 0.08      // each mechanic cuts upkeep and wear by this much (max 50%)
+    const val WEAR_PER_SEC = 0.0667       // condition lost per second (100% in about 25 minutes of running)
+    const val BREAKDOWN_BELOW = 45.0      // below this condition the train can break down
+    const val BREAKDOWN_SEC = 25.0        // a breakdown slows the train and cuts income for this long
+    const val SERVICE_COST = 300.0        // full service = this x metre value x (share of condition missing)
+    const val INTEREST_PER_SEC = 0.00035  // about 2% per minute on a loan
+    const val CREDIT_SECONDS = 1800.0     // credit limit = this many seconds of gross income
     const val TRIP_DIST_REF = 400.0       // a trip of this many metres pays the standard trip fare
     const val TRIP_BONUS = 1.2            // lump fare each passenger pays when they finish their trip at a station
     const val DINING_SEC = 6.0            // the dining car rings up a sale this often
