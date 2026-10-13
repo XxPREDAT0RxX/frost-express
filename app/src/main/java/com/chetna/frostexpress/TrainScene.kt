@@ -981,7 +981,7 @@ private var sceneCountry = 0
 /** A rider's stable identity while aboard: which character sprite, and whether they boarded in warm weather. */
 private class ScenePax(val sprite: Int, val warm: Boolean, val boardAt: Float = -100f)
 /** Passengers still walking to their seat this frame: filled while the cars are drawn, drawn and used by the doors after. */
-private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float)
+private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean)
 private val sceneBoarders = ArrayList<BoardWalker>()
 private var sceneClock = 0f
 private const val BOARD_WALK_SEC = 2.4f
@@ -1186,8 +1186,8 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         if (prog >= 1f) continue
         val sx = x + 42f * u - (if (i % 3 == 1) 4f * u else 0f)
         val px = sx + (door - sx) * prog
-        val bob = if (prog > 0f) kotlin.math.abs(sin(st.dwell * 14f + i)) * 1.2f * u else 0f
-        passenger(px, py - bob, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed)
+        val walking = if (prog > 0f && prog < 1f) 1f else 0f
+        passenger(px, py, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed, st.dwell * 9f + i * 1.7f, walking, flip = false)
     }
     for (i in 0 until st.off) {
         val t = ((st.dwell - 0.2f - i * 0.4f) / 2.6f)
@@ -1197,19 +1197,37 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val px = if (t < 0.5f) door + (x + 30f * u - door) * (t / 0.5f) else x + 30f * u
         val yy = if (t < 0.5f) py else py + (t - 0.5f) / 0.5f * 120f * u
         val alpha = if (t < 0.12f) t / 0.12f else 1f - ((t - 0.75f) / 0.25f).coerceIn(0f, 1f)
-        passenger(px, yy, alpha, u, i + st.seed + 3)
+        passenger(px, yy, alpha, u, i + st.seed + 3, st.dwell * 9f + i * 2.3f, 1f, flip = t < 0.5f)
+    }
+}
+
+
+/** A character sprite with a walking gait: a waddle (rotation about the feet), a hop on every step and a little squash and stretch.
+ *  [phase] advances with distance walked; [moving] 0..1 fades the gait in and out; [flip] mirrors when heading left. */
+private fun DrawScope.drawWalkingSprite(img: ImageBitmap, cx: Float, feetY: Float, w: Float, h: Float, phase: Float, moving: Float, flip: Boolean = false, alpha: Float = 1f) {
+    val u = density
+    val step = sin(phase)
+    val hop = kotlin.math.abs(step) * 2.4f * moving
+    val sq = 1f + 0.05f * sin(phase * 2f + 1.57f) * moving
+    val rot = step * 7f * moving
+    withTransform({
+        if (flip) scale(-1f, 1f, Offset(cx, feetY))
+        rotate(rot, Offset(cx, feetY))
+        scale(1f / sq, sq, Offset(cx, feetY))
+    }) {
+        drawSprite(img, cx - w / 2f * u, feetY - (h + hop) * u, w * u, h * u, alpha = alpha)
     }
 }
 
 /** One waiting or leaving passenger, drawn as a real cosy character (same faces as inside the train). */
-private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int) {
+private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int, walkPhase: Float = 0f, moving: Float = 0f, flip: Boolean = false) {
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
     val pool = if (sceneWarm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
     val img = if (pool.isNotEmpty()) pool[Math.floorMod(seed, pool.size)] else sp?.npc
     if (img != null) {
-        drawSprite(img, px - 9f * u, py - 16f * u, 18f * u, 22f * u, alpha = alpha)
+        drawWalkingSprite(img, px, py + 6f * u, 18f, 22f, walkPhase, moving, flip, alpha)
     } else {
         drawCircle(Color(0xFF6B4A3A).copy(alpha = alpha), 5.6f * u, Offset(px, py))
         drawCircle(Color(0xFFF2C9A0).copy(alpha = alpha), 2.4f * u, Offset(px, py - 0.5f * u))
@@ -1422,7 +1440,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         for (b in sceneBoarders) {
             val img = b.img ?: continue
             drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
-            drawSprite(img, (b.x - 11f) * u, (b.y - 17f - b.bob) * u, 22f * u, 27f * u)
+            drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, 22f, 27f, sceneClock * 10f + b.bob, 1f, flip = b.flip)
         }
         sceneBoarders.clear()
     }
@@ -1523,7 +1541,7 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
             val a = 0.7f
             val wx = if (t < a) AISLE_X else AISLE_X + (cx - AISLE_X) * ((t - a) / (1f - a))
             val wy = if (t < a) doorY + (cy - doorY) * (t / a) else cy
-            sceneBoarders.add(BoardWalker(img, wx, wy, kotlin.math.abs(sin(sceneClock * 12f + pax.sprite)) * 1.5f))
+            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X))
         }
         pax = null
     }
@@ -2567,7 +2585,8 @@ private fun DrawScope.drawNpcCozy(npc: Npc, look: ImageBitmap? = null) {
     val stand = if (inBed) 1f - sleepFade(npc) else 1f
     if (stand <= 0.01f) return
     drawOval(Color(0x22000000).copy(alpha = 0.13f * stand), Offset(cx - 9f * u, cy + 6f * u), Size(18f * u, 5f * u))
-    withTransform({ if (left) scale(-1f, 1f, Offset(cx, cy)) }) {
+    if (walking) drawWalkingSprite(img, cx, cy + 10f * u, w, h, npc.phase, 1f, left, stand)
+    else withTransform({ if (left) scale(-1f, 1f, Offset(cx, cy)) }) {
         drawSprite(img, cx - w / 2f * u, cy - (h - 10f + hop) * u, w * u, h * u, alpha = stand)
     }
     // what the worker is holding
