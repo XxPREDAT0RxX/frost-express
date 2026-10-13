@@ -505,7 +505,7 @@ class SceneLink {
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}, link: SceneLink? = null) {
     val npc = remember { Npc() }
     val roster = remember { ArrayList<ScenePax>() }
-    var rosterReady by remember { mutableStateOf(false) }
+    val rosterReady = remember { booleanArrayOf(false) }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val survivors = remember { List(10) { Npc() } }
     val stations = remember { ArrayList<Station>().apply { if (!vm.debugStationAt.isNaN()) add(Station(vm.debugStationAt)) } }
@@ -547,10 +547,10 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     vm.audio.zoom = link?.zoom ?: 1f   // the ear moves inside the coach as you zoom in
                     val warmNow = vm.regionTemp >= 24
                     val tgt = vm.passengers
-                    val fresh = rosterReady
+                    val fresh = rosterReady[0]
                     var joined = 0
                     while (roster.size < tgt) roster.add(ScenePax((Math.random() * 1000).toInt(), warmNow, if (fresh) time + 0.5f + 0.55f * (joined++) else -100f))
-                    rosterReady = true
+                    rosterReady[0] = true
                     sceneClock = time
                     while (roster.size > tgt && roster.isNotEmpty()) roster.removeAt(roster.size - 1)
                     sceneRoster = roster
