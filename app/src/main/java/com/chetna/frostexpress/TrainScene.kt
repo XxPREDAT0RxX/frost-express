@@ -1647,7 +1647,8 @@ fun DrawScope.drawTierCoachPreview(tier: Int, ox: Float, oy: Float, k: Float) {
         4 -> Color(0xFFE8C9B8)
         else -> Color(0xFFC49A6C)
     }
-    withTransform({ translate(ox, oy); scale(k / density, k / density, Offset.Zero) }) {
+    val ratio = k / density
+    withTransform({ translate(ox, oy); scale(ratio, ratio, Offset.Zero) }) {
         box(floor, 8f, 8f, 190f, 100f, 8f)
         drawSeatingCar(0f, 2, 3)
     }
