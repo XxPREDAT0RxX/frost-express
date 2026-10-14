@@ -18,6 +18,15 @@ The world has frozen over. One train keeps running along the frozen track. Start
 - **Controls**: tap a device on the train to jump to its upgrade; hold a buy button to keep buying. Settings has a frame rate cap (30/60/90/120) and a post-processing switch (bloom, colour grading, vignette).
 - **Evolve**: once you reach the required distance, evolve your train. Coins and upgrades reset, but you unlock the next train (6 tiers) and earn permanent Frost Cores (+25% coins each).
 
+## Train simulator (current design)
+- **Passengers and fares**: income is passengers x ticket price, scaled by satisfaction (happiness and rating). Stations fill the train according to its seats, demand and marketing.
+- **Finances**: the Finance sheet (footer button) shows income, wages, fuel, upkeep and loan interest, plus ticket price, loans and marketing campaigns. The top bar shows Income and Costs per second.
+- **Condition and staff**: trains wear down and can break; staff and maintenance keep them running.
+- **Prestige**: from the Evolve sheet, once you have evolved far enough, you can restart in the next country from the first train for a permanent income bonus that grows the higher you go.
+- **Stations**: five large station types, each with its own building.
+- **Traders**: passing trader trains sell items for a few seconds of your income.
+- **Tutorial**: a simulator tour explains the economy on first launch.
+
 ## Ads (planned for after launch)
 Rewarded ad boosts (watch an ad for x2 income for 2 minutes) are prepared but OFF. See `Ads.kt` and `Balance.ADS_ENABLED`. Add AdMob, implement `AdProvider`, then switch the flag on.
 
