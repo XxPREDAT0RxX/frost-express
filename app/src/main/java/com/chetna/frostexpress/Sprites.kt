@@ -83,6 +83,8 @@ class GameSprites(ctx: Context) {
     val keepsakes: List<List<ImageBitmap?>> = (0 until 6).map { r -> (0 until 6).map { i -> load("col_${r}_$i") } }
     val wolf = load("spr_wolf")
     /** Rescued travellers (Survivors upgrade), each with their own look. */
+    /** Side-view walk cycles, [character][frame]. */
+    val walkers: List<List<ImageBitmap>> = (1..3).map { r -> (1..4).mapNotNull { load("walk${r}_$it") } }.filter { it.size == 4 }
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
     val summer: List<ImageBitmap> = (1..8).mapNotNull { load("npc_sum$it") }

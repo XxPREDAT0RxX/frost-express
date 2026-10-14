@@ -1217,7 +1217,7 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val px = if (t < 0.5f) door + (x + 30f * u - door) * (t / 0.5f) else x + 30f * u
         val yy = if (t < 0.5f) py else py + (t - 0.5f) / 0.5f * 120f * u
         val alpha = if (t < 0.12f) t / 0.12f else 1f - ((t - 0.75f) / 0.25f).coerceIn(0f, 1f)
-        passenger(px, yy, alpha, u, i + st.seed + 3, st.dwell * 9f + i * 2.3f, 1f, flip = t < 0.5f)
+        passenger(px, yy, alpha, u, i + st.seed + 3, st.dwell * 9f + i * 2.3f, 1f, flip = t < 0.5f, side = t < 0.5f)
     }
 }
 
@@ -1240,10 +1240,21 @@ private fun DrawScope.drawWalkingSprite(img: ImageBitmap, cx: Float, feetY: Floa
 }
 
 /** One waiting or leaving passenger, drawn as a real cosy character (same faces as inside the train). */
-private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int, walkPhase: Float = 0f, moving: Float = 0f, flip: Boolean = false) {
+private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int, walkPhase: Float = 0f, moving: Float = 0f, flip: Boolean = false, side: Boolean = false) {
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
+    val walkers = sp?.walkers
+    if (side && moving > 0f && !walkers.isNullOrEmpty() && !sceneWarm) {
+        val ch = walkers[Math.floorMod(seed, walkers.size)]
+        val fr = ch[Math.floorMod((walkPhase * 0.9f).toInt(), 4)]
+        val h = 25f * (0.8f + 0.2f * (fr.height / 232f).coerceAtMost(1.2f))
+        val w = h * fr.width / fr.height
+        withTransform({ if (flip) scale(-1f, 1f, Offset(px, py)) }) {
+            drawSprite(fr, px - w / 2f * u, py + 6f * u - h * u, w * u, h * u, alpha = alpha)
+        }
+        return
+    }
     val pool = if (sceneWarm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
     val img = if (pool.isNotEmpty()) pool[Math.floorMod(seed, pool.size)] else sp?.npc
     if (img != null) {
