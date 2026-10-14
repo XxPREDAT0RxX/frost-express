@@ -316,8 +316,8 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             GameEvent.WOLVES -> wolfSerial++
             GameEvent.AURORA -> if (ev == 1) { meta.addFlakes(20) }
             GameEvent.TRADER -> trader = listOf(
-                TraderDeal(listOf(Reward.Item(ShopItem.TURBO), Reward.Item(ShopItem.COCOA), Reward.Item(ShopItem.TICKET)).random(), 240.0),
-                TraderDeal(listOf(Reward.Gems(10), Reward.Polish(1), Reward.Item(ShopItem.RUSH5)).random(), 900.0),
+                TraderDeal(listOf(Reward.Item(ShopItem.TURBO), Reward.Item(ShopItem.COCOA), Reward.Item(ShopItem.TICKET)).random(), 45.0),
+                TraderDeal(listOf(Reward.Gems(10), Reward.Polish(1), Reward.Item(ShopItem.RUSH5)).random(), 150.0),
             )
             GameEvent.COAL -> { minigamePrompt = MiniGame.COAL; promptLeft = 20.0 }
             else -> {}
@@ -488,7 +488,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     fun endWolves() { if (event == GameEvent.WOLVES) { event = GameEvent.NONE; eventLeft = 0.0 } }
 
     // trader train and SOS
-    fun traderCost(d: TraderDeal): Double = floor(max(100.0, baseCoinsPerSec * d.costSecs))
+    fun traderCost(d: TraderDeal): Double = floor(max(50.0, baseCoinsPerSec * d.costSecs))
     fun acceptDeal(d: TraderDeal) {
         val c = traderCost(d)
         if (coins < c) return
