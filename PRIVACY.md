@@ -2,7 +2,7 @@
 
 Last updated: 14 October 2026
 
-Little Express is a single-player idle game made by Chetna. This policy explains what data the game and the services inside it use.
+Little Express is a single-player idle game. This policy explains what data the game and the services inside it use.
 
 ## What the game itself stores
 
