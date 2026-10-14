@@ -1,4 +1,4 @@
-# Frost Express
+# Little Express
 
 The world has frozen over. One train keeps running along the frozen track. Start with the small Snow Pup, upgrade it, and evolve it into new trains. You earn coins from the distance travelled.
 

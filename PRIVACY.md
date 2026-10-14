@@ -1,8 +1,8 @@
-# Privacy Policy — Frost Express
+# Privacy Policy — Little Express
 
-Last updated: 9 October 2026
+Last updated: 14 October 2026
 
-Frost Express is a single-player idle game made by Chetna. This policy explains what data the game and the services inside it use.
+Little Express is a single-player idle game made by Chetna. This policy explains what data the game and the services inside it use.
 
 ## What the game itself stores
 
@@ -31,7 +31,7 @@ Gem packs are sold through Google Play Billing. Payments are handled entirely by
 
 ## Children
 
-Frost Express is not directed at children under 13.
+Little Express is not directed at children under 13.
 
 ## Deleting your data
 
