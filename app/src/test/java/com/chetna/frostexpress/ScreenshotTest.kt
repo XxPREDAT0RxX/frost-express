@@ -109,6 +109,12 @@ class ScreenshotTest {
                 val v = vm()
                 shot("${size}_25_$screen") { GameScreen(v) }
             }
+            "village", "villagenight" -> {
+                prefs { putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4); putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay()); putInt("country", 5); putString("totalDist", "1700"); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
+                val v = vm()
+                if (screen == "villagenight") v.debugScene(Balance.DAY_SEC + Balance.DUSK_SEC + Balance.NIGHT_SEC / 2, Float.NaN)
+                shot("${size}_25_$screen") { GameScreen(v) }
+            }
             "int1", "int2", "int3", "int4" -> {
                 val evo = screen.removePrefix("int").toInt() * 5
                 prefs {
@@ -224,6 +230,8 @@ class ScreenshotTest {
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bsavanna() = runBiome("savanna")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bdesert() = runBiome("desert")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_brainforest() = runBiome("rainforest")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bvillage() = runBiome("village")
+    @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bvillagenight() = runBiome("villagenight")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_bigupgrades() = runAll("normal", "bigupgrades")
     @Test @Config(sdk = [34], qualifiers = "w320dp-h640dp-port-xhdpi") fun small_bigtrain() = runAll("small", "bigtrain")
     @Test @Config(sdk = [34], qualifiers = "w360dp-h780dp-port-xxhdpi") fun normal_journeyfull() = runAll("normal", "journeyfull")

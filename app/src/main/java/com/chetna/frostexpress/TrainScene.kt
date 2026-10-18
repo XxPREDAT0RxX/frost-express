@@ -103,6 +103,7 @@ private val ZONES = listOf(
     Zone("the Red Desert", 0xFFE7BC89, false, 39, mapOf(0 to listOf("cactus_ball", "dry_bush"), 1 to listOf("cactus", "mesa"), 3 to listOf("cactus", "mesa"), 5 to listOf("boulder", "cactus_ball"), 6 to listOf("dry_bush", "grass_tuft"))),
     Zone("the Rainforest", 0xFF86C58F, false, 28, mapOf(0 to listOf("fern", "jungle"), 1 to listOf("palm", "jungle"), 3 to listOf("palm"), 5 to listOf("jungle", "fern"), 6 to listOf("fern", "grass_tuft"))),
     Zone("the Snowfields", 0xFFDCE6EE, true, -18, mapOf(0 to listOf("pine_a", "pine_b", "pine_c"), 1 to listOf("cliff", "ice"), 3 to listOf("dead_a", "pine_a", "xmas"), 5 to listOf("ice", "rock_a", "snowman", "birdhouse"), 6 to listOf("snow_bush", "rock_b", "logs", "snow_bush")), lakes = true),
+    Zone("the Paddy Village", 0xFF9CCB7A, false, 29, mapOf(0 to listOf("v_palm", "v_banana", "v_bamboo"), 1 to listOf("v_house_a", "v_house_b", "v_court"), 3 to listOf("v_palm", "v_bamboo"), 5 to listOf("v_haystack", "v_well", "v_pots", "v_bed", "v_cart", "v_paddy"), 6 to listOf("v_grass", "v_bush", "v_grass"))),
 )
 
 /** The biome ZONES entry shown at environment loop step [step], remapped for the current country. */
@@ -174,6 +175,11 @@ private fun rememberSceneArt(): SceneArt {
         "grass_tuft" to R.drawable.spr_grass_tuft, "boulder" to R.drawable.spr_boulder,
         "xmas" to R.drawable.spr_xmas, "snowman" to R.drawable.spr_snowman, "logs" to R.drawable.spr_logs,
         "snow_bush" to R.drawable.spr_snow_bush, "birdhouse" to R.drawable.spr_birdhouse,
+        "v_house_a" to R.drawable.spr_v_house_a, "v_house_b" to R.drawable.spr_v_house_b, "v_court" to R.drawable.spr_v_court,
+        "v_banana" to R.drawable.spr_v_banana, "v_bamboo" to R.drawable.spr_v_bamboo, "v_palm" to R.drawable.spr_v_palm,
+        "v_haystack" to R.drawable.spr_v_haystack, "v_well" to R.drawable.spr_v_well, "v_bed" to R.drawable.spr_v_bed,
+        "v_paddy" to R.drawable.spr_v_paddy, "v_pots" to R.drawable.spr_v_pots, "v_bush" to R.drawable.spr_v_vbush,
+        "v_grass" to R.drawable.spr_v_vgrass, "v_cart" to R.drawable.spr_v_cart,
     ).map { (n, id) -> n to ImageBitmap.imageResource(id) }
     return remember(snow, track, wood) {
         SceneArt(
@@ -914,7 +920,15 @@ private fun DrawScope.drawScene(
     translate(left = originX, top = ny) {
         scale(scaleX = z * TRAIN_SQUEEZE, scaleY = z, pivot = Offset.Zero) { drawTrack(scroll, npc.trainLen) }
     }
-    if (dark > 0.01f) drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
+    if (dark > 0.01f) {
+        drawRect(Color(0xFF0B1B3A).copy(alpha = (dark * 1.9f).coerceAtMost(0.8f)), size = size)
+        // a cool, moonlit wash: soft silver-teal light falling from the top of the screen
+        val moon = (dark / 0.42f).coerceIn(0f, 1f) * (1f - storm)
+        if (moon > 0.02f) drawRect(
+            Brush.verticalGradient(listOf(Color(0xFF9FD6E8).copy(alpha = 0.16f * moon), Color.Transparent), 0f, h * 0.7f),
+            size = size, blendMode = BlendMode.Plus,
+        )
+    }
     // station lamps and windows glow at night and in storms
     val lampOn = max((dark / 0.42f).coerceIn(0f, 1f), storm)
     if (lampOn > 0.02f) translate(top = worldDp * u) { for (st in stations) withTransform({ scale(z, z, pivot = Offset(originX, st.y * u)) }) { drawStationLights(st, originX, u, lampOn) } }
@@ -1341,6 +1355,11 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zon
         if (img != null) {
             val side = when (kind) { 1 -> r / 0.4f; 2, 6 -> r / 0.31f; else -> r / 0.35f }
             sprite(img, x, y, side)
+            if (name == "v_house_a" && fxDark > 0.02f) {
+                val c = Offset(x + 0.16f * side, y + 0.08f * side)
+                val rr = side * 0.3f
+                drawCircle(Brush.radialGradient(listOf(Color(0xFFFFB066).copy(alpha = 0.55f * (fxDark / 0.42f).coerceIn(0f, 1f)), Color.Transparent), c, rr), rr, c, blendMode = BlendMode.Plus)
+            }
             if (name == "campfire" && fxDark > 0.02f) {
                 val c = Offset(x, y)
                 val rr = side * 0.9f

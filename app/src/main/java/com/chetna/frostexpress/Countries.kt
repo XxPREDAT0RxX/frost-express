@@ -22,13 +22,14 @@ const val STATIONS_PER_COUNTRY = 30
 const val PRESTIGE_BONUS = 0.15   // old per-country bonus, kept for saves made before the new prestige
 const val PRESTIGE_MIN_EVO = 5
 
-// Biome indices match ZONES in TrainScene: 0 meadow, 1 pine woods, 2 savanna, 3 desert, 4 rainforest, 5 snowfields.
+// Biome indices match ZONES in TrainScene: 0 meadow, 1 pine woods, 2 savanna, 3 desert, 4 rainforest, 5 snowfields, 6 paddy village.
 val COUNTRIES = listOf(
     Country("Snowhaven", "❄️", "Where the Little Express first set out, through pines and deep snow.", listOf(5, 1, 0), 0xFF8FB8D8),
     Country("Greenvale", "🌿", "Rolling meadows and shady woods, gentle and green all year.", listOf(0, 1, 4), 0xFF7FB85C),
     Country("Sunlands", "☀️", "Golden savanna giving way to red desert under a wide warm sky.", listOf(2, 3, 0), 0xFFE0A94E),
     Country("Wildtropics", "🌴", "Steamy rainforest, tall palms and the odd acacia on the plains.", listOf(4, 2, 1), 0xFF3FA06A),
     Country("Frostpeaks", "🏔️", "The high north again: snowfields and lonely pines on the roof of the world.", listOf(5, 5, 1), 0xFFB8C8DA),
+    Country("Paddylands", "🌾", "Green rice paddies, thatched villages and coconut palms under a big moon.", listOf(6, 0, 4), 0xFF8DC26F),
 )
 
 fun countryAt(index: Int): Country = COUNTRIES[Math.floorMod(index, COUNTRIES.size)]

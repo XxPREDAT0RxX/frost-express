@@ -40,6 +40,7 @@ private val VIEW_PALETTES = listOf(
     ViewPalette(0xFFF4C58A, 0xFFFBE6C0, 0xFFD6A368, 0xFFC08A52, 0xFFE7BC89, 0xFF7FA85E, 0xFF5E7E3E, desert = true),
     ViewPalette(0xFFA7D8C0, 0xFFDAF2E6, 0xFF5E9E78, 0xFF3E7E58, 0xFF86C58F, 0xFF2E6E4A, 0xFF1E4E33),
     ViewPalette(0xFFB8D0E0, 0xFFEAF4FB, 0xFFCAD8E4, 0xFFAFC2D2, 0xFFDCE6EE, 0xFF4E6E5A, 0xFF36503F, snowy = true),
+    ViewPalette(0xFF9ED8F0, 0xFFE2F3E4, 0xFF8EC27A, 0xFF6BA85A, 0xFF9CCB7A, 0xFF3F8A4A, 0xFF2A6A36),
 )
 
 /** Full-screen "look out the window" view: parallax scenery that scrolls with the train's speed. */

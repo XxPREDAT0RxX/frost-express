@@ -460,7 +460,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
 
     // album: sparkles in the snow hide keepsakes from the current region
     fun collectSparkle() {
-        val region = zone.coerceAtLeast(0)
+        val region = zone.coerceIn(0, 5)
         val missing = (0 until 6).filter { !meta.hasItem(region, it) }
         if (missing.isEmpty()) { grant(Reward.Flakes(10)); return }
         val i = missing.random()
@@ -636,7 +636,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         zone = i
         regionTemp = temp
         if (first) showToast("Now passing: $name")
-        if (meta.addPostcard(i)) postcardSerial++
+        if (i <= 5 && meta.addPostcard(i)) postcardSerial++
     }
 
     private fun tickMeta(dt: Double) {
