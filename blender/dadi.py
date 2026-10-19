@@ -86,7 +86,7 @@ def finish(o, mat, line=0.012, smooth=True):
 def sphere(loc, r, scale=(1, 1, 1), mat=None, line=0.012, seg=48):
     bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=seg // 2, radius=r, location=loc)
     o = bpy.context.object; o.scale = scale
-    return finish(o, mat, line)
+    return finish(o, mat, line / (sum(scale) / 3.0))   # outline width stays in world units
 
 def cyl(r, mat, line=0.012):
     bpy.ops.mesh.primitive_cylinder_add(vertices=40, radius=r, depth=1.0)
@@ -118,13 +118,13 @@ BLUSH, CUP, TEA = toon('blush', '#F4A6A0', 1.0), toon('cup', '#A9DCC6', 0.84), t
 
 # ---------- body ----------
 BODY_C = Vector((0, 0, 0.20)); BODY_R = (0.40, 0.31, 0.46)
-body = sphere(BODY_C, 1.0, BODY_R, COAT, 0.012 / 0.4)
+body = sphere(BODY_C, 1.0, BODY_R, COAT, 0.012)
 buttons = []
 for z in (0.42, 0.28, 0.14):
     t = (z - BODY_C.z) / BODY_R[2]; y = -BODY_R[1] * math.sqrt(max(0, 1 - t * t))
     buttons.append(sphere((0.0, y - 0.005, z), 0.026, (1, 0.5, 1), BROWN, 0.006, 24))
-scarf = sphere((0, -0.01, 0.60), 1.0, (0.26, 0.21, 0.085), SCARF, 0.012 / 0.2)
-tail = sphere((0.12, -0.25, 0.44), 1.0, (0.07, 0.035, 0.15), SCARF, 0.012 / 0.07)
+scarf = sphere((0, -0.01, 0.60), 1.0, (0.26, 0.21, 0.085), SCARF, 0.012)
+tail = sphere((0.12, -0.25, 0.44), 1.0, (0.07, 0.035, 0.15), SCARF, 0.012)
 tail.rotation_euler = (math.radians(-12), 0, math.radians(-8))
 neck_items = [scarf, tail]
 
@@ -132,11 +132,11 @@ neck_items = [scarf, tail]
 NECK = Vector((0, 0, 0.60))
 hp = empty('HeadPivot', NECK)
 HC = Vector((0, 0, 0.86)); HR = 0.27
-head = sphere(HC, HR, (1.06, 0.97, 0.94), SKIN, 0.012 / 0.27)
-hair = sphere(HC + Vector((0, 0.05, 0.075)), HR, (1.12, 0.98, 0.84), HAIR, 0.012 / 0.27)
-bun = sphere(HC + Vector((0, 0.10, 0.30)), 0.11, (1, 1, 0.9), HAIR, 0.012 / 0.11)
-ear_l = sphere(HC + Vector((-0.28, 0.0, -0.03)), 0.05, (0.6, 1, 1), SKIN, 0.012 / 0.05, 24)
-ear_r = sphere(HC + Vector((0.28, 0.0, -0.03)), 0.05, (0.6, 1, 1), SKIN, 0.012 / 0.05, 24)
+head = sphere(HC, HR, (1.06, 0.97, 0.94), SKIN, 0.012)
+hair = sphere(HC + Vector((0, 0.05, 0.075)), HR, (1.12, 0.98, 0.84), HAIR, 0.012)
+bun = sphere(HC + Vector((0, 0.10, 0.30)), 0.11, (1, 1, 0.9), HAIR, 0.012)
+ear_l = sphere(HC + Vector((-0.28, 0.0, -0.03)), 0.05, (0.6, 1, 1), SKIN, 0.012, 24)
+ear_r = sphere(HC + Vector((0.28, 0.0, -0.03)), 0.05, (0.6, 1, 1), SKIN, 0.012, 24)
 fy = lambda x, dz: -math.sqrt(max(0, (HR * 0.97) ** 2 - (x / 1.06) ** 2 - (dz / 0.94) ** 2))
 EZ = -0.03
 eyes_open = [sphere((sx * 0.085, fy(0.085, EZ) - 0.004, HC.z + EZ), 0.026, (1, 0.45, 1.2), EYE, 0, 24) for sx in (-1, 1)]
@@ -169,10 +169,10 @@ arms = {}
 for side in (-1, 1):
     arms[side] = dict(
         sh=Vector((side * 0.29, -0.02, 0.50)),
-        shs=sphere((0, 0, 0), ARM_R + 0.004, (1, 1, 1), COAT, 0.012 / 0.066, 32),
+        shs=sphere((0, 0, 0), ARM_R + 0.004, (1, 1, 1), COAT, 0.012, 32),
         up=cyl(ARM_R, COAT), lo=cyl(ARM_R * 0.92, COAT),
-        el=sphere((0, 0, 0), ARM_R, (1, 1, 1), COAT, 0.012 / 0.062, 32),
-        hand=sphere((0, 0, 0), 0.05, (1, 1, 1), SKIN, 0.012 / 0.05, 32),
+        el=sphere((0, 0, 0), ARM_R, (1, 1, 1), COAT, 0.012, 32),
+        hand=sphere((0, 0, 0), 0.05, (1, 1, 1), SKIN, 0.012, 32),
     )
     arms[side]['shs'].location = arms[side]['sh']
 
