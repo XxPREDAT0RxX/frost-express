@@ -133,6 +133,47 @@ fun DrawScope.drawSprite(img: ImageBitmap, x: Float, y: Float, w: Float, h: Floa
     )
 }
 
+/** A cut-out puppet: the sprite is split at the neck into a head and a body that move on their own,
+ *  so a sitting character breathes, sways its head and bobs instead of being a flat picture.
+ *  [t] is time in seconds, [seed] gives every character its own rhythm, [energy] 0..1 scales the motion. */
+fun DrawScope.drawPuppet(img: ImageBitmap, x: Float, y: Float, w: Float, h: Float, t: Float, seed: Float, energy: Float = 1f, alpha: Float = 1f) {
+    val k = spriteXScale
+    val wide = if (k != 1f) w / k else w
+    val left = if (k != 1f) x + w / 2f - wide / 2f else x
+    val iw = img.width
+    val ih = img.height
+    val cut = 0.5f                       // neck line as a fraction of the height
+    val over = 0.04f                     // the head piece overlaps the body a little to hide the seam
+    val breath = kotlin.math.sin(t * 1.7f + seed)
+    val sway = kotlin.math.sin(t * 0.9f + seed * 1.7f) * 3.2f * energy
+    val bob = kotlin.math.sin(t * 1.7f + seed + 0.6f) * 0.012f * h * energy
+    val neck = Offset(left + wide / 2f, y + h * cut)
+    val bodyTop = y + h * cut
+    val bodyH = h * (1f - cut)
+    // body: breathes by stretching a touch about its bottom edge
+    val stretch = 1f + 0.022f * breath * energy
+    withTransform({ scale(1f + 0.008f * breath * energy, stretch, Offset(left + wide / 2f, y + h)) }) {
+        drawImage(
+            img,
+            srcOffset = IntOffset(0, (ih * (cut - over)).toInt()), srcSize = IntSize(iw, ih - (ih * (cut - over)).toInt()),
+            dstOffset = IntOffset(left.roundToInt(), (bodyTop - h * over).roundToInt()),
+            dstSize = IntSize(wide.roundToInt().coerceAtLeast(1), (bodyH + h * over).roundToInt().coerceAtLeast(1)),
+            alpha = alpha, filterQuality = FilterQuality.Medium,
+        )
+    }
+    // head: tilts about the neck and rides the breathing
+    val lift = (bodyH * (stretch - 1f)) + bob
+    withTransform({ translate(0f, -lift); rotate(sway, neck) }) {
+        drawImage(
+            img,
+            srcOffset = IntOffset(0, 0), srcSize = IntSize(iw, (ih * (cut + over)).toInt()),
+            dstOffset = IntOffset(left.roundToInt(), y.roundToInt()),
+            dstSize = IntSize(wide.roundToInt().coerceAtLeast(1), (h * (cut + over)).roundToInt().coerceAtLeast(1)),
+            alpha = alpha, filterQuality = FilterQuality.Medium,
+        )
+    }
+}
+
 /** Devices that pump up and down instead of gently breathing. */
 private val PUMPING = setOf(UpgradeType.BRASS_PISTONS, UpgradeType.BOGIE_SPRINGS, UpgradeType.GREASE_PUMP, UpgradeType.ENGINE, UpgradeType.BOOSTER)
 

@@ -1613,7 +1613,7 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
         if (img != null) {
             // soft shadow, then the character; legs are hidden behind the seat cushion below
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
-            drawSprite(img, (cx - 11f) * u, (cy - 16f) * u, 22f * u, 27f * u)
+            drawPuppet(img, (cx - 11f) * u, (cy - 16f) * u, 22f * u, 27f * u, sceneClock, pax.sprite * 1.7f + cx * 0.13f + cy * 0.07f)
         }
     }
     // seat cushion + armrests in front, covering the rider's legs so they read as seated
@@ -1645,7 +1645,7 @@ private fun DrawScope.drawDriver(cx: Float, cy: Float, time: Float, driving: Boo
     val img = sp?.survivors?.firstOrNull() ?: sp?.npc
     drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 4f) * u), Size(18f * u, 5f * u))
     if (img != null) {
-        drawSprite(img, (cx - 11f) * u, (cy - 14f) * u, 22f * u, 26f * u)
+        drawPuppet(img, (cx - 11f) * u, (cy - 14f) * u, 22f * u, 26f * u, time, 0.5f, if (driving) 0.6f else 1f)
     } else {
         dot(Color(0xFFE9B48F), cx, cy - 5f, 6.5f)      // head
         box(Color(0xFF3E6B8E), cx - 8f, cy - 1f, 16f, 14f, 5f) // shoulders
