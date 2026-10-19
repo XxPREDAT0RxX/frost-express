@@ -114,6 +114,7 @@ def empty(name, loc):
 # ---------- palette ----------
 SKIN, HAIR, COAT, SCARF = toon('skin', '#F7D7BE'), toon('hair', '#C4C2C4', 0.8), toon('coat', '#F6EBD5'), toon('scarf', '#EE8E8B', 0.82)
 BROWN, EYE, GOLD = toon('btn', '#9C6B4E'), toon('eye', '#3A2622', 1.0), toon('gold', '#C9A04E', 0.85)
+SLEEVE = toon('sleeve', '#EADBBE', 0.84)
 BLUSH, CUP, TEA = toon('blush', '#F4A6A0', 1.0), toon('cup', '#A9DCC6', 0.84), toon('tea', '#8A5A3C', 1.0)
 
 # ---------- body ----------
@@ -123,8 +124,9 @@ buttons = []
 for z in (0.42, 0.28, 0.14):
     t = (z - BODY_C.z) / BODY_R[2]; y = -BODY_R[1] * math.sqrt(max(0, 1 - t * t))
     buttons.append(sphere((0.0, y - 0.005, z), 0.026, (1, 0.5, 1), BROWN, 0.006, 24))
-scarf = sphere((0, -0.01, 0.60), 1.0, (0.26, 0.21, 0.085), SCARF, 0.012)
-tail = sphere((0.12, -0.25, 0.44), 1.0, (0.07, 0.035, 0.15), SCARF, 0.012)
+bpy.ops.mesh.primitive_torus_add(major_radius=0.19, minor_radius=0.075, major_segments=48, minor_segments=16, location=(0, -0.01, 0.60))
+scarf = bpy.context.object; scarf.scale = (1.1, 0.95, 0.9); finish(scarf, SCARF, 0.012)
+tail = sphere((0.11, -0.27, 0.40), 1.0, (0.065, 0.03, 0.17), SCARF, 0.012)
 tail.rotation_euler = (math.radians(-12), 0, math.radians(-8))
 neck_items = [scarf, tail]
 
@@ -132,8 +134,8 @@ neck_items = [scarf, tail]
 NECK = Vector((0, 0, 0.60))
 hp = empty('HeadPivot', NECK)
 HC = Vector((0, 0, 0.86)); HR = 0.27
-head = sphere(HC, HR, (1.06, 0.97, 0.94), SKIN, 0.012)
-hair = sphere(HC + Vector((0, 0.05, 0.075)), HR, (1.12, 0.98, 0.84), HAIR, 0.012)
+head = sphere(HC, HR, (1.06, 0.97, 0.94), SKIN, 0.012, 96)
+hair = sphere(HC + Vector((0, 0.05, 0.075)), HR, (1.12, 0.98, 0.84), HAIR, 0.012, 96)
 bun = sphere(HC + Vector((0, 0.10, 0.30)), 0.11, (1, 1, 0.9), HAIR, 0.012)
 ear_l = sphere(HC + Vector((-0.28, 0.0, -0.03)), 0.05, (0.6, 1, 1), SKIN, 0.012, 24)
 ear_r = sphere(HC + Vector((0.28, 0.0, -0.03)), 0.05, (0.6, 1, 1), SKIN, 0.012, 24)
@@ -169,9 +171,9 @@ arms = {}
 for side in (-1, 1):
     arms[side] = dict(
         sh=Vector((side * 0.29, -0.02, 0.50)),
-        shs=sphere((0, 0, 0), ARM_R + 0.004, (1, 1, 1), COAT, 0.012, 32),
-        up=cyl(ARM_R, COAT), lo=cyl(ARM_R * 0.92, COAT),
-        el=sphere((0, 0, 0), ARM_R, (1, 1, 1), COAT, 0.012, 32),
+        shs=sphere((0, 0, 0), ARM_R + 0.004, (1, 1, 1), SLEEVE, 0.012, 32),
+        up=cyl(ARM_R, SLEEVE), lo=cyl(ARM_R * 0.92, SLEEVE),
+        el=sphere((0, 0, 0), ARM_R, (1, 1, 1), SLEEVE, 0.012, 32),
         hand=sphere((0, 0, 0), 0.05, (1, 1, 1), SKIN, 0.012, 32),
     )
     arms[side]['shs'].location = arms[side]['sh']
