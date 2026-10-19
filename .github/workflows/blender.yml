@@ -1,0 +1,41 @@
+# Renders the 3D character sprites with Blender (headless, Cycles on CPU) and publishes the
+# frames plus a preview video to a GitHub Release named blender-<run number>.
+name: Blender render
+
+on:
+  push:
+    branches: [main]
+    paths: ['blender/**', '.github/workflows/blender.yml']
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libsm6 libxkbcommon0 libegl1 ffmpeg zip > /dev/null
+          curl -sL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz | tar -xJ
+          echo "$PWD/blender-4.2.3-linux-x64" >> $GITHUB_PATH
+      - name: Render
+        run: |
+          for s in blender/*.py; do
+            name=$(basename "$s" .py)
+            blender -b -P "$s" -- "out/$name" 2>&1 | grep -E "frame|Error|Traceback|error" | tail -200
+            ffmpeg -v error -y -stream_loop 2 -framerate 12 -i "out/$name/f%03d.png" -filter_complex "color=c=0xEAF4EE:s=384x480[b];[b][0]overlay=shortest=1,format=yuv420p" "out/${name}_preview.mp4"
+            (cd out && zip -qr "${name}_frames.zip" "$name")
+          done
+          ls -la out
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: blender-${{ github.run_number }}
+          name: Blender render ${{ github.run_number }}
+          prerelease: true
+          files: |
+            out/*_preview.mp4
+            out/*_frames.zip
