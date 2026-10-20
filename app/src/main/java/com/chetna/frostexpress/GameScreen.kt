@@ -226,7 +226,14 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
             .background(Snow)
     ) {
         // The scene stays full-height; the sheet slides up over it so the train never resizes or jumps.
-        TrainScene(vm, Modifier.fillMaxSize(), onDeviceTap = { type ->
+        // when a sheet slides up, the scene shrinks a little and moves up so the train stays in view above it
+        val screenHpx = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+        TrainScene(vm, Modifier.fillMaxSize().graphicsLayer {
+            val k = 1f - 0.14f * sheetP
+            scaleX = k; scaleY = k
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+            translationY = -0.13f * screenHpx * sheetP
+        }, onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
                 detail = type
             }, link = link)
@@ -2516,49 +2523,42 @@ private fun SurvivorsCard(vm: GameViewModel, onInfo: () -> Unit) {
     val maxed = lvl >= spec.maxLevel
     val cost = vm.upgradeCost(spec)
     val can = !maxed && vm.coins >= cost
-    val sprites = rememberGameSprites()
-    Column(
+    // one compact row, like the other upgrades; the full story is behind the info tap
+    Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(Brush.horizontalGradient(listOf(Color(0xFFFFE9C7), Color(0xFFFFF4E0))))
-            .border(2.5.dp, Ink, RoundedCornerShape(16.dp))
-            .padding(10.dp),
+            .border(2.dp, Ink, RoundedCornerShape(14.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clickable(onClick = onInfo), contentAlignment = Alignment.Center) { UpgradeIcon(UpgradeType.SURVIVORS, Ink, Modifier.size(40.dp)) }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f).clickable(onClick = onInfo)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Survivors", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.width(6.dp))
-                    Text("$lvl/${spec.maxLevel}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ember)
-                }
-                Text("Rescue up to 10 travellers from the snow. Each one joins the crew, adds +40% coins and starts a story.", fontSize = 11.sp, color = Muted)
-                if (lvl > 0) Text("Crew bonus now: +${lvl * 40}% coins", fontSize = 10.sp, color = GoldText, fontWeight = FontWeight.Bold)
+        Box(Modifier.size(34.dp).clickable(onClick = onInfo), contentAlignment = Alignment.Center) { UpgradeIcon(UpgradeType.SURVIVORS, Ink, Modifier.size(30.dp)) }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f).clickable(onClick = onInfo)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Survivors", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.width(6.dp))
+                Text("$lvl/${spec.maxLevel}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ember)
             }
-            Spacer(Modifier.width(8.dp))
-            Column(
-                Modifier
-                    .width(78.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (can) Color(0xFFFFB86B) else PanelHi)
-                    .border(2.dp, Ink, RoundedCornerShape(12.dp))
-                    .clickable(enabled = can) { vm.buy(spec) }
-                    .padding(vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(if (maxed) "FULL" else "Rescue", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = if (can) Ink else Muted)
-                if (!maxed) Row(verticalAlignment = Alignment.CenterVertically) {
-                    CoinIcon(Modifier.size(10.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text(fmt(cost), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (can) Ink else Muted)
-                }
-            }
+            Text(if (lvl > 0) "+40% coins each · now +${lvl * 40}%" else "+40% coins for each one rescued", fontSize = 10.sp, color = Muted, maxLines = 1)
         }
-        if (sprites.survivors.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            sprites.survivors.forEachIndexed { i, img ->
-                Image(img, null, Modifier.size(24.dp, 30.dp).graphicsLayer { alpha = if (i < lvl) 1f else 0.25f })
+        Spacer(Modifier.width(6.dp))
+        Column(
+            Modifier
+                .width(72.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (can) Color(0xFFFFB86B) else PanelHi)
+                .border(2.dp, Ink, RoundedCornerShape(10.dp))
+                .clickable(enabled = can) { vm.buy(spec) }
+                .padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(if (maxed) "FULL" else "Rescue", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (can) Ink else Muted)
+            if (!maxed) Row(verticalAlignment = Alignment.CenterVertically) {
+                CoinIcon(Modifier.size(9.dp))
+                Spacer(Modifier.width(3.dp))
+                Text(fmt(cost), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (can) Ink else Muted)
             }
         }
     }
