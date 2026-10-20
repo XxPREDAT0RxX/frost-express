@@ -87,6 +87,8 @@ class GameSprites(ctx: Context) {
     val walkers: List<List<ImageBitmap>> = (1..3).map { r -> (1..4).mapNotNull { load("walk${r}_$it") } }.filter { it.size == 4 }
     /** Seated passengers in the flat chibi style: (eyes open, blinking) pairs. */
     val chibis: List<Pair<ImageBitmap, ImageBitmap>> = (1..6).mapNotNull { i -> val o = load("chibi$i"); val b = load("chibi${i}_b"); if (o != null && b != null) o to b else null }
+    /** The same chibi passengers full body, for walking on the platform and into the train. */
+    val chibiFull: List<ImageBitmap> = (1..6).mapNotNull { load("chibi${it}_full") }
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
     val summer: List<ImageBitmap> = (1..8).mapNotNull { load("npc_sum$it") }

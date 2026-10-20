@@ -1258,6 +1258,14 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
+    val full = sp?.chibiFull
+    if (!sceneWarm && !full.isNullOrEmpty()) {
+        val img = full[Math.floorMod(seed, full.size)]
+        val h = 29f
+        val w = h * img.width / img.height
+        drawWalkingSprite(img, px, py + 6f * u, w, h, walkPhase, moving, flip, alpha)
+        return
+    }
     val walkers = sp?.walkers
     if (side && moving > 0f && !walkers.isNullOrEmpty() && !sceneWarm) {
         val ch = walkers[Math.floorMod(seed, walkers.size)]
@@ -1490,7 +1498,10 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         for (b in sceneBoarders) {
             val img = b.img ?: continue
             drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
-            drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, 22f, 27f, sceneClock * 10f + b.bob, 1f, flip = b.flip)
+            val tall = img.height > img.width * 1.6f          // chibi full body: bigger head, so drawn taller
+            val bh = if (tall) 32f else 27f
+            val bw = if (tall) bh * img.width / img.height else 22f
+            drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, bw, bh, sceneClock * 10f + b.bob, 1f, flip = b.flip)
         }
         sceneBoarders.clear()
     }
@@ -1587,7 +1598,9 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
         if (t >= 0f) {
             val sp = sceneSprites
             val pool = if (pax.warm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
-            val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
+            val full = sp?.chibiFull
+            val img = if (!pax.warm && !full.isNullOrEmpty()) full[Math.floorMod(pax.sprite, full.size)]
+                else if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
             val a = 0.7f
             val wx = if (t < a) AISLE_X else AISLE_X + (cx - AISLE_X) * ((t - a) / (1f - a))
             val wy = if (t < a) doorY + (cy - doorY) * (t / a) else cy
@@ -1618,10 +1631,10 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
             val period = 3.2f + Math.floorMod(pax.sprite * 7 + cx.toInt(), 5) * 0.45f
             val blink = ((sceneClock + seed * 0.61f) % period + period) % period < 0.13f
             val pic = if (blink) c.second else c.first
-            val h = 26f
+            val h = 23f
             val w = h * pic.width / pic.height
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
-            drawPuppet(pic, (cx - w / 2f) * u, (cy - 17f) * u, w * u, h * u, sceneClock, seed, cut = 0.6f)
+            drawPuppet(pic, (cx - w / 2f) * u, (cy - 15f) * u, w * u, h * u, sceneClock, seed, cut = 0.6f)
         } else if (img != null) {
             // soft shadow, then the character; legs are hidden behind the seat cushion below
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
