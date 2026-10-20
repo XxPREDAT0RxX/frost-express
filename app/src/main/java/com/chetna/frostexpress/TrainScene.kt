@@ -1610,10 +1610,22 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
         val sp = sceneSprites
         val pool = if (pax.warm && !sp?.summer.isNullOrEmpty()) sp!!.summer else sp?.survivors ?: emptyList()
         val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
-        if (img != null) {
+        val chibis = sp?.chibis
+        val seed = pax.sprite * 1.7f + cx * 0.13f + cy * 0.07f
+        if (!pax.warm && !chibis.isNullOrEmpty()) {
+            // flat chibi passenger: breathes, sways and blinks every few seconds
+            val c = chibis[Math.floorMod(pax.sprite, chibis.size)]
+            val period = 3.2f + Math.floorMod(pax.sprite * 7 + cx.toInt(), 5) * 0.45f
+            val blink = ((sceneClock + seed * 0.61f) % period + period) % period < 0.13f
+            val pic = if (blink) c.second else c.first
+            val h = 26f
+            val w = h * pic.width / pic.height
+            drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
+            drawPuppet(pic, (cx - w / 2f) * u, (cy - 17f) * u, w * u, h * u, sceneClock, seed, cut = 0.6f)
+        } else if (img != null) {
             // soft shadow, then the character; legs are hidden behind the seat cushion below
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
-            drawPuppet(img, (cx - 11f) * u, (cy - 16f) * u, 22f * u, 27f * u, sceneClock, pax.sprite * 1.7f + cx * 0.13f + cy * 0.07f)
+            drawPuppet(img, (cx - 11f) * u, (cy - 16f) * u, 22f * u, 27f * u, sceneClock, seed)
         }
     }
     // seat cushion + armrests in front, covering the rider's legs so they read as seated

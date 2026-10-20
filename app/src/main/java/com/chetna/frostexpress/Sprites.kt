@@ -85,6 +85,8 @@ class GameSprites(ctx: Context) {
     /** Rescued travellers (Survivors upgrade), each with their own look. */
     /** Side-view walk cycles, [character][frame]. */
     val walkers: List<List<ImageBitmap>> = (1..3).map { r -> (1..4).mapNotNull { load("walk${r}_$it") } }.filter { it.size == 4 }
+    /** Seated passengers in the flat chibi style: (eyes open, blinking) pairs. */
+    val chibis: List<Pair<ImageBitmap, ImageBitmap>> = (1..6).mapNotNull { i -> val o = load("chibi$i"); val b = load("chibi${i}_b"); if (o != null && b != null) o to b else null }
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
     val summer: List<ImageBitmap> = (1..8).mapNotNull { load("npc_sum$it") }
@@ -136,13 +138,12 @@ fun DrawScope.drawSprite(img: ImageBitmap, x: Float, y: Float, w: Float, h: Floa
 /** A cut-out puppet: the sprite is split at the neck into a head and a body that move on their own,
  *  so a sitting character breathes, sways its head and bobs instead of being a flat picture.
  *  [t] is time in seconds, [seed] gives every character its own rhythm, [energy] 0..1 scales the motion. */
-fun DrawScope.drawPuppet(img: ImageBitmap, x: Float, y: Float, w: Float, h: Float, t: Float, seed: Float, energy: Float = 1f, alpha: Float = 1f) {
+fun DrawScope.drawPuppet(img: ImageBitmap, x: Float, y: Float, w: Float, h: Float, t: Float, seed: Float, energy: Float = 1f, alpha: Float = 1f, cut: Float = 0.5f) {
     val k = spriteXScale
     val wide = if (k != 1f) w / k else w
     val left = if (k != 1f) x + w / 2f - wide / 2f else x
     val iw = img.width
     val ih = img.height
-    val cut = 0.5f                       // neck line as a fraction of the height
     val over = 0.04f                     // the head piece overlaps the body a little to hide the seam
     val breath = kotlin.math.sin(t * 1.7f + seed)
     val sway = kotlin.math.sin(t * 0.9f + seed * 1.7f) * 3.2f * energy
