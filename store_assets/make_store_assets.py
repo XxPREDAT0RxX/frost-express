@@ -14,13 +14,13 @@ RES = os.path.join(HERE, '..', 'app', 'src', 'main', 'res', 'drawable-nodpi')
 OUT = os.path.join(HERE, 'play')
 
 SHOTS = [
-    ('normal_2_game.png', 'A cozy train in a frozen world', '#CDE7F8'),
-    ('normal_8_night_station.png', 'Ride through snowy nights', '#C9C2F0'),
-    ('normal_4_device.png', 'Install and upgrade 50+ devices', '#FFE0B8'),
-    ('normal_3_upgrades.png', 'Grow your train car by car', '#CDEBDC'),
-    ('normal_10_newtrain.png', 'Evolve through 25 trains', '#DCCBFA'),
-    ('normal_7_quests.png', 'Daily quests and long journeys', '#FFE49A'),
-    ('normal_11_shop.png', 'Boosters for a quick rush', '#FFD3C4'),
+    ('normal_30_int2.png', 'Run your own cozy passenger train', '#CDE7F8'),
+    ('normal_32_st2.png', 'Grand stations full of travellers', '#FFE0B8'),
+    ('normal_29_finance.png', 'Tickets, wages, fuel: manage it all', '#CDEBDC'),
+    ('normal_25_villagenight.png', 'Ride through villages and moonlit nights', '#C9C2F0'),
+    ('normal_14_evolve.png', 'Evolve into faster, finer trains', '#DCCBFA'),
+    ('normal_16_journey.png', 'Travel country to country', '#FFE49A'),
+    ('normal_3_upgrades.png', 'Upgrade every car and device', '#FFD3C4'),
 ]
 
 FONT = "font-family:'Inter Display','Inter',sans-serif;"
@@ -58,7 +58,7 @@ background:linear-gradient(180deg,#9FC9EA 0%,#CDE3F4 55%,#EEF5FB 100%)">
 {sprite('spr_ruin_a', 600, 170, 190)}{sprite('spr_dead_a', 520, 210, 130)}{sprite('spr_frost_pine_a', 880, 170, 170)}
 {sprite('spr_ice', 830, 290, 110)}{sprite('spr_frost_pine_b', 760, 230, 120)}{sprite('spr_lamp', 950, 260, 110)}
 <img src="{res('ic_launcher_fg')}" style="position:absolute;left:580px;top:150px;width:340px;filter:drop-shadow(0 8px 0 rgba(107,74,58,.25))">
-<div class="title" style="position:absolute;left:52px;top:118px;font-size:96px;line-height:96px">Frost<br>Express</div>
+<div class="title" style="position:absolute;left:52px;top:118px;font-size:96px;line-height:96px">Little<br>Express</div>
 <div style="position:absolute;left:58px;top:345px;{FONT}font-weight:800;font-size:30px;color:{INK};
 background:#FFF6E9;border:4px solid {INK};border-radius:22px;padding:8px 18px">The world froze. The train didn't.</div>
 </div>''')
