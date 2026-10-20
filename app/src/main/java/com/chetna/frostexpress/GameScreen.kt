@@ -319,6 +319,12 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 150.dp + bottomInset * (1f - sheetP)),
             )
+            DepartButton(
+                vm,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 100.dp + bottomInset * (1f - sheetP)),
+            )
             NewTrainPopup(vm)
             RouteChoiceCard(vm)
             BoosterPopup(vm, Modifier.align(Alignment.Center))
@@ -4088,5 +4094,32 @@ private fun WheelIcon(modifier: Modifier = Modifier) {
         drawCircle(Ink, style = Stroke(2.dp.toPx()))
         drawCircle(Panel, size.minDimension * 0.14f)
         drawCircle(Ink, size.minDimension * 0.14f, style = Stroke(1.5.dp.toPx()))
+    }
+}
+
+
+/** At a station: "Boarding…" while riders get off and on, then a big Depart button (it also leaves on its own). */
+@Composable
+private fun DepartButton(vm: GameViewModel, modifier: Modifier = Modifier) {
+    if (!vm.stationStop) return
+    val ready = vm.stationReady
+    val shape = RoundedCornerShape(26.dp)
+    Box(
+        modifier
+            .clip(shape)
+            .background(if (ready) Color(0xFF3FAE5A) else Color(0xFFE9E2D3))
+            .border(2.dp, Ink, shape)
+            .clickable(enabled = ready) { vm.depart() }
+            .padding(horizontal = 26.dp, vertical = 11.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (ready) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Depart", fontSize = 18.sp, fontFamily = CozyFont, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text("leaves in ${vm.autoDepartLeft.toInt()}s", fontSize = 10.sp, color = Color.White.copy(alpha = 0.9f))
+            }
+        } else {
+            Text("Boarding\u2026", fontSize = 15.sp, fontFamily = CozyFont, fontWeight = FontWeight.Bold, color = Ink)
+        }
     }
 }

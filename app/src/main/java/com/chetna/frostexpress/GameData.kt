@@ -418,8 +418,9 @@ object Balance {
     const val AURORA_SEC = 30.0
     const val AURORA_INCOME = 1.5
     const val CRATE_SEC = 12.0
-    const val STATION_MIN_GAP = 90.0      // a station passes every 90..150 seconds (time based, so fast trains do not farm them)
-    const val STATION_MAX_GAP = 150.0
+    const val STATION_MIN_GAP = 150.0     // a station comes every 150..300 seconds (time based, so fast trains do not farm them)
+    const val STATION_MAX_GAP = 300.0
+    const val AUTO_DEPART_SEC = 25.0      // after everyone is aboard the train leaves on its own if the player does not tap Depart
     const val STATION_BONUS_SEC = 20.0    // bonus = 20 seconds of income
 
     // ---- passenger economy: riders are the main income ----

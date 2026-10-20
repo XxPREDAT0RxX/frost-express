@@ -266,6 +266,10 @@ private class Station(var y: Float, var paid: Boolean = false, val stop: Boolean
     val seed = (Math.random() * 1000).toInt()
     /** Which kind of station this is (see ST_PW): village halt, country station, city terminal, chalet, modern. */
     val type = if (debugStationType >= 0) debugStationType else (0..4).random()
+    /** Riders walking from the building to the train, and the time everyone is off and aboard. */
+    val arrivals = ArrayList<Arrival>()
+    var readyAt = 0f
+    var departAt = -1f
 }
 
 /** Tests set this to force one station type (-1 = random). */
@@ -517,7 +521,7 @@ class SceneLink {
 @Composable
 fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (UpgradeType) -> Unit = {}, link: SceneLink? = null) {
     val npc = remember { Npc() }
-    val roster = remember { ArrayList<ScenePax>() }
+    val roster = remember { ArrayList<ScenePax?>() }
     val rosterReady = remember { booleanArrayOf(false) }
     val npc2 = remember { Npc().also { it.startOffset = -1 } }
     val survivors = remember { List(10) { Npc() } }
@@ -559,13 +563,10 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     time += dt
                     vm.audio.zoom = link?.zoom ?: 1f   // the ear moves inside the coach as you zoom in
                     val warmNow = vm.regionTemp >= 24
-                    val tgt = vm.passengers
-                    val fresh = rosterReady[0]
-                    var joined = 0
-                    while (roster.size < tgt) roster.add(ScenePax((Math.random() * 1000).toInt(), warmNow, if (fresh) time + 0.5f + 0.55f * (joined++) else -100f))
-                    rosterReady[0] = true
+                    // riders keep their own seat: the roster is a list of seats, empty ones are null
                     sceneClock = time
-                    while (roster.size > tgt && roster.isNotEmpty()) roster.removeAt(roster.size - 1)
+                    syncRoster(roster, vm.passengers, warmNow, if (rosterReady[0]) time else -100f)
+                    rosterReady[0] = true
                     sceneRoster = roster
                     // the train begins each session standing at a platform, then pulls away
                     if (!startStop[0] && halfH[0] > 1f) {
@@ -583,6 +584,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                     // A storm shelter keeps the train waiting longer.
                     var factor = 1f
                     val shelter = stations.firstOrNull { !it.done }
+                    if (shelter == null || !shelter.paid) vm.stationTick(false, false, 0.0)
                     if (shelter != null) {
                         val dist = halfH[0] - shelter.y
                         if (!shelter.paid && dist > 0f) {
@@ -592,13 +594,20 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
                                 shelter.paid = true
                                 val r = vm.collectStation(shelter = shelter.stop, waiting = shelter.waiting)
                                 shelter.off = r[0]; shelter.on = r[1]
+                                shelter.readyAt = stationExchange(roster, shelter, r[0], r[1], time, warmNow)
+                                if (shelter.stop) shelter.readyAt = max(shelter.readyAt, time + Balance.STATION_STOP_SEC.toFloat())
                             }
                             shelter.dwell += dt
-                            val wait = if (shelter.stop) Balance.STATION_STOP_SEC.toFloat() else STATION_DWELL
-                            factor = if (shelter.dwell < wait) 0f else ((shelter.dwell - wait) / 2.5f).coerceIn(0f, 1f)
-                            if (factor >= 1f) shelter.done = true
+                            val ready = time >= shelter.readyAt
+                            if (shelter.departAt < 0f && vm.stationTick(true, ready, dt.toDouble())) shelter.departAt = time
+                            factor = if (shelter.departAt < 0f) 0f else ((time - shelter.departAt) / 2.5f).coerceIn(0f, 1f)
+                            if (factor >= 1f) { shelter.done = true; vm.stationTick(false, false, 0.0) }
                         }
                     }
+                    // slide the camera over to the station while arriving and standing; back once it is behind us
+                    val panTarget = if (shelter != null && !shelter.done && (shelter.paid || halfH[0] - shelter.y < 420f)) 1f else 0f
+                    sceneStationPan += (panTarget - sceneStationPan) * (1f - kotlin.math.exp(-dt * 1.6f))
+                    sceneLeavers.removeAll { time > it.standAt + LEAVE_IN_SEC + PLATFORM_WALK_SEC + 0.5f }
                     vm.setMoveFactor(factor)
                     stopFactor[0] = factor
                     shelterDwell[0] = shelter?.takeIf { it.paid && !it.done }?.dwell ?: -1f
@@ -891,7 +900,8 @@ private fun DrawScope.drawScene(
     fxDark = dark
     sceneStorm = storm
     val trainPx = CAR_W * u * z * TRAIN_SQUEEZE
-    val originX = (w - trainPx) / 2f
+    // at a station the train slides right so the platform and the station building get the room
+    val originX = (w - trainPx) / 2f + sceneStationPan * w * 0.21f
     val centerOff = 0f
     npc.originXpx = originX
     // how far the player has scrolled away from the automatic camera (dp on screen)
@@ -914,8 +924,9 @@ private fun DrawScope.drawScene(
     drawStationRoad(scroll + worldDp, originX, h, u)
     drawDecor(scroll + worldDp, originX, trainPx, h, u)
     if (fx) safeFx { drawGroundFx(time, scroll + worldDp, w, h, u, dark, storm) }
-    translate(top = worldDp * u) { for (st in stations) withTransform({ scale(z, z, pivot = Offset(originX, st.y * u)) }) { drawStation(st, originX, u) } }
     val ny = (centerOff - npc.camY) * u * z
+    sceneNyPx = ny; sceneZoom = z; sceneWorldPx = worldDp * u
+    translate(top = worldDp * u) { for (st in stations) withTransform({ scale(z, z, pivot = Offset(originX, st.y * u)) }) { drawStation(st, originX, u) } }
     // The outside world (track, ground, trees) gets the full night tint first...
     translate(left = originX, top = ny) {
         scale(scaleX = z * TRAIN_SQUEEZE, scaleY = z, pivot = Offset.Zero) { drawTrack(scroll, npc.trainLen) }
@@ -1002,13 +1013,139 @@ private var sceneWarm = false
 /** Which country the environment is themed for; remaps the biome loop (see Countries). */
 private var sceneCountry = 0
 /** A rider's stable identity while aboard: which character sprite, and whether they boarded in warm weather. */
-private class ScenePax(val sprite: Int, val warm: Boolean, val boardAt: Float = -100f)
+private class ScenePax(val sprite: Int, val warm: Boolean, var boardAt: Float = -100f) {
+    // where this rider sits (train dp), recorded while the seat is drawn
+    var seatX = 0f; var seatY = 0f; var doorY = 0f
+}
+/** A rider getting off: still seated until [standAt], then walks seat → aisle → car door, then across the platform. */
+private class Leaver(val pax: ScenePax, val standAt: Float, val station: Station?, val slot: Int)
+/** A new rider walking from the station building to a car door; inside from [ScenePax.boardAt]. */
+private class Arrival(val pax: ScenePax, val leaveAt: Float, val car: Int)
+private val sceneLeavers = ArrayList<Leaver>()
+/** Seconds: seat to car door when getting off, and the walk between the door and the station building. */
+private const val LEAVE_IN_SEC = 1.8f
+private const val PLATFORM_WALK_SEC = 3.2f
+/** Station pan: 0 out on the line, 1 standing at a platform (the train slides right to show the station). */
+private var sceneStationPan = 0f
+// where the train is drawn this frame (px), so the platform walkers can find the car doors
+private var sceneNyPx = 0f
+private var sceneZoom = 1f
+private var sceneWorldPx = 0f
+
+private fun carOfSlot(slot: Int) = slot / Balance.SEATS_PER_CAR + 1
+
+/** Riders getting off, inside the train: seated until they stand, then to the aisle and up to their car door. */
+private fun DrawScope.drawLeaversInside() {
+    val u = density
+    val sp = sceneSprites ?: return
+    for (lv in sceneLeavers) {
+        val p = lv.pax
+        val car = carOfSlot(lv.slot)
+        if (p.seatY == 0f) { p.seatY = NOSE + car * PITCH + 40f; p.seatX = AISLE_X - 40f; p.doorY = NOSE + car * PITCH - 6f }
+        val tt = sceneClock - lv.standAt
+        val full = sp.chibiFull
+        val pool = if (p.warm && sp.summer.isNotEmpty()) sp.summer else sp.survivors
+        if (tt < 0f) {
+            // still in the seat
+            val c = sp.chibis.getOrNull(Math.floorMod(p.sprite, max(1, sp.chibis.size)))
+            if (!p.warm && c != null) {
+                val pic = c.first; val h = 23f; val w = h * pic.width / pic.height
+                drawPuppet(pic, (p.seatX - w / 2f) * u, (p.seatY - 15f) * u, w * u, h * u, sceneClock, p.sprite * 1.7f + p.seatX * 0.13f + p.seatY * 0.07f, cut = 0.6f)
+            } else if (pool.isNotEmpty()) {
+                drawPuppet(pool[Math.floorMod(p.sprite, pool.size)], (p.seatX - 11f) * u, (p.seatY - 16f) * u, 22f * u, 27f * u, sceneClock, p.sprite * 1.7f)
+            }
+            continue
+        }
+        if (tt >= LEAVE_IN_SEC) continue
+        val f = tt / LEAVE_IN_SEC
+        val pts = listOf(Offset(p.seatX, p.seatY), Offset(AISLE_X, p.seatY), Offset(AISLE_X, p.doorY))
+        val (pos, _) = walkPath(pts, f)
+        var face = 0f
+        for (k in -2..2) face += walkPath(pts, f + k * 0.03f).second
+        face /= 5f
+        val img = if (!p.warm && full.isNotEmpty()) full[Math.floorMod(p.sprite, full.size)] else if (pool.isNotEmpty()) pool[Math.floorMod(p.sprite, pool.size)] else null
+        val side = if (!p.warm) sp.chibiSide.getOrNull(Math.floorMod(p.sprite, max(1, sp.chibiSide.size))) else null
+        sceneBoarders.add(BoardWalker(img, pos.x, pos.y, p.sprite * 0.9f, face < 0f, side, face))
+    }
+}
+
+/** Keeps the seat list in step with the rider count without any walking (loading, upgrades, evolving). */
+private fun syncRoster(roster: ArrayList<ScenePax?>, target: Int, warm: Boolean, now: Float) {
+    var count = roster.count { it != null }
+    while (count > target) {
+        val occ = roster.indices.filter { roster[it] != null }
+        roster[occ.random()] = null; count--
+    }
+    if (count < target) {
+        val free = roster.indices.filter { roster[it] == null }.shuffled().toMutableList()
+        var k = 0
+        while (count < target) {
+            val slot = if (free.isNotEmpty()) free.removeAt(0) else { roster.add(null); roster.size - 1 }
+            roster[slot] = ScenePax((Math.random() * 1000).toInt(), warm, if (now > 0f) now + 0.5f + 0.55f * k++ else -100f)
+            count++
+        }
+    }
+    while (roster.isNotEmpty() && roster.last() == null) roster.removeAt(roster.size - 1)
+}
+
+/**
+ * At a station: [off] seated riders stand up and leave through their car door, then [on] new riders
+ * walk out of the station building to the doors and on to free seats. Returns when everyone is done.
+ */
+private fun stationExchange(roster: ArrayList<ScenePax?>, st: Station, off: Int, on: Int, now: Float, warm: Boolean): Float {
+    var ready = now + 1.5f
+    val vacated = HashMap<Int, Float>()
+    val occ = roster.indices.filter { roster[it] != null && roster[it]!!.boardAt < now }.shuffled().take(off)
+    occ.forEachIndexed { j, slot ->
+        val p = roster[slot]!!
+        roster[slot] = null
+        val standAt = now + 0.4f + j * 0.45f
+        sceneLeavers.add(Leaver(p, standAt, st, slot))
+        vacated[slot] = standAt
+        ready = max(ready, standAt + LEAVE_IN_SEC + PLATFORM_WALK_SEC)
+    }
+    // anyone the quick count still owes (riders who had not sat down yet) simply disappears
+    var extra = off - occ.size
+    while (extra > 0) { val o = roster.indices.lastOrNull { roster[it] != null } ?: break; roster[o] = null; extra-- }
+    val free = roster.indices.filter { roster[it] == null }.toMutableList()
+    for (i in 0 until on) {
+        val slot = if (free.isNotEmpty()) free.removeAt((Math.random() * free.size).toInt()) else { roster.add(null); roster.size - 1 }
+        val leaveAt = now + 1.2f + i * 0.5f
+        var boardAt = leaveAt + PLATFORM_WALK_SEC
+        vacated[slot]?.let { boardAt = max(boardAt, it + LEAVE_IN_SEC + 0.3f) }
+        val p = ScenePax((Math.random() * 1000).toInt(), warm, boardAt)
+        roster[slot] = p
+        st.arrivals.add(Arrival(p, boardAt - PLATFORM_WALK_SEC, carOfSlot(slot)))
+        ready = max(ready, boardAt + BOARD_WALK_SEC)
+    }
+    return ready
+}
+
+/** A point along a walk through [pts] at fraction [f]; also returns the facing (-1 left, 0 front, 1 right). */
+private fun walkPath(pts: List<Offset>, f: Float): Pair<Offset, Float> {
+    var total = 0f
+    for (i in 1 until pts.size) total += (pts[i] - pts[i - 1]).getDistance()
+    if (total <= 0.01f) return Pair(pts.last(), 0f)
+    var d = f.coerceIn(0f, 1f) * total
+    for (i in 1 until pts.size) {
+        val seg = (pts[i] - pts[i - 1]).getDistance()
+        if (d <= seg || i == pts.size - 1) {
+            val t = if (seg > 0f) (d / seg).coerceIn(0f, 1f) else 1f
+            val p = pts[i - 1] + (pts[i] - pts[i - 1]) * t
+            val dx = pts[i].x - pts[i - 1].x; val dy = pts[i].y - pts[i - 1].y
+            val face = if (kotlin.math.abs(dx) > kotlin.math.abs(dy) * 0.6f) kotlin.math.sign(dx) else 0f
+            return Pair(p, face)
+        }
+        d -= seg
+    }
+    return Pair(pts.last(), 0f)
+}
 /** Passengers still walking to their seat this frame: filled while the cars are drawn, drawn and used by the doors after. */
 private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean, val side: androidx.compose.ui.graphics.ImageBitmap? = null, val facing: Float = 0f)
 private val sceneBoarders = ArrayList<BoardWalker>()
 private var sceneClock = 0f
 private const val BOARD_WALK_SEC = 2.4f
-private var sceneRoster: List<ScenePax> = emptyList()
+private var sceneRoster: List<ScenePax?> = emptyList()
 private var sceneStationNear = false
 private var sceneGolden: List<String> = emptyList()
 private var sceneDecor: List<String> = emptyList()
@@ -1104,11 +1241,13 @@ private fun DrawScope.drawAurora(time: Float, w: Float, h: Float) {
 
 /** Station layout (dp): platform width and length, lamp posts along the track edge. */
 private const val ST_W = 58f
-private const val ST_LEN = 290f
-private val ST_LAMPS = floatArrayOf(-125f, -75f, -25f, 25f, 75f, 125f)
-/** Per station type: platform width, how far the building reaches out over the grass, and the building sprite's width / height. */
-private val ST_PW = floatArrayOf(64f, 78f, 92f, 80f, 88f)
-private val ST_EXT = floatArrayOf(0f, 14f, 30f, 16f, 24f)
+private const val ST_LEN = 520f
+private val ST_LAMPS = floatArrayOf(-225f, -165f, -105f, -45f, 45f, 105f, 165f, 225f)
+/** Per station type: platform width, the building sprite's width, how far it reaches out past the platform, and its width / height. */
+private val ST_PW = floatArrayOf(104f, 104f, 104f, 104f, 104f)
+private val ST_BW = floatArrayOf(104f, 120f, 136f, 118f, 128f)
+private val ST_OUT = FloatArray(5) { ST_BW[it] - ST_PW[it] * 0.42f }
+private val ST_EXT = ST_OUT
 private val ST_ASPECT = floatArrayOf(0.665f, 0.49f, 0.50f, 0.623f, 0.46f)
 
 /** A long platform with a station building, benches, lamp posts and waiting passengers, next to the train. */
@@ -1135,7 +1274,6 @@ private fun DrawScope.drawStationRoad(scroll: Float, originX: Float, h: Float, u
 private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     val pw = ST_PW[st.type] * u
     val ext = ST_EXT[st.type]
-    if (originX < pw + 8f * u) return
     val x = originX - pw - 6f * u
     val y = st.y * u
     val len = ST_LEN * u
@@ -1157,12 +1295,19 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
     drawOval(Color.White, Offset(x - 4f * u, y + len / 2f - 12f * u), Size(pw + 8f * u, 22f * u))
     // station building on the outer half
     val bldg = sp?.stationBlds?.getOrNull(st.type)
-    val bw = ST_PW[st.type] - 24f + ext
-    val bh = bw / ST_ASPECT[st.type]
+    val bw = ST_BW[st.type]
+    val bh = min(bw / ST_ASPECT[st.type], ST_LEN - 140f)
     if (bldg != null) {
         // the building stands on the outer half of the platform and reaches out over the grass
         drawOval(Color(0x2A203040), Offset(x - ext * u + 4f * u, y - bh / 2f * u + 6f * u), Size(bw * u, bh * u))
         drawSprite(bldg, x - ext * u + 1f * u, y - bh / 2f * u, bw * u, bh * u)
+        // a covered walkway: posts along the platform holding up the canopy
+        for (k in -3..3) {
+            if (k == 0) continue
+            val py = y + k * 62f * u
+            drawRect(Color(0x33203040), Offset(x + pw * 0.80f - 2f * u, py - 1f * u), Size(7f * u, 7f * u))
+            drawRect(Color(0xFF5A4636), Offset(x + pw * 0.80f - 3f * u, py - 3f * u), Size(6f * u, 6f * u))
+        }
     } else {
         val old = sp?.stationBldg
         if (old != null) drawSprite(old, x + 1f * u, y - 48f * u, 34f * u, 90f * u)
@@ -1209,31 +1354,50 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
             }
         }
     }
-    // passengers seen from above: those who board walk from the platform to the train and step inside
-    // (only the rescued survivors are drawn inside the cars); those getting off walk out and away
-    val cols = listOf(Color(0xFFE5484D), Color(0xFF2F8FE0), Color(0xFF3FAE5A), Color(0xFFE8890C), Color(0xFFB9A2EE), Color(0xFF8FC2AE), Color(0xFFF49AB2))
-    val door = originX + 2f * u
+    // a few people just waiting about on the platform (they are not travelling)
     for (i in 0 until st.waiting) {
-        val py = y - 100f * u + i * 32f * u + (if (i % 2 == 0) 0f else 8f * u)
-        val boards = i < st.on
-        val prog = if (boards && st.dwell > 0f) ((st.dwell - 1.0f - i * 0.45f) / 1.5f).coerceIn(0f, 1f) else 0f
-        if (prog >= 1f) continue
-        val sx = x + pw - 16f * u - (if (i % 3 == 1) 4f * u else 0f)
-        val px = sx + (door - sx) * prog
-        val walking = if (prog > 0f && prog < 1f) 1f else 0f
-        val faceB = if (prog > 0f) (prog / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) } else 0f
-        passenger(px, py, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed, st.dwell * 9f + i * 1.7f, walking, flip = false, facing = faceB)
+        val py = y + (-ST_LEN / 2f + 60f + i * ((ST_LEN - 120f) / max(1, st.waiting - 1))) * u
+        val px = x + pw * (0.30f + 0.12f * ((st.seed + i * 7) % 3))
+        passenger(px, py, 1f, u, i + st.seed + 11, 0f, 0f)
     }
-    for (i in 0 until st.off) {
-        val t = ((st.dwell - 0.2f - i * 0.4f) / 2.6f)
-        if (t <= 0f || t >= 1f) continue
-        val py = y - 60f * u + i * 26f * u
-        // out of the train to the platform, then along it and away
-        val px = if (t < 0.5f) door + (x + 30f * u - door) * (t / 0.5f) else x + 30f * u
-        val yy = if (t < 0.5f) py else py + (t - 0.5f) / 0.5f * 120f * u
-        val alpha = if (t < 0.12f) t / 0.12f else 1f - ((t - 0.75f) / 0.25f).coerceIn(0f, 1f)
-        val faceO = -(1f - ((t - 0.46f) / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) })
-        passenger(px, yy, alpha, u, i + st.seed + 3, st.dwell * 9f + i * 2.3f, 1f, flip = t < 0.5f, side = t < 0.5f, facing = faceO)
+    // real riders: off through their car door to the building, and from the building to a car door
+    val ent = Offset(x - ST_OUT[st.type] * u + bw * u - 4f * u, y + 6f * u)
+    val laneX = x + pw * 0.62f
+    fun doorAt(car: Int): Offset {
+        val sy = sceneNyPx + (NOSE + car * PITCH - 6f) * u * sceneZoom
+        return Offset(originX - 2f * u, y + (sy - sceneWorldPx - y) / sceneZoom)
+    }
+    val sp2 = sceneSprites ?: return
+    fun walker(p: ScenePax, pts: List<Offset>, f: Float, alpha: Float) {
+        if (alpha <= 0.01f) return
+        val (pos, _) = walkPath(pts, f)
+        var face = 0f
+        for (k in -2..2) face += walkPath(pts, f + k * 0.025f).second
+        face /= 5f
+        val full = sp2.chibiFull
+        drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(pos.x - 7f * u, pos.y + 7f * u), Size(14f * u, 5f * u))
+        if (!p.warm && full.isNotEmpty()) {
+            val img = full[Math.floorMod(p.sprite, full.size)]
+            val side = sp2.chibiSide.getOrNull(Math.floorMod(p.sprite, sp2.chibiSide.size))
+            val h = 29f * (img.height - 2 * MeshPuppet.PAD) / 322f
+            drawChibi(img, side, pos.x, pos.y + 6f * u, h * u, sceneClock + p.sprite * 0.37f, sceneClock * 9f + p.sprite, 1f, face, alpha, spriteXScale)
+        } else passenger(pos.x, pos.y, alpha, u, p.sprite, sceneClock * 9f, 1f, face < 0f, facing = face)
+    }
+    for (lv in sceneLeavers) {
+        if (lv.station !== st) continue
+        val t0 = lv.standAt + LEAVE_IN_SEC
+        val f = (sceneClock - t0) / PLATFORM_WALK_SEC
+        if (f < 0f || f > 1f) continue
+        val d = doorAt(carOfSlot(lv.slot))
+        val pts = listOf(d, Offset(laneX, d.y), Offset(laneX, ent.y), ent)
+        walker(lv.pax, pts, f, (f / 0.08f).coerceIn(0f, 1f) * (1f - ((f - 0.85f) / 0.15f).coerceIn(0f, 1f)))
+    }
+    for (ar in st.arrivals) {
+        val f = (sceneClock - ar.leaveAt) / PLATFORM_WALK_SEC
+        if (f < 0f || f > 1f) continue
+        val d = doorAt(ar.car)
+        val pts = listOf(ent, Offset(laneX, ent.y), Offset(laneX, d.y), d)
+        walker(ar.pax, pts, f, (f / 0.12f).coerceIn(0f, 1f) * (1f - ((f - 0.94f) / 0.06f).coerceIn(0f, 1f)))
     }
 }
 
@@ -1292,7 +1456,6 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
 /** Lamp light and warm windows; drawn after the night tint so they really glow. [on] 0..1. */
 private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, on: Float) {
     val pw = ST_PW[st.type] * u
-    if (originX < pw + 8f * u) return
     val x = originX - pw - 6f * u
     val y = st.y * u
     if (y < -ST_LEN * u || y > size.height + ST_LEN * u) return
@@ -1305,7 +1468,7 @@ private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, o
     }
     // light from the station windows spilling onto the platform
     for (wy in listOf(-26f, 10f)) {
-        val c = Offset(x + (ST_PW[st.type] * 0.45f - ST_EXT[st.type] * 0.4f) * u, y + wy * 1.6f * u)
+        val c = Offset(x + (ST_BW[st.type] * 0.5f - ST_OUT[st.type]) * u, y + wy * 2.6f * u)
         val r = 34f * u
         drawOval(
             Brush.radialGradient(listOf(warm.copy(alpha = 0.26f * on), Color.Transparent), c, r),
@@ -1495,6 +1658,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         if (i < cars - 1) drawVestibule(top + CAR_H)
     }
     drawCarDoors(cars, npc)
+    drawLeaversInside()
     run {
         val u = density
         for (b in sceneBoarders) {
@@ -1594,6 +1758,7 @@ private fun paxInCar(car: Int, cars: Int): Int {
 /** A forward-facing train seat seen from above, with its rider's head and shoulders if taken. */
 private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY: Float, kind: Int = 0) {
     val u = density
+    pax0?.let { it.seatX = cx; it.seatY = cy; it.doorY = doorY }
     // a rider who has just boarded is still walking in: in through the car door, down the aisle, then to the seat
     var pax = pax0
     if (pax != null && sceneClock < pax.boardAt + BOARD_WALK_SEC) {

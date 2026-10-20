@@ -240,6 +240,24 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
     private var nextStationIn = Balance.STATION_MIN_GAP
 
+    /** The train stands at a station (set by the scene). [stationReady] once everyone is off and aboard. */
+    var stationStop by mutableStateOf(false); private set
+    var stationReady by mutableStateOf(false); private set
+    /** Seconds until the train leaves on its own (only counts down once ready). */
+    var autoDepartLeft by mutableDoubleStateOf(0.0); private set
+    private var departAsked = false
+    fun depart() { if (stationStop && stationReady) { departAsked = true; audio.play(HORNS.getOrNull(meta.horn)?.res ?: R.raw.sfx_horn, 0.85f) } }
+    /** Scene side: report the stop state; returns true when the train should pull away now. */
+    internal fun stationTick(stopped: Boolean, ready: Boolean, dt: Double): Boolean {
+        if (!stopped) { stationStop = false; stationReady = false; departAsked = false; autoDepartLeft = Balance.AUTO_DEPART_SEC; return false }
+        if (!stationStop) autoDepartLeft = Balance.AUTO_DEPART_SEC
+        stationStop = true; stationReady = ready
+        if (ready) autoDepartLeft = max(0.0, autoDepartLeft - dt)
+        val go = ready && (departAsked || autoDepartLeft <= 0.0)
+        if (go) departAsked = false
+        return go
+    }
+
     private fun showToast(text: String) {
         toast = text
         toastLeft = 3.5
