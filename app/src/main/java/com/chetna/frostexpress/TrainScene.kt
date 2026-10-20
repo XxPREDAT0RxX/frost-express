@@ -1027,6 +1027,8 @@ private const val LEAVE_IN_SEC = 1.8f
 private const val PLATFORM_WALK_SEC = 3.2f
 /** Station pan: 0 out on the line, 1 standing at a platform (the train slides right to show the station). */
 private var sceneStationPan = 0f
+/** Cars drawn this frame; riders headed for a car that is not there use the last one. */
+private var sceneCarCount = 2
 // where the train is drawn this frame (px), so the platform walkers can find the car doors
 private var sceneNyPx = 0f
 private var sceneZoom = 1f
@@ -1388,14 +1390,14 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val t0 = lv.standAt + LEAVE_IN_SEC
         val f = (sceneClock - t0) / PLATFORM_WALK_SEC
         if (f < 0f || f > 1f) continue
-        val d = doorAt(carOfSlot(lv.slot))
+        val d = doorAt(carOfSlot(lv.slot).coerceAtMost(sceneCarCount - 1))
         val pts = listOf(d, Offset(laneX, d.y), Offset(laneX, ent.y), ent)
         walker(lv.pax, pts, f, (f / 0.08f).coerceIn(0f, 1f) * (1f - ((f - 0.85f) / 0.15f).coerceIn(0f, 1f)))
     }
     for (ar in st.arrivals) {
         val f = (sceneClock - ar.leaveAt) / PLATFORM_WALK_SEC
         if (f < 0f || f > 1f) continue
-        val d = doorAt(ar.car)
+        val d = doorAt(ar.car.coerceAtMost(sceneCarCount - 1))
         val pts = listOf(ent, Offset(laneX, ent.y), Offset(laneX, d.y), d)
         walker(ar.pax, pts, f, (f / 0.12f).coerceIn(0f, 1f) * (1f - ((f - 0.94f) / 0.06f).coerceIn(0f, 1f)))
     }
@@ -1630,6 +1632,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
     val body = Color(tier.body)
     val accent = Color(tier.accent)
     val cars = look.cars
+    sceneCarCount = cars
     drawNose(body, accent, look.plow)
     for (i in 0 until cars) {
         val top = NOSE + i * PITCH
