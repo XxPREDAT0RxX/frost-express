@@ -1261,9 +1261,8 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
     val full = sp?.chibiFull
     if (!sceneWarm && !full.isNullOrEmpty()) {
         val img = full[Math.floorMod(seed, full.size)]
-        val h = 29f
-        val w = h * img.width / img.height
-        drawWalkingSprite(img, px, py + 6f * u, w, h, walkPhase, moving, flip, alpha)
+        val h = 29f * (img.height - 2 * MeshPuppet.PAD) / 322f
+        MeshPuppet.draw(this, img, px, py + 6f * u, h * u, sceneClock + seed * 0.37f, walkPhase, moving, flip, alpha, spriteXScale)
         return
     }
     val walkers = sp?.walkers
@@ -1498,10 +1497,11 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         for (b in sceneBoarders) {
             val img = b.img ?: continue
             drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
-            val tall = img.height > img.width * 1.6f          // chibi full body: bigger head, so drawn taller
-            val bh = if (tall) 32f else 27f
-            val bw = if (tall) bh * img.width / img.height else 22f
-            drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, bw, bh, sceneClock * 10f + b.bob, 1f, flip = b.flip)
+            if (img.height > img.width * 1.6f) {
+                // chibi full body: a skinned mesh that really walks
+                val bh = 32f * (img.height - 2 * MeshPuppet.PAD) / 322f
+                MeshPuppet.draw(this, img, b.x * u, (b.y + 10f) * u, bh * u, sceneClock + b.bob, sceneClock * 10f + b.bob, 1f, b.flip, 1f, spriteXScale)
+            } else drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, 22f, 27f, sceneClock * 10f + b.bob, 1f, flip = b.flip)
         }
         sceneBoarders.clear()
     }
