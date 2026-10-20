@@ -229,10 +229,11 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
         // when a sheet slides up, the scene shrinks a little and moves up so the train stays in view above it
         val screenHpx = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
         TrainScene(vm, Modifier.fillMaxSize().graphicsLayer {
-            val k = 1f - 0.14f * sheetP
+            // the visible strip is between the header and the sheet: shrink the scene into it, centred on the train
+            val k = 1f - 0.45f * sheetP
             scaleX = k; scaleY = k
             transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
-            translationY = -0.13f * screenHpx * sheetP
+            translationY = 0.095f * screenHpx * sheetP
         }, onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
                 detail = type
@@ -252,7 +253,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                 onGoal = { sheet = it },
             )
             // side rails: they use the snowy space left and right of the train
-            if (!uiHidden) LeftRail(
+            if (!uiHidden && sheetP < 0.5f) LeftRail(
                 vm,
                 onQuests = { sheet = if (sheet == 5) 0 else 5 },
                 onAwards = { sheet = if (sheet == 7) 0 else 7 },
@@ -288,7 +289,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
                     .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(top = 140.dp),
             )
-            if (!uiHidden) Column(
+            if (!uiHidden && sheetP < 0.5f) Column(
                 Modifier
                     .align(Alignment.TopEnd)
                     .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -335,7 +336,7 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
             NewTrainPopup(vm)
             RouteChoiceCard(vm)
             BoosterPopup(vm, Modifier.align(Alignment.Center))
-            if (!uiHidden) BottomBar(
+            if (!uiHidden && sheetP < 0.5f) BottomBar(
                 vm,
                 sheetOpen = showUpgrades,
                 onToggleUpgrades = {
