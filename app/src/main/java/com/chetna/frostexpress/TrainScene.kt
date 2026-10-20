@@ -1043,7 +1043,8 @@ private fun DrawScope.drawLeaversInside() {
     for (lv in sceneLeavers) {
         val p = lv.pax
         val car = carOfSlot(lv.slot)
-        if (p.seatY == 0f) { p.seatY = NOSE + car * PITCH + 40f; p.seatX = AISLE_X - 40f; p.doorY = NOSE + car * PITCH - 6f }
+        // a rider whose seat was never on screen (or whose car is gone) just steps out of the door
+        if (p.seatY == 0f || car >= sceneCarCount) continue
         val tt = sceneClock - lv.standAt
         val full = sp.chibiFull
         val pool = if (p.warm && sp.summer.isNotEmpty()) sp.summer else sp.survivors
