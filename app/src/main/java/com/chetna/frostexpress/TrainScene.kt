@@ -912,7 +912,8 @@ private fun DrawScope.drawScene(
     val snowAmt = snowAt(groundKey)
     sceneSnow = snowAmt
     // the land the train is passing through, cross-fading from one biome to the next
-    drawRect(groundColorAt(groundKey), size = size)
+    // the ground reaches well past the edges, so a scaled-down view (menu open) never shows blank borders
+    drawRect(groundColorAt(groundKey), Offset(-w, -h), Size(w * 3f, h * 3f))
     val art = sceneArt
     if (art != null && snowAmt > 0.01f) {
         // the snowfields keep the painted snow texture and a cold grey-blue tint
@@ -1482,16 +1483,20 @@ private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, o
 
 private fun DrawScope.drawDecor(scroll: Float, originX: Float, trainPx: Float, h: Float, u: Float) {
     if (originX < 24f * u) return
-    for (d in DECOR) {
+    // lay the scenery out for the train's normal place, then slide it with the station pan,
+    // so trees keep their spot (and their kind) while the view moves over to a station
+    val pan = sceneStationPan * size.width * 0.21f
+    val o0 = originX - pan
+    for ((di, d) in DECOR.withIndex()) {
         val r = d.r * u
-        val span = max(0f, originX - 2f * r)
-        val x = if (d.side == 0) r + d.fx * span else originX + trainPx + r + d.fx * span
+        val span = max(0f, o0 - 2f * r)
+        val x = pan + if (d.side == 0) r + d.fx * span else o0 + trainPx + r + d.fx * span
         val base = (d.y + scroll) % DECOR_PERIOD
         var k = -1
         while (true) {
             val y = (base + k * DECOR_PERIOD) * u
             if (y > h + r) break
-            if (y > -r) drawDecorItem(d.kind, x, y, r, zoneAt(scroll - y / u))
+            if (y > -r) drawDecorItem(d.kind, x, y, r, zoneAt(scroll - y / u), di)
             k++
         }
     }
@@ -1510,7 +1515,7 @@ private fun DrawScope.starPath(cx: Float, cy: Float, rOut: Float, rIn: Float, n:
     return p
 }
 
-private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zone: Int = 0) {
+private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zone: Int = 0, id: Int = -1) {
     val seed = (x * 0.013f + r)
     val art = sceneArt
     val z = ZONES[zone]
@@ -1525,7 +1530,7 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zon
     if (art != null && kind == 4 && !z.lakes) return
     val names = z.slots[kind]
     if (art != null && kind != 4 && names != null && art.byName.isNotEmpty()) {
-        val pick = ((x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
+        val pick = (if (id >= 0) id * 7919 else (x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
         val name = names[(pick / 3) % names.size]
         val img = art.byName[name]
         if (img != null) {
@@ -1545,7 +1550,7 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zon
         }
     }
     if (art != null && kind != 4) {
-        val pick = ((x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
+        val pick = (if (id >= 0) id * 7919 else (x / density).toInt() + (r * 7f).toInt()) and 0x7fffffff
         when (kind) {
             1 -> sprite(art.wrecks[(pick / 3) % art.wrecks.size], x, y, r / 0.4f)
             2 -> sprite(art.rocks[pick % art.rocks.size], x, y, r / 0.3f)
