@@ -1004,7 +1004,7 @@ private var sceneCountry = 0
 /** A rider's stable identity while aboard: which character sprite, and whether they boarded in warm weather. */
 private class ScenePax(val sprite: Int, val warm: Boolean, val boardAt: Float = -100f)
 /** Passengers still walking to their seat this frame: filled while the cars are drawn, drawn and used by the doors after. */
-private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean)
+private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean, val side: androidx.compose.ui.graphics.ImageBitmap? = null, val facing: Float = 0f)
 private val sceneBoarders = ArrayList<BoardWalker>()
 private var sceneClock = 0f
 private const val BOARD_WALK_SEC = 2.4f
@@ -1221,7 +1221,8 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val sx = x + pw - 16f * u - (if (i % 3 == 1) 4f * u else 0f)
         val px = sx + (door - sx) * prog
         val walking = if (prog > 0f && prog < 1f) 1f else 0f
-        passenger(px, py, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed, st.dwell * 9f + i * 1.7f, walking, flip = false)
+        val faceB = if (prog > 0f) (prog / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) } else 0f
+        passenger(px, py, 1f - ((prog - 0.85f) / 0.15f).coerceIn(0f, 1f), u, i + st.seed, st.dwell * 9f + i * 1.7f, walking, flip = false, facing = faceB)
     }
     for (i in 0 until st.off) {
         val t = ((st.dwell - 0.2f - i * 0.4f) / 2.6f)
@@ -1231,7 +1232,8 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         val px = if (t < 0.5f) door + (x + 30f * u - door) * (t / 0.5f) else x + 30f * u
         val yy = if (t < 0.5f) py else py + (t - 0.5f) / 0.5f * 120f * u
         val alpha = if (t < 0.12f) t / 0.12f else 1f - ((t - 0.75f) / 0.25f).coerceIn(0f, 1f)
-        passenger(px, yy, alpha, u, i + st.seed + 3, st.dwell * 9f + i * 2.3f, 1f, flip = t < 0.5f, side = t < 0.5f)
+        val faceO = -(1f - ((t - 0.46f) / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) })
+        passenger(px, yy, alpha, u, i + st.seed + 3, st.dwell * 9f + i * 2.3f, 1f, flip = t < 0.5f, side = t < 0.5f, facing = faceO)
     }
 }
 
@@ -1254,7 +1256,7 @@ private fun DrawScope.drawWalkingSprite(img: ImageBitmap, cx: Float, feetY: Floa
 }
 
 /** One waiting or leaving passenger, drawn as a real cosy character (same faces as inside the train). */
-private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int, walkPhase: Float = 0f, moving: Float = 0f, flip: Boolean = false, side: Boolean = false) {
+private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, seed: Int, walkPhase: Float = 0f, moving: Float = 0f, flip: Boolean = false, side: Boolean = false, facing: Float = 0f) {
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
@@ -1262,7 +1264,8 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
     if (!sceneWarm && !full.isNullOrEmpty()) {
         val img = full[Math.floorMod(seed, full.size)]
         val h = 29f * (img.height - 2 * MeshPuppet.PAD) / 322f
-        MeshPuppet.draw(this, img, px, py + 6f * u, h * u, sceneClock + seed * 0.37f, walkPhase, moving, flip, alpha, spriteXScale)
+        val sideImg = sp!!.chibiSide.let { l -> l.getOrNull(Math.floorMod(seed, l.size)) }
+        drawChibi(img, sideImg, px, py + 6f * u, h * u, sceneClock + seed * 0.37f, walkPhase, moving, facing, alpha, spriteXScale)
         return
     }
     val walkers = sp?.walkers
@@ -1500,7 +1503,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
             if (img.height > img.width * 1.6f) {
                 // chibi full body: a skinned mesh that really walks
                 val bh = 32f * (img.height - 2 * MeshPuppet.PAD) / 322f
-                MeshPuppet.draw(this, img, b.x * u, (b.y + 10f) * u, bh * u, sceneClock + b.bob, sceneClock * 10f + b.bob, 1f, b.flip, 1f, spriteXScale)
+                drawChibi(img, b.side, b.x * u, (b.y + 10f) * u, bh * u, sceneClock + b.bob, sceneClock * 10f + b.bob, 1f, b.facing, 1f, spriteXScale)
             } else drawWalkingSprite(img, b.x * u, (b.y + 10f) * u, 22f, 27f, sceneClock * 10f + b.bob, 1f, flip = b.flip)
         }
         sceneBoarders.clear()
@@ -1604,7 +1607,10 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
             val a = 0.7f
             val wx = if (t < a) AISLE_X else AISLE_X + (cx - AISLE_X) * ((t - a) / (1f - a))
             val wy = if (t < a) doorY + (cy - doorY) * (t / a) else cy
-            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X))
+            // down the aisle facing us, then a quick turn to walk sideways to the seat
+            val turn = ((t - a) / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+            val sideImg = if (!pax.warm) sp?.chibiSide?.let { l -> l.getOrNull(Math.floorMod(pax.sprite, l.size)) } else null
+            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X, sideImg, turn * (if (cx < AISLE_X) -1f else 1f)))
         }
         pax = null
     }
