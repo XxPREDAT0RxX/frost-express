@@ -313,6 +313,7 @@ private fun hotspotAt(tx: Float, ty: Float, cars: Int): UpgradeType? {
 /** The second worker, if hired (set every frame), so the stove and the bed react to either worker. */
 private var sceneNpc2: Npc? = null
 private var sceneUserZoom = 1f
+private var sceneViewScale = 1f
 private var sceneMainNpc: Npc? = null
 
 /** The worker busy with [act] right now, if any. */
@@ -513,6 +514,8 @@ class SceneLink {
     var camCar by androidx.compose.runtime.mutableFloatStateOf(0f)
     var viewCars by androidx.compose.runtime.mutableFloatStateOf(3f)
     var jumpCar = -1
+    /** < 1 while a menu shrinks the view: the scene is laid out larger by 1/viewScale and drawn scaled down. */
+    var viewScale = 1f
     /** The car just picked on the map; it glows for a moment so it is easy to find. -1 = none. */
     var flashCar by androidx.compose.runtime.mutableIntStateOf(-1)
     var flashLeft = 0f
@@ -790,6 +793,7 @@ fun TrainScene(vm: GameViewModel, modifier: Modifier = Modifier, onDeviceTap: (U
         sceneMats = mats
         sceneSprites = sprites
         sceneUserZoom = link?.zoom ?: 1f
+        sceneViewScale = link?.viewScale ?: 1f
         sceneGfx = vm.gfx
         sceneGolden = vm.meta.golden.toList()
         sceneDecor = vm.meta.decor.toList()
@@ -893,7 +897,7 @@ private fun DrawScope.drawScene(
     val u = density
     val w = size.width
     val h = size.height
-    val z = (w / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f) * sceneUserZoom
+    val z = (w * sceneViewScale / u * 0.50f / CAR_W).coerceIn(0.8f, 1.5f) * sceneUserZoom
     npc.viewH = h / u / z
     npc.zoom = z
     fxOn = fx
@@ -913,7 +917,7 @@ private fun DrawScope.drawScene(
     sceneSnow = snowAmt
     // the land the train is passing through, cross-fading from one biome to the next
     // the ground reaches well past the edges, so a scaled-down view (menu open) never shows blank borders
-    drawRect(groundColorAt(groundKey), Offset(-w, -h), Size(w * 3f, h * 3f))
+    drawRect(groundColorAt(groundKey), size = size)
     val art = sceneArt
     if (art != null && snowAmt > 0.01f) {
         // the snowfields keep the painted snow texture and a cold grey-blue tint

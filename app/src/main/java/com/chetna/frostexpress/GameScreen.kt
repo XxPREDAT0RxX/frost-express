@@ -228,13 +228,20 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
         // The scene stays full-height; the sheet slides up over it so the train never resizes or jumps.
         // when a sheet slides up, the scene shrinks a little and moves up so the train stays in view above it
         val screenHpx = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
-        TrainScene(vm, Modifier.fillMaxSize().graphicsLayer {
-            // the visible strip is between the header and the sheet: shrink the scene into it, centred on the train
-            val k = 1f - 0.45f * sheetP
-            scaleX = k; scaleY = k
-            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
-            translationY = 0.095f * screenHpx * sheetP
-        }, onDeviceTap = { type ->
+        val viewK = 1f - 0.45f * sheetP
+        link.viewScale = viewK
+        TrainScene(vm, Modifier.fillMaxSize()
+            // a bigger scene, drawn scaled down: it still fills the screen edge to edge, the train just gets smaller
+            .layout { m, c ->
+                val bw = (c.maxWidth / viewK).toInt(); val bh = (c.maxHeight / viewK).toInt()
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(bw, bh))
+                layout(c.maxWidth, c.maxHeight) { p.place((c.maxWidth - bw) / 2, 0) }
+            }
+            .graphicsLayer {
+                scaleX = viewK; scaleY = viewK
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                translationY = -0.13f * screenHpx * sheetP
+            }, onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
                 detail = type
             }, link = link)
