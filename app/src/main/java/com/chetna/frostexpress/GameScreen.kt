@@ -233,14 +233,14 @@ fun GameScreen(vm: GameViewModel, initialSheet: Int = 0, initialDetail: UpgradeT
         TrainScene(vm, Modifier.fillMaxSize()
             // a bigger scene, drawn scaled down: it still fills the screen edge to edge, the train just gets smaller
             .layout { m, c ->
-                val bw = (c.maxWidth / viewK).toInt(); val bh = (c.maxHeight / viewK).toInt()
+                val bw = (c.maxWidth / viewK).toInt(); val bh = c.maxHeight
                 val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(bw, bh))
                 layout(c.maxWidth, c.maxHeight) { p.place((c.maxWidth - bw) / 2, 0) }
             }
             .graphicsLayer {
                 scaleX = viewK; scaleY = viewK
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
-                translationY = -0.13f * screenHpx * sheetP
+                translationY = 0.095f * screenHpx * sheetP
             }, onDeviceTap = { type ->
                 vm.tutorialAdvance(1)
                 detail = type
