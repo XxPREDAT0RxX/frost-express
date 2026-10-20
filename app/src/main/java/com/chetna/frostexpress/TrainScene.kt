@@ -1663,6 +1663,7 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
         val u = density
         for (b in sceneBoarders) {
             val img = b.img ?: continue
+            if (b.y > NOSE + cars * PITCH) continue   // never draw anyone past the last car
             drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
             if (img.height > img.width * 1.6f) {
                 // chibi full body: a skinned mesh that really walks
