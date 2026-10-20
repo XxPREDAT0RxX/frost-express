@@ -55,8 +55,19 @@ jobs:
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk
 
-      # Play Store bundle (release, shrunk with R8). It is built unsigned here and signed with the
-      # upload key offline, so the key never has to be stored on GitHub.
+      # Play Store bundle (release, shrunk with R8). If the upload key is stored in the repository
+      # secrets (UPLOAD_KEYSTORE_B64, UPLOAD_KEYSTORE_PASSWORD) the bundle comes out signed and ready
+      # to upload; otherwise it is built unsigned.
+      - name: Upload key from secrets
+        env:
+          KS_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          KS_PW: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+        if: env.KS_B64 != ''
+        shell: bash
+        run: |
+          echo "$KS_B64" | base64 -d > app/upload.jks
+          printf 'storeFile=upload.jks\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$KS_PW" "$KS_PW" > keystore.properties
+
       - name: Build release bundle (AAB)
         id: aab
         continue-on-error: true
