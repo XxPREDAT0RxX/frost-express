@@ -223,6 +223,24 @@ def snow_top(o, cut=0.62, grow=1.035, lift=0.012):
     c = bpy.data.objects.new('snow', me); sc.collection.objects.link(c)
     return finish(c, toon(SNOW, top=1.0, shade=0.9), smooth=True)
 
+def surface_point(center, direction):
+    """Where a ray from outside toward [center] first meets what has been built (and the normal there)."""
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    d = Vector(direction).normalized()
+    hit, loc, nrm, _, _, _ = sc.ray_cast(dg, Vector(center) + d * 6.0, -d)
+    return (loc, nrm) if hit else (None, None)
+
+def dots_on(center, n, seed, make, a0=3.5, a1=5.95, e0=0.05, e1=0.95):
+    """Calls make(point) for [n] points on the camera-facing surface around [center]."""
+    rnd = random.Random(seed)
+    pts = []
+    for i in range(n):
+        a = rnd.uniform(a0, a1); e = rnd.uniform(e0, e1)
+        p, _ = surface_point(center, (math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+        if p is not None: pts.append(p)
+    for p in pts: make(p)
+
 def ground_patch(r, col, seed=7, h=0.0, sc_=(1, 1, 0.06)):
     """A soft mound of snow under a snowy item (no outline, so it melts into the snowy ground)."""
     return blob((0, 0, h), r * 0.8, sc_, col, rough=0.12, seed=seed, sub=3, line=0, top=1.0, shade=0.94)
@@ -447,29 +465,24 @@ def bush(seed, r, col, n=6, flat=0.8):
 def _():
     bush(51, 0.55, '#6DB45A', n=7)
     rnd = random.Random(2)
-    for i in range(14):
-        a = rnd.uniform(3.6, 5.9); z = rnd.uniform(0.3, 0.85); rr = 0.66 * (1 - ((z - 0.45) / 0.6) ** 2) + 0.2
-        flower((math.cos(a) * rr, math.sin(a) * rr, z), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA']))
+    dots_on((0, 0, 0.5), 15, 2, lambda p: flower(p + Vector((0, -0.01, 0.0)), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA'])))
 @item('snow_bush')
 def _():
     n0 = len(CUR)
     bush(52, 0.6, '#5E9C7A', n=7)
-    for o in CUR[n0:]: snow_top(o, cut=0.55)
+    for o in CUR[n0:]: snow_top(o, cut=0.74)
     ground_patch(0.85, SNOW, h=0.0)
 @item('frost_shrub')
 def _():
     n0 = len(CUR)
     bush(53, 0.45, '#7FB8A0', n=5, flat=0.65)
-    for o in CUR[n0:]: snow_top(o, cut=0.6)
+    for o in CUR[n0:]: snow_top(o, cut=0.76)
     for x in (-0.18, 0.2):
         sphere((x, -0.38, 0.35), 0.06, (1, 1, 1), '#D9534F', seg=12)
 @item('v_vbush')
 def _():
     bush(54, 0.6, '#3F7F45', n=8)
-    rnd = random.Random(4)
-    for i in range(22):
-        a = rnd.uniform(3.4, 6.0); z = rnd.uniform(0.25, 0.85); rr = 0.6 * (1 - ((z - 0.45) / 0.65) ** 2) + 0.25
-        sphere((math.cos(a) * rr, math.sin(a) * rr, z), 0.035, (1, 1, 1), '#B48AD6', seg=8, line=0.006)
+    dots_on((0, 0, 0.5), 24, 4, lambda p: sphere(p, 0.035, (1, 1, 1), '#B48AD6', seg=8, line=0.006))
 
 def grass(seed, n, col, col2, h=0.6, spread=0.35, width=0.07):
     rnd = random.Random(seed)
@@ -537,7 +550,7 @@ def _():
     blob((0.75, -0.35, 0.18), 0.3, (1.1, 1, 0.7), ROCK, rough=0.2, seed=72, flat_bottom=True)
 @item('rock_a')
 def _():
-    snow_top(blob((0, 0, 0.42), 0.7, (1.2, 1, 0.6), ROCK, rough=0.2, seed=73, flat_bottom=True), cut=0.6)
+    snow_top(blob((0, 0, 0.42), 0.7, (1.2, 1, 0.6), ROCK, rough=0.2, seed=73, flat_bottom=True), cut=0.78)
     blob((-0.75, -0.3, 0.12), 0.22, (1.2, 1, 0.7), ROCK_D, rough=0.2, seed=74)
 @item('rock_b')
 def _():
@@ -583,7 +596,6 @@ def _():
             limb((x, -0.55, z + 0.15), (x, 0.55, z + 0.15), 0.14, 0.14, BARK)
             sphere((x, -0.555, z + 0.15), 0.135, (1, 0.1, 1), '#E8C48E', seg=20, line=0)
             ring((x, -0.565, z + 0.15), 0.07, 0.008, '#B88A5A', rot=(90, 0, 0), line=0)
-    for o in [o for o in CUR if o.location.z > 0.6 and o.name.startswith('Cone')]: snow_top(o, cut=0.55)
     # an axe in a stump
     limb((0.95, -0.2, 0), (0.95, -0.2, 0.3), 0.18, 0.18, BARK); sphere((0.95, -0.2, 0.3), 0.175, (1, 1, 0.08), '#E8C48E', seg=20, line=0)
     limb((0.95, -0.2, 0.32), (1.2, -0.25, 0.75), 0.02, 0.02, '#A8774E')
@@ -982,7 +994,7 @@ def _():
     box((0, 0, 0.55), (1.6, 2.4, 1.1), '#B8865A', bevel=0.03, stripes=('#A47448', 5.0))
     box((0, 0, 0.12), (1.75, 2.55, 0.25), '#9AA0A8', bevel=0.03)
     gable(0, 0, 1.08, 1.6, 2.4, 0.9, '#6E4C38', overhang=0.42)
-    gable(0, 0, 1.13, 1.5, 2.3, 0.86, SNOW, overhang=0.36)
+    gable(0, 0, 1.15, 1.5, 2.3, 0.9, SNOW, overhang=0.36)
     for y in (-0.7, 0.0, 0.7): window((0.81, y, 0.65), 0.3, 0.35, glow=True, rot=(0, 0, 90))
     box((1.05, 0, 0.75), (0.45, 2.2, 0.06), WOOD_D, bevel=0.01)
     for y in (-1.0, -0.5, 0.0, 0.5, 1.0): limb((1.25, y, 0.75), (1.25, y, 1.0), 0.02, 0.02, WOOD_D, line=0.008)
