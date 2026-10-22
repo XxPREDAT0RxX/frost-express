@@ -23,11 +23,27 @@ jobs:
           echo "$PWD/blender-4.2.3-linux-x64" >> $GITHUB_PATH
       - name: Render
         run: |
+          pip install -q pillow || true
           for s in blender/*.py; do
             name=$(basename "$s" .py)
-            blender -b -P "$s" -- "out/$name" 2>&1 | grep -E "frame|Error|Traceback|error" | tail -200
-            ffmpeg -v error -y -stream_loop 2 -framerate 12 -i "out/$name/f%03d.png" -filter_complex "color=c=0xEAF4EE:s=384x480[b];[b][0]overlay=shortest=1,format=yuv420p" "out/${name}_preview.mp4"
+            blender -b -P "$s" -- "out/$name" 2>&1 | grep -E "^done|Error|Traceback|error|line [0-9]" | tail -200
             (cd out && zip -qr "${name}_frames.zip" "$name")
+            python3 - "out/$name" "out/${name}_lineup.png" <<'PY' || true
+          import sys, os
+          from PIL import Image
+          d, out = sys.argv[1], sys.argv[2]
+          chars = sorted(x for x in os.listdir(d) if os.path.isdir(os.path.join(d, x)))
+          if chars:
+              names = ['idle_00', 'walk_02', 'side_02', 'sit_00']
+              im0 = Image.open(os.path.join(d, chars[0], 'idle_00.png'))
+              W = Image.new('RGBA', (im0.width * len(chars), im0.height * len(names)), (234, 244, 238, 255))
+              for k, c in enumerate(chars):
+                  for r, n in enumerate(names):
+                      p = os.path.join(d, c, n + '.png')
+                      if os.path.exists(p):
+                          W.alpha_composite(Image.open(p).convert('RGBA'), (k * im0.width, r * im0.height))
+              W.save(out)
+          PY
           done
           ls -la out
       - name: Publish
@@ -37,5 +53,5 @@ jobs:
           name: Blender render ${{ github.run_number }}
           prerelease: true
           files: |
-            out/*_preview.mp4
             out/*_frames.zip
+            out/*_lineup.png
