@@ -8,7 +8,14 @@ import os, sys
 
 def SPEC_HOOK(g):
     hair_cap, ponytail, pigtails, bun, side_part, spikes = g['hair_cap'], g['ponytail'], g['pigtails'], g['bun'], g['side_part'], g['spikes']
-    sun_hat, cap, bucket_hat, headphones, mustache, long_hair = g['sun_hat'], g['cap'], g['bucket_hat'], g['headphones'], g['mustache'], g['long_hair']
+    sun_hat, bucket_hat, headphones, mustache, long_hair = g['sun_hat'], g['bucket_hat'], g['headphones'], g['mustache'], g['long_hair']
+    sphere, HC, HA, HB, HCZ = g['sphere'], g['HC'], g['HA'], g['HB'], g['HCZ']
+
+    def cap(col, brim):
+        """A baseball cap deep enough to cover the hair on top, peak to the front."""
+        return [sphere((0, 0.04, HC.z + 0.19), 1.0, (HA * 1.1, HB * 1.16, HCZ * 0.74), col, seg=48),
+                sphere((0, -0.31, HC.z + 0.15), 1.0, (0.21, 0.15, 0.024), brim, rot=(-10, 0, 0)),
+                sphere((0, 0.04, HC.z + 0.43), 0.03, (1, 1, 0.6), brim, seg=12, line=0.006)]
     return [
         # s01 boy: red cap, yellow tee, blue shorts, sneakers
         dict(name='s01', skin='wheat', scale=0.82, coat='#F7D25C', pants='#4A7BC8', boots='#F2F2F2', shorts=True, short_sleeve=True,
