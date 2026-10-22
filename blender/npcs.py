@@ -199,9 +199,18 @@ def build(spec):
     # ---- legs and boots
     for sx in (-1, 1):
         hip = empty('hip', (sx * 0.085, 0, 0.36), root)
-        leg = tube((sx * 0.085, 0, 0.36), (sx * 0.085, 0, 0.09), 0.062, spec['pants'])
-        boot = sphere((sx * 0.085, -0.025, 0.055), 1.0, (0.075, 0.1, 0.06), spec['boots'])
-        parts = [leg, boot]
+        if spec.get('shorts'):   # bare legs under short trousers or a skirt
+            leg = tube((sx * 0.085, 0, 0.36), (sx * 0.085, 0, 0.09), 0.05, skin)
+            parts = [leg, tube((sx * 0.085, 0, 0.37), (sx * 0.085, 0, 0.25), 0.068, spec['pants'])]
+        else:
+            leg = tube((sx * 0.085, 0, 0.36), (sx * 0.085, 0, 0.09), 0.062, spec['pants'])
+            parts = [leg]
+        if spec.get('sandals'):
+            boot = sphere((sx * 0.085, -0.025, 0.03), 1.0, (0.07, 0.1, 0.03), spec['boots'])
+            parts.append(sphere((sx * 0.085, -0.03, 0.06), 1.0, (0.05, 0.075, 0.035), skin, line=0.008))
+        else:
+            boot = sphere((sx * 0.085, -0.025, 0.055), 1.0, (0.075, 0.1, 0.06), spec['boots'])
+        parts.append(boot)
         if spec.get('cuff'):
             parts.append(ring((sx * 0.085, 0, 0.11), 0.063, 0.022, spec['cuff']))
         for o in parts: setp(o, hip)
@@ -241,9 +250,14 @@ def build(spec):
     # ---- arms
     for sx in (-1, 1):
         sh = empty('shoulder', (sx * 0.19, 0, 0.76), body)
-        arm = tube((sx * 0.19, 0, 0.76), (sx * 0.235, 0, 0.53), 0.052, spec.get('sleeve', spec['coat']), mat=spec.get('coat_mat'))
+        if spec.get('short_sleeve'):   # bare arm with a short sleeve at the shoulder
+            arm = tube((sx * 0.19, 0, 0.76), (sx * 0.235, 0, 0.53), 0.042, skin)
+            parts = [arm, tube((sx * 0.19, 0, 0.77), (sx * 0.207, 0, 0.67), 0.058, spec.get('sleeve', spec['coat']), mat=spec.get('coat_mat'))]
+        else:
+            arm = tube((sx * 0.19, 0, 0.76), (sx * 0.235, 0, 0.53), 0.052, spec.get('sleeve', spec['coat']), mat=spec.get('coat_mat'))
+            parts = [arm]
         hand = sphere((sx * 0.24, -0.005, 0.5), 0.05, (1, 1, 1), spec.get('mitten', skin), seg=24)
-        parts = [arm, hand]
+        parts.append(hand)
         if sx > 0 and spec.get('briefcase'):
             col = spec['briefcase']
             parts.append(box((0.25, -0.01, 0.37), (0.06, 0.2, 0.15), col, bevel=0.3))
@@ -281,6 +295,11 @@ def build(spec):
     if spec.get('bindi'):
         z = HC.z + 0.055
         hp.append(sphere((0, face_y(0, z, 0.002), z), 0.014, (1, 0.4, 1), spec['bindi'], line=0, seg=12))
+    if spec.get('sunglasses'):
+        for sx in (-1, 1):
+            x = sx * 0.12
+            hp.append(sphere((x, face_y(x, ez, 0.012), ez + 0.005), 1.0, (0.07, 0.016, 0.055), spec['sunglasses'], line=0.008, seg=24))
+        hp.append(tube((-0.05, face_y(0, ez, 0.02), ez + 0.02), (0.05, face_y(0, ez, 0.02), ez + 0.02), 0.008, '#2B2220', line=0))
     if spec.get('glasses'):
         for sx in (-1, 1):
             x = sx * 0.12
@@ -376,6 +395,19 @@ def dupatta(col):
     """A shawl over the head, framing the face, falling behind the shoulders."""
     return [shell((0, 0.03, HC.z + 0.03), (HA * 1.16, HB * 1.2, HCZ * 1.14), col, 62, tilt=0.25),
             sphere((0, 0.12, HC.z - 0.3), 1.0, (0.33, 0.15, 0.3), col, shade=0.85)]
+def sun_hat(col, band):
+    """A wide-brimmed straw sun hat."""
+    return [sphere((0, 0.02, HC.z + 0.2), 1.0, (HA * 0.95, HB * 1.0, 0.17), col, seg=48),
+            sphere((0, 0.0, HC.z + 0.14), 1.0, (0.56, 0.54, 0.035), col, seg=56, shade=0.85),
+            ring((0, 0.02, HC.z + 0.17), HA * 0.9, 0.03, band, sc_=(1, 0.97, 1), line=0.006)]
+def cap(col, brim):
+    """A baseball cap, peak to the front."""
+    return [sphere((0, 0.03, HC.z + 0.16), 1.0, (HA * 1.06, HB * 1.1, HCZ * 0.62), col, seg=48),
+            sphere((0, -0.3, HC.z + 0.13), 1.0, (0.2, 0.14, 0.022), brim, rot=(-10, 0, 0)),
+            sphere((0, 0.03, HC.z + 0.37), 0.03, (1, 1, 0.6), brim, seg=12, line=0.006)]
+def bucket_hat(col):
+    return [sphere((0, 0.02, HC.z + 0.18), 1.0, (HA * 1.05, HB * 1.08, 0.19), col, seg=48),
+            sphere((0, 0.0, HC.z + 0.1), 1.0, (0.45, 0.43, 0.06), col, seg=48, shade=0.85)]
 def hood(col):
     return [shell((0, 0.04, HC.z + 0.02), (HA * 1.2, HB * 1.22, HCZ * 1.16), col, 60, tilt=0.15)]
 def band_over(col, cup, cup_sc, band_r=0.022):
@@ -441,6 +473,9 @@ SPECS = [
          mitten='#F5EAD3', cuff='#F5EAD3', coat_len=0.04,
          head_extra=[lambda: hair_cap('#231B19'), lambda: pigtails('#231B19', '#E0565B')]),
 ]
+# a script can swap in its own cast (blender/npcs_summer.py does) and render only those
+if 'SPEC_HOOK' in globals():
+    SPECS = SPEC_HOOK(globals())
 for s in SPECS:
     if s.get('stripes'): s['coat_mat'] = toon(s['coat'], 0.9, s['stripes'])
 
