@@ -1000,13 +1000,11 @@ def _():
     # mountain chalet: wide roof with deep eaves under snow, timber balcony
     box((0, 0, 0.55), (1.6, 2.4, 1.1), '#B8865A', bevel=0.03, stripes=('#A47448', 5.0))
     box((0, 0, 0.12), (1.75, 2.55, 0.25), '#9AA0A8', bevel=0.03)
-    gable(0, 0, 1.08, 1.6, 2.4, 0.9, '#6E4C38', overhang=0.42)
-    gable(0, 0, 1.15, 1.5, 2.3, 0.9, '#EEF4F8', overhang=0.36)
-    shingles(0, 0, 1.15, 1.5, 2.3, 0.9, '#C9D6E0', n=6)
-    for y in (-0.55, 0.55):   # dormers with warm windows on the track-side slope
-        box((0.45, y, 1.62), (0.42, 0.4, 0.34), '#A47448', bevel=0.03)
-        gable(0.45, y, 1.79, 0.42, 0.4, 0.2, '#EEF4F8', overhang=0.06, along_y=False)
-        window((0.67, y, 1.6), 0.24, 0.2, glow=True, rot=(0, 0, 90))
+    gable(0, 0, 1.08, 1.6, 2.4, 0.9, '#7A553E', overhang=0.42)
+    shingles(0, 0, 1.08, 1.6, 2.4, 0.9, '#5A3A2C', n=7)
+    gable(0, 0, 1.493, 1.2, 2.5, 0.517, '#F3F8FB', overhang=0.1)     # snow on the upper half of the roof
+    for x in (-0.3, 0.3): window((x, -1.205, 0.62), 0.3, 0.32, glow=True)   # lit windows in the front gable
+    window((0, -1.205, 1.35), 0.22, 0.2, glow=True)
     for y in (-0.7, 0.0, 0.7): window((0.81, y, 0.65), 0.3, 0.35, glow=True, rot=(0, 0, 90))
     box((1.05, 0, 0.75), (0.45, 2.2, 0.06), WOOD_D, bevel=0.01)
     for y in (-1.0, -0.5, 0.0, 0.5, 1.0): limb((1.25, y, 0.75), (1.25, y, 1.0), 0.02, 0.02, WOOD_D, line=0.008)
