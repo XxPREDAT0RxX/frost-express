@@ -153,7 +153,7 @@ def shape_poly(kind):
     if kind == 'dome':
         return [(2, B)] + sample(lambda x: B - 57 * math.sqrt(max(0.0, 1 - ((x - 95) / 93) ** 2)), 2, 188, 60)[1:-1] + [(188, B)]
     if kind == 'ogive':
-        return [(2, B)] + sample(lambda x: B - 62 * (1 - abs((x - 95) / 93)) ** 0.62, 2, 188, 60)[1:-1] + [(188, B)]
+        return [(2, B)] + sample(lambda x: B - 62 * (1 - abs((x - 95) / 93) ** 1.6) ** 0.75, 2, 188, 60)[1:-1] + [(188, B)]
     if kind == 'notched':
         return [(2, B), (2, 10), (38, 0), (62, 0), (72, -16), (118, -16), (128, 0), (152, 0), (188, 10), (188, B)]
 
@@ -224,10 +224,10 @@ def stripes(poly, cols):
         band([(x0 + 4, y), (x1 - 4, y)], 2.2, 9.2 + i * 0.05, c, line=0.5)
 
 def spikes(poly, col, n=8):
-    x0, x1 = width_at(poly, 36.5)
+    x0, x1 = width_at(poly, 33)
     for i in range(n):
         x = x0 + 10 + (x1 - x0 - 20) * i / (n - 1)
-        prism([(x - 2.6, 37), (x + 2.6, 37), (x, 41.5)], 0, 2, col, line=0.6)
+        prism([(x - 2.8, 33.2), (x + 2.8, 33.2), (x, 37.6)], 9.4, 10.4, col, line=0.6)
 
 def fins(y, col):
     for s in (-1, 1):
