@@ -123,8 +123,10 @@ def shell(loc, sc_, col, open_deg, tilt=0.3, line=LINE, shade=0.9):
     o = bpy.context.object
     F = Vector((0, -1, -tilt)).normalized(); cmin = math.cos(math.radians(open_deg))
     bm = bmesh.new(); bm.from_mesh(o.data)
-    kill = [v for v in bm.verts if v.co.normalized().dot(F) > cmin]
-    bmesh.ops.delete(bm, geom=kill, context='VERTS'); bm.to_mesh(o.data); bm.free()
+    # slice with a plane: plane ∩ sphere is a circle, so the opening edge is clean and round
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-5,
+                           plane_co=F * cmin, plane_no=F, clear_outer=True)
+    bm.to_mesh(o.data); bm.free()
     o.location = loc; o.scale = sc_
     return reg(finish(o, toon(col, shade), line))
 
