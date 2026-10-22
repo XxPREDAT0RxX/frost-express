@@ -92,10 +92,15 @@ class GameSprites(ctx: Context) {
     /** Profile (facing right) of each chibi, null where there is no side drawing yet. */
     val chibiSide: List<ImageBitmap?> = (1..6).map { load("chibi${it}_side") }
     /** Blender-rendered passengers (blender/npcs.py): idle, front walk and side walk strips. */
-    val npcs: List<NpcLook> = NpcAtlas.CHARS.mapNotNull { strips ->
+    val npcs: List<NpcLook> = NpcAtlas.CHARS.mapNotNull { npcLookOf(it) }
+    /** The same for the hot biomes: summer clothes. */
+    val npcsSummer: List<NpcLook> = NpcAtlas.SUMMER.mapNotNull { npcLookOf(it) }
+    private fun npcLookOf(strips: List<NpcStripInfo>): NpcLook? {
         val a = strips.map { info -> load(info.name)?.let { NpcAnim(it, info) } }
-        if (a.size == 3 && a.all { it != null }) NpcLook(a[0]!!, a[1]!!, a[2]!!) else null
+        return if (a.size == 3 && a.all { it != null }) NpcLook(a[0]!!, a[1]!!, a[2]!!) else null
     }
+    /** Looping roadside animations (blender/scenery_anim.py): strip of square frames per scenery name, and its frame rate. */
+    val sceneAnims: Map<String, Pair<ImageBitmap, Float>> = SCENE_ANIM_FPS.mapNotNull { (n, fps) -> load("spra_$n")?.let { n to (it to fps) } }.toMap()
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
     val summer: List<ImageBitmap> = (1..8).mapNotNull { load("npc_sum$it") }
@@ -104,6 +109,13 @@ class GameSprites(ctx: Context) {
         load("floor_$i")?.let { androidx.compose.ui.graphics.ShaderBrush(androidx.compose.ui.graphics.ImageShader(it, androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated)) }
     }
 }
+
+/** Scenery items that have a looping animation strip, with frames per second. */
+private val SCENE_ANIM_FPS = mapOf(
+    "tree_round" to 6f, "tree_tall" to 6f, "acacia" to 5f, "palm" to 6f, "v_palm" to 6f, "v_banana" to 6f, "v_bamboo" to 6f,
+    "jungle" to 6f, "grass_tuft" to 7f, "v_vgrass" to 7f, "flowers" to 6f, "frost_pine_a" to 5f, "frost_pine_b" to 5f,
+    "frost_pine_c" to 5f, "fern" to 6f, "turbine" to 10f, "campfire" to 10f, "lighthouse" to 4f,
+)
 
 /** Loads the sprites once (can be warmed up on a background thread at start). */
 object SpriteBank {

@@ -220,6 +220,16 @@ private fun DrawScope.texRect(
     }
 }
 
+/** One square frame of an animation strip (frames side by side), picked by [frame] (wraps around). */
+private fun DrawScope.spriteFrame(strip: ImageBitmap, cx: Float, cy: Float, side: Float, frame: Float) {
+    val fs = strip.height
+    val n = max(1, strip.width / fs)
+    val f = Math.floorMod(frame.toInt(), n)
+    val s = side.toInt().coerceAtLeast(1)
+    drawImage(strip, srcOffset = IntOffset(f * fs, 0), srcSize = IntSize(fs, fs),
+        dstOffset = IntOffset((cx - side / 2f).toInt(), (cy - side / 2f).toInt()), dstSize = IntSize(s, s))
+}
+
 private fun DrawScope.sprite(img: ImageBitmap, cx: Float, cy: Float, side: Float) {
     val s = side.toInt().coerceAtLeast(1)
     drawImage(img, dstOffset = IntOffset((cx - side / 2f).toInt(), (cy - side / 2f).toInt()), dstSize = IntSize(s, s))
@@ -1056,8 +1066,8 @@ private fun DrawScope.drawLeaversInside() {
         if (tt < 0f) {
             // still in the seat
             val c = sp.chibis.getOrNull(Math.floorMod(p.sprite, max(1, sp.chibis.size)))
-            val look = npcLook(p.sprite)
-            if (!p.warm && look != null) {
+            val look = npcLook(p.sprite, p.warm)
+            if (look != null) {
                 drawNpcSeated(look, p.seatX * u, (p.seatY + NPC_SEAT_FEET) * u, NPC_SEAT_H * u, sceneClock + p.sprite * 0.37f, (p.seatY + 5f) * u)
             } else if (!p.warm && c != null) {
                 val pic = c.first; val h = 23f; val w = h * pic.width / pic.height
@@ -1076,7 +1086,7 @@ private fun DrawScope.drawLeaversInside() {
         face /= 5f
         val img = if (!p.warm && full.isNotEmpty()) full[Math.floorMod(p.sprite, full.size)] else if (pool.isNotEmpty()) pool[Math.floorMod(p.sprite, pool.size)] else null
         val side = if (!p.warm) sp.chibiSide.getOrNull(Math.floorMod(p.sprite, max(1, sp.chibiSide.size))) else null
-        sceneBoarders.add(BoardWalker(img, pos.x, pos.y, p.sprite * 0.9f, face < 0f, side, face, if (!p.warm) npcLook(p.sprite) else null))
+        sceneBoarders.add(BoardWalker(img, pos.x, pos.y, p.sprite * 0.9f, face < 0f, side, face, npcLook(p.sprite, p.warm)))
     }
 }
 
@@ -1154,9 +1164,10 @@ private fun walkPath(pts: List<Offset>, f: Float): Pair<Offset, Float> {
 /** Passengers still walking to their seat this frame: filled while the cars are drawn, drawn and used by the doors after. */
 private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean, val side: androidx.compose.ui.graphics.ImageBitmap? = null, val facing: Float = 0f, val npc: NpcLook? = null)
 
-/** The Blender NPC for a rider's sprite number (null until the sprites are loaded). */
-private fun npcLook(sprite: Int): NpcLook? {
-    val l = sceneSprites?.npcs ?: return null
+/** The Blender NPC for a rider's sprite number: winter clothes, or summer ones in the hot biomes (null if none). */
+private fun npcLook(sprite: Int, warm: Boolean = false): NpcLook? {
+    val sp = sceneSprites ?: return null
+    val l = if (warm) sp.npcsSummer else sp.npcs
     return if (l.isEmpty()) null else l[Math.floorMod(sprite, l.size)]
 }
 
@@ -1399,7 +1410,7 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         face /= 5f
         val full = sp2.chibiFull
         drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(pos.x - 7f * u, pos.y + 7f * u), Size(14f * u, 5f * u))
-        val look = if (!p.warm) npcLook(p.sprite) else null
+        val look = npcLook(p.sprite, p.warm)
         if (look != null) {
             drawNpc(look, pos.x, pos.y + 6f * u, NPC_PLATFORM_H * u, sceneClock + p.sprite * 0.37f, sceneClock * 9f + p.sprite, 1f, face, alpha)
         } else if (!p.warm && full.isNotEmpty()) {
@@ -1450,7 +1461,7 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
-    val look = if (!sceneWarm) npcLook(seed) else null
+    val look = npcLook(seed, sceneWarm)
     if (look != null) {
         drawNpc(look, px, py + 6f * u, NPC_PLATFORM_H * u, sceneClock + seed * 0.37f, walkPhase, moving, facing, alpha)
         return
@@ -1562,7 +1573,9 @@ private fun DrawScope.drawDecorItem(kind: Int, x: Float, y: Float, r: Float, zon
         val img = art.byName[name]
         if (img != null) {
             val side = when (kind) { 1 -> r / 0.4f; 2, 6 -> r / 0.31f; else -> r / 0.35f }
-            sprite(img, x, y, side)
+            val anim = sceneSprites?.sceneAnims?.get(name)
+            if (anim != null) spriteFrame(anim.first, x, y, side, sceneClock * anim.second + (pick % 97) * 0.61f)
+            else sprite(img, x, y, side)
             if (name == "v_house_a" && fxDark > 0.02f) {
                 val c = Offset(x + 0.16f * side, y + 0.08f * side)
                 val rr = side * 0.3f
@@ -1817,7 +1830,7 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
             // down the aisle facing us, then a quick turn to walk sideways to the seat
             val turn = ((t - a) / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
             val sideImg = if (!pax.warm) sp?.chibiSide?.let { l -> l.getOrNull(Math.floorMod(pax.sprite, l.size)) } else null
-            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X, sideImg, turn * (if (cx < AISLE_X) -1f else 1f), if (!pax.warm) npcLook(pax.sprite) else null))
+            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X, sideImg, turn * (if (cx < AISLE_X) -1f else 1f), npcLook(pax.sprite, pax.warm)))
         }
         pax = null
     }
@@ -1838,7 +1851,7 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
         val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
         val chibis = sp?.chibis
         val seed = pax.sprite * 1.7f + cx * 0.13f + cy * 0.07f
-        val look = if (!pax.warm) npcLook(pax.sprite) else null
+        val look = npcLook(pax.sprite, pax.warm)
         if (look != null) {
             // Blender NPC: breathes, sways and blinks; the cushion drawn next hides everything below the waist
             drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))

@@ -1,6 +1,6 @@
 """Packs the Blender NPC renders (blender/npcs.py, release blender-N npcs_frames.zip) into sprite strips.
 
-    python3 store_assets/make_npc_strips.py <unzipped npcs folder>
+    python3 store_assets/make_npc_strips.py <unzipped npcs folder> [<unzipped npcs_summer folder>]
 
 For every character (c1..c6, n07..) and animation it writes app/src/main/res/drawable-nodpi/npc_<id>_<anim>.webp:
 frames side by side, each cropped to the union box of that animation, at half the render size.
@@ -9,39 +9,44 @@ It also writes NpcAtlas.kt with the crop boxes so the game can place every frame
 import os, sys
 from PIL import Image
 
-SRC = sys.argv[1]
+SRCS = sys.argv[1:3]
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(ROOT, 'app/src/main/res/drawable-nodpi')
 KT = os.path.join(ROOT, 'app/src/main/java/com/chetna/frostexpress/NpcAtlas.kt')
 SCALE = 0.5
 ANIMS = [('idle', list(range(0, 24, 2))), ('walk', list(range(8))), ('side', list(range(8)))]
 
-chars = sorted(d for d in os.listdir(SRC) if os.path.isdir(os.path.join(SRC, d)))
-rows = []
+groups = []   # (list name, [(char id, folder)])
+for k, src in enumerate(SRCS):
+    cs = sorted(d for d in os.listdir(src) if os.path.isdir(os.path.join(src, d)))
+    groups.append(('CHARS' if k == 0 else 'SUMMER', [(c, os.path.join(src, c)) for c in cs]))
+rows = {}
 total = 0
-for c in chars:
-    entry = []
-    for anim, idx in ANIMS:
-        frames = []
-        for i in idx:
-            im = Image.open(os.path.join(SRC, c, '%s_%02d.png' % (anim, i))).convert('RGBA')
-            im = im.resize((round(im.width * SCALE), round(im.height * SCALE)), Image.LANCZOS)
-            frames.append(im)
-        x0 = y0 = 10 ** 9; x1 = y1 = 0
-        for f in frames:
-            b = f.getchannel('A').point(lambda a: 255 if a > 8 else 0).getbbox()
-            x0, y0, x1, y1 = min(x0, b[0]), min(y0, b[1]), max(x1, b[2]), max(y1, b[3])
-        x0, y0 = max(0, x0 - 1), max(0, y0 - 1)
-        x1, y1 = min(frames[0].width, x1 + 1), min(frames[0].height, y1 + 1)
-        w, h = x1 - x0, y1 - y0
-        strip = Image.new('RGBA', (w * len(frames), h), (0, 0, 0, 0))
-        for k, f in enumerate(frames):
-            strip.paste(f.crop((x0, y0, x1, y1)), (k * w, 0))
-        out = os.path.join(RES, 'npc_%s_%s.webp' % (c, anim))
-        strip.save(out, 'WEBP', quality=92, method=6, alpha_quality=100)
-        total += os.path.getsize(out)
-        entry.append((anim, len(frames), x0, y0, w, h))
-    rows.append((c, entry))
+for gname, chars in groups:
+  rows[gname] = []
+  for c, folder in chars:
+      entry = []
+      for anim, idx in ANIMS:
+          frames = []
+          for i in idx:
+              im = Image.open(os.path.join(folder, '%s_%02d.png' % (anim, i))).convert('RGBA')
+              im = im.resize((round(im.width * SCALE), round(im.height * SCALE)), Image.LANCZOS)
+              frames.append(im)
+          x0 = y0 = 10 ** 9; x1 = y1 = 0
+          for f in frames:
+              b = f.getchannel('A').point(lambda a: 255 if a > 8 else 0).getbbox()
+              x0, y0, x1, y1 = min(x0, b[0]), min(y0, b[1]), max(x1, b[2]), max(y1, b[3])
+          x0, y0 = max(0, x0 - 1), max(0, y0 - 1)
+          x1, y1 = min(frames[0].width, x1 + 1), min(frames[0].height, y1 + 1)
+          w, h = x1 - x0, y1 - y0
+          strip = Image.new('RGBA', (w * len(frames), h), (0, 0, 0, 0))
+          for k, f in enumerate(frames):
+              strip.paste(f.crop((x0, y0, x1, y1)), (k * w, 0))
+          out = os.path.join(RES, 'npc_%s_%s.webp' % (c, anim))
+          strip.save(out, 'WEBP', quality=92, method=6, alpha_quality=100)
+          total += os.path.getsize(out)
+          entry.append((anim, len(frames), x0, y0, w, h))
+      rows[gname].append((c, entry))
 fw, fh = round(176 * SCALE), round(248 * SCALE)
 with open(KT, 'w') as f:
     f.write('package com.chetna.frostexpress\n\n')
@@ -52,8 +57,11 @@ with open(KT, 'w') as f:
     f.write('    /** Feet line of the renders (px from the top) and the height of a grown-up from feet to hat top. */\n')
     f.write('    const val FEET_Y = %d\n    const val ADULT_H = %d\n' % (round(240 * SCALE), round(236 * SCALE)))
     f.write('    /** Per character: idle, walk (front), side (three-quarter, facing right). */\n')
-    f.write('    val CHARS: List<List<NpcStripInfo>> = listOf(\n')
-    for c, entry in rows:
-        f.write('        listOf(' + ', '.join('NpcStripInfo("npc_%s_%s", %d, %d, %d, %d, %d)' % ((c,) + e) for e in entry) + '),\n')
-    f.write('    )\n}\n')
-print('chars', len(chars), 'bytes', total)
+    for gname in ('CHARS', 'SUMMER'):
+        if gname == 'SUMMER': f.write('    /** Warm-weather passengers for the hot biomes, same layout. */\n')
+        f.write('    val %s: List<List<NpcStripInfo>> = listOf(\n' % gname)
+        for c, entry in rows.get(gname, []):
+            f.write('        listOf(' + ', '.join('NpcStripInfo("npc_%s_%s", %d, %d, %d, %d, %d)' % ((c,) + e) for e in entry) + '),\n')
+        f.write('    )\n')
+    f.write('}\n')
+print('chars', sum(len(v) for v in rows.values()), 'bytes', total)

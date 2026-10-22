@@ -30,4 +30,15 @@ object NpcAtlas {
         listOf(NpcStripInfo("npc_n15_idle", 12, 14, 7, 62, 114), NpcStripInfo("npc_n15_walk", 8, 13, 6, 63, 114), NpcStripInfo("npc_n15_side", 8, 12, 6, 65, 115)),
         listOf(NpcStripInfo("npc_n16_idle", 12, 11, 31, 67, 90), NpcStripInfo("npc_n16_walk", 8, 10, 30, 68, 90), NpcStripInfo("npc_n16_side", 8, 21, 30, 47, 91)),
     )
+    /** Warm-weather passengers for the hot biomes, same layout. */
+    val SUMMER: List<List<NpcStripInfo>> = listOf(
+        listOf(NpcStripInfo("npc_s01_idle", 12, 18, 24, 54, 97), NpcStripInfo("npc_s01_walk", 8, 17, 23, 54, 97), NpcStripInfo("npc_s01_side", 8, 19, 23, 56, 98)),
+        listOf(NpcStripInfo("npc_s02_idle", 12, 1, 7, 87, 114), NpcStripInfo("npc_s02_walk", 8, 0, 6, 88, 114), NpcStripInfo("npc_s02_side", 8, 5, 6, 83, 115)),
+        listOf(NpcStripInfo("npc_s03_idle", 12, 1, 9, 87, 112), NpcStripInfo("npc_s03_walk", 8, 0, 8, 88, 112), NpcStripInfo("npc_s03_side", 8, 5, 8, 83, 113)),
+        listOf(NpcStripInfo("npc_s04_idle", 12, 11, 31, 67, 90), NpcStripInfo("npc_s04_walk", 8, 10, 30, 68, 90), NpcStripInfo("npc_s04_side", 8, 21, 30, 47, 91)),
+        listOf(NpcStripInfo("npc_s05_idle", 12, 13, 4, 64, 117), NpcStripInfo("npc_s05_walk", 8, 11, 3, 66, 117), NpcStripInfo("npc_s05_side", 8, 14, 3, 68, 118)),
+        listOf(NpcStripInfo("npc_s06_idle", 12, 14, 7, 62, 114), NpcStripInfo("npc_s06_walk", 8, 13, 6, 63, 114), NpcStripInfo("npc_s06_side", 8, 12, 6, 62, 115)),
+        listOf(NpcStripInfo("npc_s07_idle", 12, 9, 3, 72, 118), NpcStripInfo("npc_s07_walk", 8, 7, 2, 74, 118), NpcStripInfo("npc_s07_side", 8, 13, 2, 68, 119)),
+        listOf(NpcStripInfo("npc_s08_idle", 12, 14, 1, 62, 120), NpcStripInfo("npc_s08_walk", 8, 13, 0, 63, 120), NpcStripInfo("npc_s08_side", 8, 15, 0, 61, 121)),
+    )
 }

@@ -28,6 +28,11 @@ Paste this file (or point the new chat to it in the repo) so it can continue whe
 
 - `blender/scenery.py` — every roadside item (67: trees, plants, rocks, village, winter/harbour props, vehicles) plus station buildings `station_t0..t4`, bench and lamp, same toon look. Latest render: `blender-11`. `store_assets/make_env_sprites.py <unzipped scenery folder> [names]` fits each render into the old sprite's slot (`store_assets/env_slots.json`: canvas + drawn box) and overwrites `spr_<name>.webp` / `station_*.webp`, so no code changes are needed. The Blender workflow renders only the scripts a push changed.
 
+- `blender/train.py` — top-down train: nose caps for all 25 tiers (`nose*_fill` tinted body + `nose*_line` outline/decor via a holdout pass), coach walls `car_fill`/`car_line` (side glass) and `car_roof`. Fixed frames match the draw rects, so `store_assets/make_train_sprites.py <folder>` just converts to webp. Latest: `blender-13`.
+- `blender/npcs_summer.py` — 8 warm-weather NPCs (s01..s08) built with the npcs.py kit (`SPEC_HOOK`); packed with `make_npc_strips.py <npcs> <npcs_summer>` into `NpcAtlas.SUMMER`; hot biomes use them (`npcLook(sprite, warm)`). Latest: `blender-16`.
+- `blender/scenery_anim.py` — looping frames (sway for trees/palms/bamboo/grass/flowers, turbine, campfire, lighthouse) reusing scenery.py (`ANIM_HOOK`); packed into `spra_<name>.webp` strips by `make_env_sprites.py`; `SCENE_ANIM_FPS` in Sprites.kt, `spriteFrame` in TrainScene. Latest: `blender-15`. Scenery statics latest: `blender-18`.
+- Upgrade devices / furniture art kept on purpose (already detailed).
+
 ## Art pipeline
 - Gemini sheets on pale mint `#E0F5E9`; cut with numpy/scipy/PIL (flood-fill background from the border, soft alpha, pull edge colour inward to kill mint fringe), save `.webp` in `app/src/main/res/drawable-nodpi/`.
 - Characters in game now: 16 Blender NPCs as frame animations (see above); flat chibi sheet art + `MeshPuppet` only as fallback.
