@@ -208,8 +208,24 @@ def curve_pts(base, d, length, droop, n=10, twist=0.0):
 def snow_cap(loc, r, sc_=(1, 1, 0.35), seed=3, **k):
     return blob(loc, r, sc_, '#F7FBFE', rough=0.12, seed=seed, top=1.0, shade=0.9, **k)
 
-def ground_patch(r, col, seed=7, h=0.0, sc_=(1, 1, 0.08)):
-    return blob((0, 0, h), r, sc_, col, rough=0.12, seed=seed, sub=3)
+def snow_top(o, cut=0.62, grow=1.035, lift=0.012):
+    """Snow lying on [o]: a copy of its surface a touch bigger, kept only above [cut] (0 bottom .. 1 top)."""
+    bpy.context.view_layer.update()
+    me = o.data.copy(); me.materials.clear()
+    me.transform(o.matrix_world)
+    vs = me.vertices
+    ctr = sum((v.co for v in vs), Vector()) / len(vs)
+    for v in vs: v.co = ctr + (v.co - ctr) * grow + Vector((0, 0, lift))
+    zs = [v.co.z for v in vs]; z0 = min(zs) + (max(zs) - min(zs)) * cut
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-5, plane_co=(0, 0, z0), plane_no=(0, 0, 1), clear_inner=True)
+    bm.to_mesh(me); bm.free()
+    c = bpy.data.objects.new('snow', me); sc.collection.objects.link(c)
+    return finish(c, toon(SNOW, top=1.0, shade=0.9), smooth=True)
+
+def ground_patch(r, col, seed=7, h=0.0, sc_=(1, 1, 0.06)):
+    """A soft mound of snow under a snowy item (no outline, so it melts into the snowy ground)."""
+    return blob((0, 0, h), r * 0.8, sc_, col, rough=0.12, seed=seed, sub=3, line=0, top=1.0, shade=0.94)
 
 # ------------------------------------------------------------------ framing and render
 def frame_and_render(name, elev=30.0, yaw=0.0, res=640, pad=1.08, aspect=None):
@@ -289,13 +305,13 @@ def _():
     conifer(1.9, 0.75, 3, False, 15, col='#3F8A5A', trunk_h=0.42)
     rnd = random.Random(5)
     for i in range(14):
-        z = rnd.uniform(0.7, 1.9); f = 1 - (z - 0.6) / 1.5
-        a = rnd.uniform(0, 6.28); rr = 0.7 * f * 0.85 + 0.05
+        z = rnd.uniform(0.62, 1.8); f = max(0.0, 1 - (z - 0.45) / 1.6)
+        a = rnd.uniform(3.5, 5.9); rr = 0.75 * f + 0.06
         sphere((math.cos(a) * rr, math.sin(a) * rr, z), 0.055, (1, 1, 1), rnd.choice([RED, '#F2C14E', '#5E86B8', '#F7FBFE']), seg=12, line=0.008)
     for k in range(5):   # star
         a = k * 2 * math.pi / 5
-        sphere((0.1 * math.cos(a), 0, 2.15 + 0.1 * math.sin(a)), 0.06, (1, 0.5, 1), '#F4C542', seg=10, line=0.008)
-    sphere((0, 0, 2.15), 0.07, (1, 0.6, 1), '#F4C542', seg=12, line=0.008)
+        sphere((0.13 * math.cos(a + 1.57), -0.05, 2.25 + 0.13 * math.sin(a + 1.57)), 0.08, (1, 0.5, 1), '#F4C542', seg=10, line=0.008)
+    sphere((0, -0.05, 2.25), 0.1, (1, 0.6, 1), '#F4C542', seg=12, line=0.008)
     ground_patch(0.6, SNOW, h=0.02)
 
 def broadleaf(seed, trunk_h, canopy, col=LEAF, n=8, spread=0.55, flat=1.0, trunk_r=0.12):
@@ -321,7 +337,6 @@ def _():
     for i in range(9):
         a = rnd.uniform(0, 6.28); d = rnd.uniform(0.2, 0.95)
         blob((math.cos(a) * d * 1.1, math.sin(a) * d * 0.5, 1.42 + rnd.uniform(-0.05, 0.08)), rnd.uniform(0.35, 0.5), (1.4, 1.2, 0.32), '#9DB65A', rough=0.15, seed=i)
-    ground_patch(0.6, '#D9C27A', h=0.0)
 @item('dead_a')
 def _(): dead_tree(31, False)
 @item('dead_b')
@@ -335,11 +350,11 @@ def dead_tree(seed, snowy):
         if snowy and d[2] < 0.9 and depth < 3:
             limb(Vector(a) + Vector((0, 0, r * 0.8)), b + Vector((0, 0, r * 0.55)), r * 0.55, r * 0.3, SNOW, top=1.0, shade=0.92, line=LINE[0] * 0.6)
         if depth == 0: return
-        for k in range(2 if depth < 3 else 3):
+        for k in range(3):
             nd = Vector(d) + Vector((rnd.uniform(-0.9, 0.9), rnd.uniform(-0.6, 0.6), rnd.uniform(0.1, 0.5)))
             branch(b, nd, length * rnd.uniform(0.55, 0.72), r * 0.62, depth - 1)
     branch((0, 0, 0), (0, 0, 1), 0.9, 0.12, 3)
-    ground_patch(0.55, SNOW if snowy else '#C9D6DE', h=0.0)
+    if snowy: ground_patch(0.55, SNOW, h=0.0)
 
 @item('palm')
 def _(): palm(41, 1.9, 7, '#6DB45A')
@@ -432,21 +447,20 @@ def bush(seed, r, col, n=6, flat=0.8):
 def _():
     bush(51, 0.55, '#6DB45A', n=7)
     rnd = random.Random(2)
-    for i in range(16):
-        a = rnd.uniform(0, 6.28); z = rnd.uniform(0.35, 0.95); rr = 0.62 * (1 - (z - 0.3) * 0.5)
-        flower((math.cos(a) * rr, math.sin(a) * rr - 0.05, z), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA']))
+    for i in range(14):
+        a = rnd.uniform(3.6, 5.9); z = rnd.uniform(0.3, 0.85); rr = 0.66 * (1 - ((z - 0.45) / 0.6) ** 2) + 0.2
+        flower((math.cos(a) * rr, math.sin(a) * rr, z), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA']))
 @item('snow_bush')
 def _():
+    n0 = len(CUR)
     bush(52, 0.6, '#5E9C7A', n=7)
-    rnd = random.Random(3)
-    for i in range(6):
-        a = rnd.uniform(0, 6.28)
-        snow_cap((math.cos(a) * 0.35, math.sin(a) * 0.3, 0.75 + rnd.uniform(0, 0.2)), 0.35, (1.2, 1, 0.4), seed=i)
+    for o in CUR[n0:]: snow_top(o, cut=0.55)
     ground_patch(0.85, SNOW, h=0.0)
 @item('frost_shrub')
 def _():
+    n0 = len(CUR)
     bush(53, 0.45, '#7FB8A0', n=5, flat=0.65)
-    snow_cap((0, 0, 0.62), 0.42, (1.3, 1.1, 0.35))
+    for o in CUR[n0:]: snow_top(o, cut=0.6)
     for x in (-0.18, 0.2):
         sphere((x, -0.38, 0.35), 0.06, (1, 1, 1), '#D9534F', seg=12)
 @item('v_vbush')
@@ -454,7 +468,7 @@ def _():
     bush(54, 0.6, '#3F7F45', n=8)
     rnd = random.Random(4)
     for i in range(22):
-        a = rnd.uniform(0, 6.28); z = rnd.uniform(0.3, 1.0); rr = 0.66 * (1 - (z - 0.3) * 0.45)
+        a = rnd.uniform(3.4, 6.0); z = rnd.uniform(0.25, 0.85); rr = 0.6 * (1 - ((z - 0.45) / 0.65) ** 2) + 0.25
         sphere((math.cos(a) * rr, math.sin(a) * rr, z), 0.035, (1, 1, 1), '#B48AD6', seg=8, line=0.006)
 
 def grass(seed, n, col, col2, h=0.6, spread=0.35, width=0.07):
@@ -467,9 +481,9 @@ def grass(seed, n, col, col2, h=0.6, spread=0.35, width=0.07):
         strip(curve_pts(base, d, hh, hh * 0.25, n=6), [width, width * 0.85, width * 0.7, width * 0.5, width * 0.3, 0.005], col if i % 2 else col2, thick=0.012, line=LINE[0] * 0.6)
 
 @item('grass_tuft')
-def _(): grass(61, 14, '#E2B84E', '#C99B3A', h=0.7); ground_patch(0.45, '#D9C27A')
+def _(): grass(61, 14, '#E2B84E', '#C99B3A', h=0.7)
 @item('v_vgrass')
-def _(): grass(62, 26, '#2F6E3A', '#3F8A45', h=0.85, spread=0.9, width=0.08)
+def _(): grass(62, 26, '#2F6E3A', '#3F8A45', h=0.85, spread=0.55, width=0.08)
 @item('dry_bush')
 def _():
     rnd = random.Random(63)
@@ -479,7 +493,6 @@ def _():
         tip = Vector((math.cos(a) * 0.45, math.sin(a) * 0.45, rnd.uniform(0.6, 0.85)))
         limb((0, 0, 0), mid, 0.03, 0.022, '#B08A4E'); limb(mid, tip, 0.022, 0.01, '#B08A4E')
         limb(mid, mid + Vector((math.cos(a + 1) * 0.2, math.sin(a + 1) * 0.2, 0.25)), 0.015, 0.008, '#B08A4E')
-    ground_patch(0.45, '#E2CFA0')
 
 def flower(loc, r, col, center='#F4C542'):
     loc = Vector(loc)
@@ -494,7 +507,6 @@ def _():
         limb((x, y, 0), (x, y, h), 0.018, 0.015, '#5E9E45')
         strip(curve_pts((x, y, h * 0.3), (0.6, -0.2, 0.6), 0.22, 0.05, n=5), [0.02, 0.08, 0.08, 0.05, 0.01], '#6DB45A', thick=0.01, line=0.006)
         flower((x, y, h), 0.09, c)
-    ground_patch(0.5, '#8FC86A')
 
 @item('cactus')
 def _():
@@ -509,7 +521,6 @@ def _():
     flower((0, -0.05, 1.83), 0.08, '#F28FB0')
     # a little one beside it
     sphere((0.5, -0.25, 0.22), 0.22, (1, 1, 1.05), G, seg=24); flower((0.5, -0.3, 0.46), 0.05, '#F7D25C')
-    ground_patch(0.7, SAND)
 @item('cactus_ball')
 def _():
     G = '#5FA05A'
@@ -518,7 +529,6 @@ def _():
         a = 2 * math.pi * k / 10
         ring((0, 0, 0.32), 0.36, 0.012, '#4A8A48', sc_=(1, 1, 0.9), rot=(90, 0, math.degrees(a)), line=0, seg=32)
     flower((0, -0.05, 0.66), 0.07, '#F28FB0')
-    ground_patch(0.5, SAND)
 
 # ================================================================== rocks and land
 @item('boulder')
@@ -527,8 +537,7 @@ def _():
     blob((0.75, -0.35, 0.18), 0.3, (1.1, 1, 0.7), ROCK, rough=0.2, seed=72, flat_bottom=True)
 @item('rock_a')
 def _():
-    blob((0, 0, 0.42), 0.7, (1.2, 1, 0.6), ROCK, rough=0.2, seed=73, flat_bottom=True)
-    snow_cap((0.05, 0.05, 0.78), 0.45, (1.3, 1.1, 0.25))
+    snow_top(blob((0, 0, 0.42), 0.7, (1.2, 1, 0.6), ROCK, rough=0.2, seed=73, flat_bottom=True), cut=0.6)
     blob((-0.75, -0.3, 0.12), 0.22, (1.2, 1, 0.7), ROCK_D, rough=0.2, seed=74)
 @item('rock_b')
 def _():
@@ -542,16 +551,15 @@ def _():
     cols = ['#D9774A', '#E58F5C', '#C8643C', '#E8A06A']
     rnd = random.Random(76)
     z = 0
-    for i, (r, h) in enumerate(((1.0, 0.35), (0.92, 0.3), (0.85, 0.3), (0.8, 0.28))):
-        blob((rnd.uniform(-0.05, 0.05), 0, z + h / 2), 1.0, (r * 1.2, r * 0.9, h * 0.62), cols[i], rough=0.07, seed=80 + i, sub=3)
-        z += h * 0.92
+    for i, (r, h) in enumerate(((1.0, 0.45), (0.9, 0.42), (0.78, 0.4), (0.66, 0.34))):
+        blob((rnd.uniform(-0.06, 0.06), rnd.uniform(-0.04, 0.04), z + h / 2), 1.0, (r * 1.15, r * 0.85, h * 0.7), cols[i], rough=0.1, seed=80 + i, sub=2, smooth=False)
+        z += h * 0.88
     blob((0.95, -0.5, 0.22), 0.3, (1, 1, 0.8), '#C8643C', rough=0.2, seed=77)
 @item('cliff')
 def _():
     rnd = random.Random(78)
     for i, (x, y, h, r) in enumerate(((-0.5, 0.1, 1.5, 0.45), (0.1, 0.2, 1.9, 0.5), (0.6, 0.0, 1.3, 0.45), (-0.1, -0.3, 0.9, 0.42), (0.55, -0.35, 0.6, 0.35))):
-        blob((x, y, h / 2), 1.0, (r, r * 0.85, h / 2), '#8C939C' if i % 2 else '#A3AAB2', rough=0.12, seed=90 + i, smooth=False)
-        snow_cap((x, y, h + 0.02), r * 0.85, (1.1, 1, 0.3), seed=i)
+        snow_top(blob((x, y, h / 2), 1.0, (r, r * 0.85, h / 2), '#8C939C' if i % 2 else '#A3AAB2', rough=0.12, seed=90 + i, sub=2, smooth=False), cut=0.72)
     ground_patch(1.1, SNOW)
 @item('ice')
 def _():
@@ -575,8 +583,7 @@ def _():
             limb((x, -0.55, z + 0.15), (x, 0.55, z + 0.15), 0.14, 0.14, BARK)
             sphere((x, -0.555, z + 0.15), 0.135, (1, 0.1, 1), '#E8C48E', seg=20, line=0)
             ring((x, -0.565, z + 0.15), 0.07, 0.008, '#B88A5A', rot=(90, 0, 0), line=0)
-    snow_cap((0, 0, 0.8), 0.5, (1.0, 1.3, 0.22))
-    snow_cap((-0.4, 0.1, 0.5), 0.3, (1, 1.4, 0.2))
+    for o in [o for o in CUR if o.location.z > 0.6 and o.name.startswith('Cone')]: snow_top(o, cut=0.55)
     # an axe in a stump
     limb((0.95, -0.2, 0), (0.95, -0.2, 0.3), 0.18, 0.18, BARK); sphere((0.95, -0.2, 0.3), 0.175, (1, 1, 0.08), '#E8C48E', seg=20, line=0)
     limb((0.95, -0.2, 0.32), (1.2, -0.25, 0.75), 0.02, 0.02, '#A8774E')
@@ -733,7 +740,7 @@ def _():
     thatch_roof(0, 0, 1.6, 0.42, 0.38, 0.25, '#5E9C7A', overhang=0.08).rotation_euler = (0, 0, math.radians(90))
     sphere((0, -0.2, 1.42), 0.06, (1, 0.3, 1), '#2E3A44', seg=14, line=0)
     limb((0, -0.2, 1.33), (0, -0.3, 1.33), 0.012, 0.012, WOOD_D, line=0)
-    snow_cap((0, 0, 1.8), 0.22, (1, 1.4, 0.35))
+    snow_top(CUR[2], cut=0.55)
     ground_patch(0.4, SNOW)
 @item('campfire')
 def _():
@@ -744,16 +751,17 @@ def _():
         r = math.radians(a)
         limb((math.cos(r) * 0.42, math.sin(r) * 0.32, 0.05), (-math.cos(r) * 0.08, -math.sin(r) * 0.06, 0.65), 0.07, 0.06, BARK)
         limb((-math.cos(r) * 0.42, -math.sin(r) * 0.32, 0.05), (math.cos(r) * 0.08, math.sin(r) * 0.06, 0.65), 0.07, 0.06, BARK_D)
-    cone((0, 0, 0.05), 0.3, 0.0, 0.85, '#F08A3C', verts=12, flat=True, line=0.012)
-    cone((0.05, -0.05, 0.05), 0.2, 0.0, 0.6, '#F7D25C', verts=10, flat=True, line=0)
-    cone((-0.15, 0.0, 0.05), 0.12, 0.0, 0.45, '#F4A24C', verts=10, flat=True, line=0.01)
+    sphere((0, 0, 0.32), 0.17, (1, 1, 1.9), '#F08A3C', seg=16, flat=True, line=0.012)
+    cone((0, 0, 0.5), 0.15, 0.0, 0.3, '#F08A3C', verts=16, flat=True, line=0.012)
+    sphere((0.02, -0.06, 0.26), 0.1, (1, 1, 1.8), '#F7D25C', seg=14, flat=True, line=0)
+    sphere((-0.17, 0.02, 0.22), 0.08, (1, 1, 2.0), '#F4A24C', seg=12, flat=True, line=0.01)
+    sphere((0.16, 0.0, 0.2), 0.07, (1, 1, 2.0), '#F4A24C', seg=12, flat=True, line=0.01)
 @item('tent', yaw=-30)
 def _():
     thatch_roof(0, 0, 0.0, 1.1, 1.4, 1.2, '#C9A26E', overhang=0.0).rotation_euler = (0, 0, math.radians(90))
     V = [(-0.3, -0.71, 0.0), (0.0, -0.71, 1.0), (0.05, -0.71, 0.0)]
     mesh_obj([(-0.35, -0.72, 0.02), (0.0, -0.72, 0.9), (0.15, -0.72, 0.02)], [(0, 1, 2)], '#5A4636', line=0, smooth=False, flat=True)
     for y in (-0.75, 0.75): limb((0, y, 0), (0, y, 1.35), 0.03, 0.03, WOOD_D)
-    for s in (-1, 1): limb((s * 0.55, -0.75, 0.0), (s * 0.95, -1.0, 0.0), 0.01, 0.01, '#E8E2D4', line=0)
 @item('lamp')
 def _():
     limb((0, 0, 0), (0, 0, 0.12), 0.16, 0.16, DARK)
@@ -775,14 +783,14 @@ def _():
     limb((0, 0, 0), (0, 0, 1.5), 0.045, 0.045, '#9AA0A8')
     sphere((0, -0.04, 1.75), 0.38, (1, 0.08, 1), '#B8BEC6', seg=32)
     ring((0, -0.07, 1.75), 0.34, 0.025, '#E5484D', rot=(90, 0, 0))
-    snow_cap((0, 0, 2.12), 0.14, (1.6, 0.6, 0.3))
+
 @item('container', yaw=-25)
 def _():
     box((0, 0, 0.55), (2.4, 1.0, 1.1), '#7E8A96', bevel=0.03, stripes=('#6E7A86', 6.0, 'X'))
     box((-1.2, 0, 0.55), (0.04, 1.02, 1.12), '#5E6A76', bevel=0.01)
     for y in (-0.25, 0.25): limb((-1.23, y, 0.15), (-1.23, y, 0.95), 0.02, 0.02, '#4A5460', line=0.006)
     blob((0.6, 0.1, 1.05), 0.35, (2.4, 1.2, 0.15), '#B8724A', rough=0.3, seed=2, line=0)   # rust
-    snow_cap((0, 0, 1.12), 0.5, (2.3, 0.95, 0.12))
+    snow_top(CUR[0], cut=0.97, grow=1.01)
 @item('crane', yaw=-30)
 def _():
     Y = '#F2C14E'
@@ -807,7 +815,7 @@ def _():
         limb((-0.4 * f, -0.4 * f, z), (0.4 * f, -0.4 * f, z + 0.42), 0.02, 0.02, WOOD_D)
     limb((0, 0, 1.4), (0, 0, 2.1), 0.55, 0.55, '#E8DCC2', verts=32, stripes=('#D6C8AA', 5.0, 'X'))
     cone((0, 0, 2.1), 0.6, 0.05, 0.4, '#8C949C')
-    snow_cap((0, 0, 2.38), 0.35, (1, 1, 0.3))
+    snow_top([o for o in CUR if o.type == 'MESH'][-1], cut=0.35)
     ring((0, 0, 1.42), 0.6, 0.03, WOOD_D)
 @item('turbine')
 def _():
@@ -831,7 +839,7 @@ def _():
     box((0.62, 0.2, 0.32), (0.6, 0.55, 0.64), WHITE, bevel=0.03)
     thatch_roof(0.62, 0.2, 0.64, 0.6, 0.55, 0.3, RED, overhang=0.06)
     window((0.45, -0.08, 0.38), 0.15, 0.15, glow=True)
-    snow_cap((0.62, 0.2, 0.92), 0.3, (1.2, 1, 0.25))
+
     ground_patch(0.9, SNOW)
 @item('ship', yaw=-25)
 def _():
@@ -868,7 +876,7 @@ def _():
         box((rnd.uniform(-0.35, 0.35), rnd.uniform(-0.3, 0.3), 2.0 + rnd.uniform(0, 0.25)), (0.25, 0.25, 0.3), B, bevel=0.02, rot=(rnd.uniform(-15, 15), rnd.uniform(-15, 15), 0))
     for z in (0.5, 1.2, 1.7): window((-0.15, -0.41, z), 0.22, 0.28, glow=False); window((0.2, -0.41, z), 0.22, 0.28, glow=False)
     box((0.05, -0.41, 0.25), (0.3, 0.03, 0.5), '#3E4A57', bevel=0.01)
-    snow_cap((0, 0, 2.25), 0.4, (1.2, 1, 0.3))
+
     blob((0.55, -0.4, 0.1), 0.25, (1.2, 1, 0.5), B, seed=3, smooth=False)
     ground_patch(0.9, SNOW)
 @item('ruin_b', yaw=-25)
@@ -877,7 +885,7 @@ def _():
         box((x, y, z), (s, s, s), WOOD, bevel=0.02, rot=(0, 0, r))
         for d in (-1, 1):
             o = box((x, y - s / 2 - 0.01, z), (s * 1.3, 0.03, 0.07), WOOD_D, bevel=0.005, rot=(0, d * 45, r))
-    snow_cap((-0.1, 0, 1.25), 0.32, (1.2, 1, 0.25))
+    snow_top(CUR[6], cut=0.9, grow=1.02)
     ground_patch(1.0, SNOW)
 @item('car', elev=90)
 def _(): vehicle('#F1E7CF', 1.0)
@@ -897,7 +905,7 @@ def vehicle(col, L, bus=False):
         box((0, -roof_l / 2 - 0.08, 0.43), (W * 0.72, 0.12, 0.05), '#3E5468', bevel=0.02, line=0)
     for s in (-1, 1):
         box((s * W * 0.32, L / 2 - 0.02, 0.27), (0.1, 0.03, 0.06), '#FFF3C4', bevel=0.01, line=0, flat=True)
-    snow_cap((0, -0.05 * L, 0.56), W * 0.4, (1, roof_l / W * 0.9, 0.2))
+
 
 # ================================================================== stations (seen from above, track to the right)
 def gable(cx, cy, z, w, d, h, col, overhang=0.1, along_y=True, **k):
@@ -929,8 +937,6 @@ def _():
     for y in (-1.2, -0.4, 0.4, 1.2): limb((1.45, y, 0), (1.45, y, 1.0), 0.05, 0.05, WOOD_D)
     o = box((1.15, 0.0, 1.05), (0.75, 2.8, 0.06), '#8A7A6A', bevel=0.02, rot=(0, 12, 0))
     box((0.0, -1.35, 0.15), (0.9, 0.35, 0.3), WOOD, bevel=0.03)   # bench of crates
-    snow_cap((0, 0.1, 1.72), 0.3, (1.0, 5.5, 0.15))
-    ground(3.4, 4.6, '#B8C2A0')
 
 @item('station_t1', elev=62, size=(255, 520))
 def _():
@@ -947,7 +953,6 @@ def _():
     cone((0, 0, 2.5), 0.45, 0.02, 0.9, '#5E6A76', verts=4, rot=(0, 0, 45), smooth=False)
     for y in (-1.2, -0.6, 0.6, 1.2): window((0.81, y, 0.65), 0.3, 0.35, glow=True, rot=(0, 0, 90))
     for y in (-1.0, 1.0): box((0, y, 1.75), (0.2, 0.2, 0.4), '#9C5A44', bevel=0.02)
-    ground(2.8, 4.4, '#B8C2A0')
 
 @item('station_t2', elev=62, size=(261, 520))
 def _():
@@ -970,20 +975,18 @@ def _():
         y = -1.2 + k * 0.3
         ring((0, y, 0.9), 0.8, 0.025, '#5E6A76', rot=(90, 0, 0), line=0, seg=32)
     box((0, 0, 0.45), (1.6, 2.6, 0.9), '#B8A88E', bevel=0.02)
-    ground(2.6, 5.4, '#AEB6BC')
 
 @item('station_t3', elev=62, size=(324, 520))
 def _():
     # mountain chalet: wide roof with deep eaves under snow, timber balcony
     box((0, 0, 0.55), (1.6, 2.4, 1.1), '#B8865A', bevel=0.03, stripes=('#A47448', 5.0))
     box((0, 0, 0.12), (1.75, 2.55, 0.25), '#9AA0A8', bevel=0.03)
-    gable(0, 0, 1.1, 1.6, 2.4, 0.9, '#7A5A44', overhang=0.4)
-    snow_cap((0, 0, 1.75), 0.4, (2.4, 7.5, 0.18))
+    gable(0, 0, 1.08, 1.6, 2.4, 0.9, '#6E4C38', overhang=0.42)
+    gable(0, 0, 1.13, 1.5, 2.3, 0.86, SNOW, overhang=0.36)
     for y in (-0.7, 0.0, 0.7): window((0.81, y, 0.65), 0.3, 0.35, glow=True, rot=(0, 0, 90))
     box((1.05, 0, 0.75), (0.45, 2.2, 0.06), WOOD_D, bevel=0.01)
     for y in (-1.0, -0.5, 0.0, 0.5, 1.0): limb((1.25, y, 0.75), (1.25, y, 1.0), 0.02, 0.02, WOOD_D, line=0.008)
     limb((0.4, 0.8, 1.4), (0.4, 0.8, 2.0), 0.12, 0.12, '#8A8A8A')   # chimney
-    ground(3.0, 3.8, SNOW)
 
 @item('station_t4', elev=62, size=(240, 520))
 def _():
@@ -995,7 +998,6 @@ def _():
     box((-0.2, -0.9, 1.15), (0.6, 0.8, 0.12), '#7FB060', bevel=0.03)   # roof garden
     box((-0.2, 0.9, 1.15), (0.6, 0.8, 0.12), '#7FB060', bevel=0.03)
     for y in (-1.3, 0, 1.3): blob((-0.2, y * 0.6, 1.3), 0.18, (1, 1, 0.8), '#5E9E45', seed=int(y * 10) + 5)
-    ground(2.4, 4.6, '#AEB6BC')
 
 @item('station_bench', elev=90, size=(112, 240))
 def _():
@@ -1003,14 +1005,15 @@ def _():
     box((-0.25, 0, 0.7), (0.06, 1.6, 0.35), WOOD_D, bevel=0.01, rot=(0, -10, 0))
     for y in (-0.7, 0.7):
         box((0, y, 0.21), (0.46, 0.06, 0.42), '#5A6470', bevel=0.01)
-    snow_cap((0.05, 0, 0.47), 0.15, (1.2, 4.5, 0.3))
+
 
 @item('station_lamp', elev=90, size=(128, 128))
 def _():
-    sphere((0, 0, 0), 0.32, (1, 1, 0.3), DARK, seg=24)
-    limb((0, 0, 0), (0, 0, 1.0), 0.06, 0.05, '#5A6470')
-    cone((0, 0, 1.0), 0.22, 0.08, 0.2, '#5A6470')
-    sphere((0, 0, 1.0), 0.13, (1, 1, 0.6), '#FFF3C4', seg=16, flat=True, line=0.01)
+    sphere((0, 0, 0), 0.16, (1, 1, 0.3), DARK, seg=24)
+    limb((0, 0, 0), (0, 0, 1.0), 0.05, 0.045, '#5A6470')
+    ring((0, 0, 1.02), 0.2, 0.035, '#5A6470')
+    sphere((0, 0, 1.0), 0.19, (1, 1, 0.6), '#FFF3C4', seg=24, flat=True, line=0.01)
+    sphere((0, 0, 1.12), 0.08, (1, 1, 0.5), '#5A6470', seg=16)
 
 # ------------------------------------------------------------------ run
 for name, (fn, cam) in ITEMS.items():
