@@ -116,13 +116,14 @@ def sphere(loc, r, sc_=(1, 1, 1), col='#FFFFFF', line=LINE, seg=40, shade=0.9, m
     o = bpy.context.object; o.scale = sc_
     return reg(finish(o, mat or toon(col, shade), line))
 
-def shell(loc, sc_, col, cut_y, cut_z, line=LINE, shade=0.9):
-    """A sphere with its front-lower part cut away (hood, head shawl): drops verts with y < cut_y and z < cut_z (world)."""
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=56, ring_count=28, radius=1.0, location=(0, 0, 0))
+def shell(loc, sc_, col, open_deg, tilt=0.3, line=LINE, shade=0.9):
+    """A sphere with a round opening for the face (hood, head shawl): drops verts within open_deg of the
+    face direction (forward, tilted down by `tilt`)."""
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=64, ring_count=32, radius=1.0, location=(0, 0, 0))
     o = bpy.context.object
+    F = Vector((0, -1, -tilt)).normalized(); cmin = math.cos(math.radians(open_deg))
     bm = bmesh.new(); bm.from_mesh(o.data)
-    kill = [v for v in bm.verts
-            if v.co.y * sc_[1] + loc[1] < cut_y and v.co.z * sc_[2] + loc[2] < cut_z]
+    kill = [v for v in bm.verts if v.co.normalized().dot(F) > cmin]
     bmesh.ops.delete(bm, geom=kill, context='VERTS'); bm.to_mesh(o.data); bm.free()
     o.location = loc; o.scale = sc_
     return reg(finish(o, toon(col, shade), line))
@@ -371,10 +372,10 @@ def pagri(col):
             ring((0, 0.02, HC.z + 0.19), HA * 0.97, 0.05, col, sc_=(1, 0.97, 1), rot=(-14, 0, 0), shade=0.85)]
 def dupatta(col):
     """A shawl over the head, framing the face, falling behind the shoulders."""
-    return [shell((0, 0.03, HC.z + 0.03), (HA * 1.16, HB * 1.2, HCZ * 1.14), col, cut_y=-0.14, cut_z=HC.z + 0.2),
+    return [shell((0, 0.03, HC.z + 0.03), (HA * 1.16, HB * 1.2, HCZ * 1.14), col, 62, tilt=0.25),
             sphere((0, 0.12, HC.z - 0.3), 1.0, (0.33, 0.15, 0.3), col, shade=0.85)]
 def hood(col):
-    return [shell((0, 0.04, HC.z + 0.02), (HA * 1.2, HB * 1.22, HCZ * 1.16), col, cut_y=-0.12, cut_z=HC.z + 0.22)]
+    return [shell((0, 0.04, HC.z + 0.02), (HA * 1.2, HB * 1.22, HCZ * 1.16), col, 60, tilt=0.15)]
 def band_over(col, cup, cup_sc, band_r=0.022):
     """Headband with a cup over each ear (earmuffs, headphones)."""
     o = [arc((0, 0.0, HC.z - 0.03), HA * 1.1, band_r, col, True, line=0.008, shade=0.9, sy=1.2)]
