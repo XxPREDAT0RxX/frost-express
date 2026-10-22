@@ -15,6 +15,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Install Blender
         run: |
           sudo apt-get update -qq
@@ -24,7 +26,14 @@ jobs:
       - name: Render
         run: |
           pip install -q pillow || true
-          for s in blender/*.py; do
+          # only the scripts this push changed (all of them on a manual run or when none changed)
+          scripts=""
+          if [ "${{ github.event_name }}" = "push" ]; then
+            scripts=$(git diff --name-only HEAD~1 HEAD -- 'blender/*.py' | grep -v '^blender/old/' || true)
+          fi
+          [ -z "$scripts" ] && scripts=$(ls blender/*.py)
+          echo "rendering: $scripts"
+          for s in $scripts; do
             name=$(basename "$s" .py)
             blender -b -P "$s" -- "out/$name" 2>&1 | grep -E "^done|Error|Traceback|error|line [0-9]" | tail -200
             (cd out && zip -qr "${name}_frames.zip" "$name")
@@ -33,6 +42,19 @@ jobs:
           from PIL import Image
           d, out = sys.argv[1], sys.argv[2]
           chars = sorted(x for x in os.listdir(d) if os.path.isdir(os.path.join(d, x)))
+          if not chars:
+              # flat renders (scenery): a labelled contact sheet
+              from PIL import ImageDraw
+              fs = sorted(x for x in os.listdir(d) if x.endswith('.png'))
+              T, C = 200, 8
+              W = Image.new('RGBA', (T * C, ((len(fs) + C - 1) // C) * (T + 16)), (200, 222, 205, 255))
+              dr = ImageDraw.Draw(W)
+              for i, f in enumerate(fs):
+                  im = Image.open(os.path.join(d, f)).convert('RGBA'); im.thumbnail((T - 8, T - 8))
+                  x, y = (i % C) * T, (i // C) * (T + 16)
+                  W.alpha_composite(im, (x + (T - im.width) // 2, y + (T - im.height) // 2))
+                  dr.text((x + 4, y + T), f[:-4], fill=(40, 40, 40, 255))
+              W.save(out)
           if chars:
               names = ['idle_00', 'walk_02', 'side_02', 'sit_00']
               im0 = Image.open(os.path.join(d, chars[0], 'idle_00.png'))
