@@ -243,11 +243,14 @@ def dots_on(center, n, seed, make, a0=3.5, a1=5.95, e0=0.05, e1=0.95):
 
 def ground_patch(r, col, seed=7, h=0.0, sc_=(1, 1, 0.06)):
     """A soft mound of snow under a snowy item (no outline, so it melts into the snowy ground)."""
-    return blob((0, 0, h), r * 0.8, sc_, col, rough=0.12, seed=seed, sub=3, line=0, top=1.0, shade=0.94)
+    o = blob((0, 0, h), r * 0.8, sc_, col, rough=0.12, seed=seed, sub=3, line=0, top=1.0, shade=0.94)
+    o['ground'] = True
+    return o
 
 # ------------------------------------------------------------------ framing and render
-def frame_and_render(name, elev=30.0, yaw=0.0, res=640, pad=1.08, aspect=None):
-    """Points the camera at everything built (elev degrees above the horizon, yaw about Z), fits it, renders."""
+def frame_and_render(name, elev=30.0, yaw=0.0, res=640, pad=1.08, aspect=None, margin=0.0, shoot=True):
+    """Points the camera at everything built (elev degrees above the horizon, yaw about Z), fits it, renders.
+    [margin] (world units) widens the fit on every side, for animations that move outside the first frame."""
     bpy.context.view_layer.update()
     rot = Matrix.Rotation(math.radians(yaw), 4, 'Z') @ Matrix.Rotation(math.radians(90 - elev), 4, 'X')
     rx = rot.to_3x3() @ Vector((1, 0, 0)); ry = rot.to_3x3() @ Vector((0, 1, 0)); rz = rot.to_3x3() @ Vector((0, 0, 1))
@@ -260,7 +263,7 @@ def frame_and_render(name, elev=30.0, yaw=0.0, res=640, pad=1.08, aspect=None):
             p = oe.matrix_world @ Vector(c)
             xs.append(p.dot(rx)); ys.append(p.dot(ry)); pts.append(p)
     cx = (min(xs) + max(xs)) / 2; cy = (min(ys) + max(ys)) / 2
-    w = max(xs) - min(xs); h = max(ys) - min(ys)
+    w = max(xs) - min(xs) + 2 * margin; h = max(ys) - min(ys) + 2 * margin
     a = aspect if aspect else w / max(h, 1e-6)          # width / height of the picture
     rw, rh = (res, max(16, int(res / a))) if a >= 1 else (max(16, int(res * a)), res)
     # an orthographic camera's scale spans the larger side of the picture
@@ -269,6 +272,10 @@ def frame_and_render(name, elev=30.0, yaw=0.0, res=640, pad=1.08, aspect=None):
     CAM.matrix_world = Matrix.Translation(centre + rz * 60) @ rot
     camd.clip_end = 200
     sc.render.resolution_x, sc.render.resolution_y = rw, rh
+    if shoot: shot(name)
+
+def shot(name):
+    """Renders with the camera as it is to <out>/<name>.png."""
     sc.render.filepath = os.path.join(OUT, name + '.png')
     bpy.ops.render.render(write_still=True)
 
@@ -1028,7 +1035,8 @@ def _():
     sphere((0, 0, 1.12), 0.08, (1, 1, 0.5), '#5A6470', seg=16)
 
 # ------------------------------------------------------------------ run
-for name, (fn, cam) in ITEMS.items():
+# blender/scenery_anim.py reuses everything above and runs its own loop instead
+for name, (fn, cam) in ([] if 'ANIM_HOOK' in globals() else ITEMS.items()):
     if ONLY and name not in ONLY: continue
     LINE[0] = 0.022
     fn()
@@ -1038,3 +1046,4 @@ for name, (fn, cam) in ITEMS.items():
                      aspect=(size[0] / size[1]) if size else None)
     print('done', name, flush=True)
     clear()
+if 'ANIM_HOOK' in globals(): ANIM_HOOK(globals())
