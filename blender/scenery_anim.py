@@ -33,7 +33,8 @@ def ANIM_HOOK(g):
         z0, z1 = min(zs), max(zs); H = z1 - z0
         n = SWAY.get(name, (SPIN.get(name) or FLICKER.get(name), 0))[0]
         amp = SWAY[name][1] * H if name in SWAY else 0.0
-        frame_and_render(name, elev=cam.get('elev', 30.0), yaw=cam.get('yaw', 0.0), res=700, pad=1.06, margin=amp * 1.3, shoot=False)
+        el, yw = g['view'](cam)   # same angle as the stills (and the stations)
+        frame_and_render(name, elev=el, yaw=yw, res=700, pad=1.06, margin=amp * 1.3, shoot=False)
         # remember the rest pose
         base = {o.name: [v.co.copy() for v in o.data.vertices] for o in meshes}
         mats = {o.name: o.matrix_world.copy() for o in meshes}

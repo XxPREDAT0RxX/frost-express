@@ -1043,13 +1043,18 @@ def _():
     sphere((0, 0, 1.12), 0.08, (1, 1, 0.5), '#5A6470', seg=16)
 
 # ------------------------------------------------------------------ run
+# every item is seen from the same angle as the station buildings: from above (62 degrees), square on
+VIEW_ELEV = 62.0
+def view(cam):
+    return (90.0 if cam.get('elev') == 90 else VIEW_ELEV), 0.0
 # blender/scenery_anim.py reuses everything above and runs its own loop instead
 for name, (fn, cam) in ([] if 'ANIM_HOOK' in globals() else ITEMS.items()):
     if ONLY and name not in ONLY: continue
     LINE[0] = 0.022
     fn()
     size = cam.get('size')
-    frame_and_render(name, elev=cam.get('elev', 30.0), yaw=cam.get('yaw', 0.0),
+    el, yw = view(cam)
+    frame_and_render(name, elev=el, yaw=yw,
                      res=700 if not size else 2 * max(size), pad=1.06,
                      aspect=(size[0] / size[1]) if size else None)
     print('done', name, flush=True)
