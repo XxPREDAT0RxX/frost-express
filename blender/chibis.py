@@ -39,9 +39,11 @@ def make_cam(name, loc, rot, scale):
     return o
 TILT = 8.0
 up = math.tan(math.radians(TILT)) * 10
-CAM_FRONT = make_cam('front', (0, -10, 0.74 + up), (90 - TILT, 0, 0), 1.62)
-CAM_SIDE = make_cam('side', (-10, 0, 0.74 + up), (90 - TILT, 0, -90), 1.62)
-CAM_SIT = make_cam('sit', (0, -10, 1.0 + up), (90 - TILT, 0, 0), 0.98)
+CAM_FRONT = make_cam('front', (0, -10, 0.8 + up), (90 - TILT, 0, 0), 1.74)
+# three-quarter side view (face still visible), walking toward screen-right
+A3 = math.radians(205)
+CAM_SIDE = make_cam('side', (10 * math.cos(A3), 10 * math.sin(A3), 0.8 + up), (90 - TILT, 0, -65), 1.74)
+CAM_SIT = make_cam('sit', (0, -10, 1.06 + up), (90 - TILT, 0, 0), 1.06)
 
 # ------------------------------------------------------------------ materials
 def lin(h, k=1.0):
@@ -142,7 +144,7 @@ def setp(child, par):
     mw = child.matrix_world.copy(); child.parent = par; child.matrix_world = mw
 
 # ------------------------------------------------------------------ body plan (feet at z=0, facing -Y)
-HC = Vector((0, 0, 1.10)); HA, HB, HCZ = 0.315, 0.29, 0.29     # head centre and radii
+HC = Vector((0, 0, 1.14)); HA, HB, HCZ = 0.353, 0.325, 0.325     # head centre and radii
 def face_y(x, z, push=0.0):
     t = 1 - (x / HA) ** 2 - ((z - HC.z) / HCZ) ** 2
     return -HB * math.sqrt(max(t, 0.0)) - push
@@ -200,26 +202,27 @@ def build(spec):
     hp = []
     hp.append(sphere(HC, 1.0, (HA, HB, HCZ), SKIN, seg=56))
     for sx in (-1, 1):
-        hp.append(sphere((sx * 0.31, 0.0, 1.07), 0.05, (0.55, 1, 1), SKIN, seg=20))
-    ez = 1.07
+        hp.append(sphere((sx * HA * 0.98, 0.0, HC.z - 0.04), 0.055, (0.55, 1, 1), SKIN, seg=20))
+    ez = HC.z - 0.04
     for sx in (-1, 1):
-        x = sx * 0.105
+        x = sx * 0.12
         y = face_y(x, ez, 0.004)
-        e = sphere((x, y, ez), 1.0, (0.034, 0.012, 0.044), EYE, line=0, seg=20)
-        hl = sphere((x + 0.01, y - 0.008, ez + 0.014), 0.011, (1, 0.4, 1), '#FFFFFF', line=0, seg=12)
+        e = sphere((x, y, ez), 1.0, (0.042, 0.014, 0.054), EYE, line=0, seg=20)
+        hl = sphere((x + 0.013, y - 0.01, ez + 0.018), 0.014, (1, 0.4, 1), '#FFFFFF', line=0, seg=12)
         rig['eyes_open'] += [e, hl]
-        sh_ = arc((x, face_y(x, ez - 0.01, 0.006), ez - 0.012), 0.032, 0.0075, EYE, True)
+        sh_ = arc((x, face_y(x, ez - 0.01, 0.006), ez - 0.014), 0.038, 0.008, EYE, True)
         rig['eyes_shut'].append(sh_)
         hp += [e, hl, sh_]
-        hp.append(sphere((sx * 0.185, face_y(sx * 0.185, 1.0, 0.002), 1.0), 1.0, (0.045, 0.01, 0.03), BLUSH, line=0, seg=20))
-    hp.append(sphere((0, face_y(0, 1.03, 0.003), 1.03), 0.012, (1, 0.5, 0.8), '#F3B7A6', line=0, seg=12))
+        bz = HC.z - 0.105
+        hp.append(sphere((sx * 0.215, face_y(sx * 0.215, bz, 0.002), bz), 1.0, (0.052, 0.012, 0.034), BLUSH, line=0, seg=20))
+    hp.append(sphere((0, face_y(0, HC.z - 0.085, 0.002), HC.z - 0.085), 0.012, (1, 0.4, 0.8), '#F3B7A6', line=0, seg=12))
     if not spec.get('beard'):
-        hp.append(arc((0, face_y(0, 0.975, 0.004), 0.99), 0.028, 0.0065, '#7A3E34', False))
+        hp.append(arc((0, face_y(0, HC.z - 0.13, 0.004), HC.z - 0.115), 0.03, 0.007, '#7A3E34', False))
     if spec.get('glasses'):
         for sx in (-1, 1):
-            x = sx * 0.105
-            hp.append(ring((x, face_y(x, ez, 0.03), ez), 0.064, 0.0075, spec['glasses'], rot=(90, 0, 0), line=0, shade=1.0))
-        hp.append(tube((-0.042, face_y(0, ez, 0.03), ez + 0.01), (0.042, face_y(0, ez, 0.03), ez + 0.01), 0.006, spec['glasses'], line=0))
+            x = sx * 0.12
+            hp.append(ring((x, face_y(x, ez, 0.03), ez), 0.074, 0.0085, spec['glasses'], rot=(90, 0, 0), line=0, shade=1.0))
+        hp.append(tube((-0.046, face_y(0, ez, 0.03), ez + 0.01), (0.046, face_y(0, ez, 0.03), ez + 0.01), 0.006, spec['glasses'], line=0))
     for f in spec['head_extra']:
         hp += f()
     for o in hp: setp(o, head)
@@ -230,41 +233,41 @@ def build(spec):
 def hair_cap(col, back=0.04, top=0.06):
     return [sphere((0, back, HC.z + top), 1.0, (HA * 1.06, HB * 1.12, HCZ * 1.02), col, seg=56)]
 def bun(col):
-    return [sphere((0, 0.06, HC.z + 0.33), 0.11, (1, 1, 0.9), col)]
+    return [sphere((0, 0.06, HC.z + 0.37), 0.12, (1, 1, 0.9), col)]
 def beanie(col, cuff, pom=None):
-    o = [sphere((0, 0.02, HC.z + 0.09), 1.0, (HA * 1.1, HB * 1.16, HCZ * 0.98), col, seg=56),
-         ring((0, 0.0, HC.z + 0.05), HA * 1.02, 0.05, cuff, sc_=(1, 0.97, 1))]
-    if pom: o.append(sphere((0, 0.02, HC.z + 0.39), 0.08, (1, 1, 1), pom))
+    o = [sphere((0, 0.02, HC.z + 0.12), 1.0, (HA * 1.08, HB * 1.14, HCZ * 0.96), col, seg=56),
+         ring((0, 0.0, HC.z + 0.085), HA * 1.0, 0.055, cuff, sc_=(1, 0.97, 1))]
+    if pom: o.append(sphere((0, 0.02, HC.z + 0.43), 0.085, (1, 1, 1), pom))
     return o
 def braids(col):
     o = []
     for sx in (-1, 1):
         for k in range(4):
-            o.append(sphere((sx * (0.29 + 0.03 * k), 0.04, 1.0 - 0.075 * k), 0.045 - 0.004 * k, (1, 1, 1), col, seg=20))
-        o.append(sphere((sx * 0.41, 0.04, 0.7), 0.02, (1, 1, 1), '#F2C14E', seg=12))
+            o.append(sphere((sx * (0.33 + 0.03 * k), 0.04, HC.z - 0.08 - 0.08 * k), 0.048 - 0.004 * k, (1, 1, 1), col, seg=20))
+        o.append(sphere((sx * 0.45, 0.04, HC.z - 0.41), 0.022, (1, 1, 1), '#F2C14E', seg=12))
     return o
 def bob_hair(col):
-    return [sphere((0, 0.05, 1.03), 1.0, (0.35, 0.3, 0.27), col, seg=48)]
+    return [sphere((0, 0.06, HC.z - 0.05), 1.0, (0.39, 0.32, 0.3), col, seg=48)]
 def long_hair(col):
-    return [sphere((0, 0.08, 0.92), 1.0, (0.34, 0.2, 0.36), col, seg=48)]
+    return [sphere((0, 0.1, HC.z - 0.16), 1.0, (0.38, 0.22, 0.4), col, seg=48)]
 def beard(col):
-    o = [sphere((0, -0.17, 0.97), 1.0, (0.24, 0.14, 0.17), col, seg=40),
-         sphere((0, face_y(0, 1.0, 0.02), 1.0), 1.0, (0.09, 0.03, 0.03), col, seg=24)]
-    o.append(arc((0, face_y(0, 0.96, 0.07), 0.965), 0.026, 0.006, '#F4E6DA', False))
+    o = [sphere((0, -0.2, HC.z - 0.19), 1.0, (0.26, 0.14, 0.17), col, seg=40),
+         sphere((0, face_y(0, HC.z - 0.11, 0.02), HC.z - 0.11), 1.0, (0.1, 0.03, 0.032), col, seg=24)]
+    o.append(arc((0, face_y(0, HC.z - 0.15, 0.06), HC.z - 0.15), 0.028, 0.006, '#F4E6DA', False))
     return o
 def fur_hat(col):
-    return [sphere((0, 0.02, HC.z + 0.13), 1.0, (HA * 1.2, HB * 1.25, HCZ * 0.82), col, seg=56),
-            ring((0, -0.005, HC.z + 0.06), HA * 1.08, 0.065, col, shade=0.85)]
+    return [sphere((0, 0.02, HC.z + 0.16), 1.0, (HA * 1.18, HB * 1.22, HCZ * 0.8), col, seg=56),
+            ring((0, -0.005, HC.z + 0.095), HA * 1.06, 0.068, col, shade=0.85)]
 def trapper(col, inner):
     o = fur_hat(col)
     for sx in (-1, 1):
-        o.append(sphere((sx * 0.31, 0.01, 0.98), 1.0, (0.07, 0.11, 0.17), col, seg=32))
-        o.append(sphere((sx * 0.3, -0.03, 0.98), 1.0, (0.045, 0.07, 0.12), inner, seg=24, line=0))
+        o.append(sphere((sx * HA * 0.98, 0.01, HC.z - 0.1), 1.0, (0.075, 0.12, 0.19), col, seg=32))
+        o.append(sphere((sx * HA * 0.95, -0.035, HC.z - 0.1), 1.0, (0.048, 0.075, 0.13), inner, seg=24, line=0))
     return o
 def spikes(col):
     o = []
-    for x, z, rx in ((-0.12, 1.39, -25), (0.0, 1.42, 0), (0.12, 1.39, 25)):
-        o.append(sphere((x, 0.0, z), 1.0, (0.06, 0.06, 0.08), col, seg=24))
+    for x, z in ((-0.13, HC.z + 0.33), (0.0, HC.z + 0.37), (0.13, HC.z + 0.33)):
+        o.append(sphere((x, 0.02, z), 1.0, (0.065, 0.065, 0.085), col, seg=24))
     return o
 
 SPECS = [
