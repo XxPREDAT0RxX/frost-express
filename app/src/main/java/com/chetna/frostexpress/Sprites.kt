@@ -91,6 +91,11 @@ class GameSprites(ctx: Context) {
     val chibiFull: List<ImageBitmap> = (1..6).mapNotNull { load("chibi${it}_full") }
     /** Profile (facing right) of each chibi, null where there is no side drawing yet. */
     val chibiSide: List<ImageBitmap?> = (1..6).map { load("chibi${it}_side") }
+    /** Blender-rendered passengers (blender/npcs.py): idle, front walk and side walk strips. */
+    val npcs: List<NpcLook> = NpcAtlas.CHARS.mapNotNull { strips ->
+        val a = strips.map { info -> load(info.name)?.let { NpcAnim(it, info) } }
+        if (a.size == 3 && a.all { it != null }) NpcLook(a[0]!!, a[1]!!, a[2]!!) else null
+    }
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
     val summer: List<ImageBitmap> = (1..8).mapNotNull { load("npc_sum$it") }

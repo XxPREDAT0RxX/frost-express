@@ -1056,7 +1056,10 @@ private fun DrawScope.drawLeaversInside() {
         if (tt < 0f) {
             // still in the seat
             val c = sp.chibis.getOrNull(Math.floorMod(p.sprite, max(1, sp.chibis.size)))
-            if (!p.warm && c != null) {
+            val look = npcLook(p.sprite)
+            if (!p.warm && look != null) {
+                drawNpcSeated(look, p.seatX * u, (p.seatY + NPC_SEAT_FEET) * u, NPC_SEAT_H * u, sceneClock + p.sprite * 0.37f, (p.seatY + 5f) * u)
+            } else if (!p.warm && c != null) {
                 val pic = c.first; val h = 23f; val w = h * pic.width / pic.height
                 drawPuppet(pic, (p.seatX - w / 2f) * u, (p.seatY - 15f) * u, w * u, h * u, sceneClock, p.sprite * 1.7f + p.seatX * 0.13f + p.seatY * 0.07f, cut = 0.6f)
             } else if (pool.isNotEmpty()) {
@@ -1073,7 +1076,7 @@ private fun DrawScope.drawLeaversInside() {
         face /= 5f
         val img = if (!p.warm && full.isNotEmpty()) full[Math.floorMod(p.sprite, full.size)] else if (pool.isNotEmpty()) pool[Math.floorMod(p.sprite, pool.size)] else null
         val side = if (!p.warm) sp.chibiSide.getOrNull(Math.floorMod(p.sprite, max(1, sp.chibiSide.size))) else null
-        sceneBoarders.add(BoardWalker(img, pos.x, pos.y, p.sprite * 0.9f, face < 0f, side, face))
+        sceneBoarders.add(BoardWalker(img, pos.x, pos.y, p.sprite * 0.9f, face < 0f, side, face, if (!p.warm) npcLook(p.sprite) else null))
     }
 }
 
@@ -1149,7 +1152,19 @@ private fun walkPath(pts: List<Offset>, f: Float): Pair<Offset, Float> {
     return Pair(pts.last(), 0f)
 }
 /** Passengers still walking to their seat this frame: filled while the cars are drawn, drawn and used by the doors after. */
-private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean, val side: androidx.compose.ui.graphics.ImageBitmap? = null, val facing: Float = 0f)
+private class BoardWalker(val img: androidx.compose.ui.graphics.ImageBitmap?, val x: Float, val y: Float, val bob: Float, val flip: Boolean, val side: androidx.compose.ui.graphics.ImageBitmap? = null, val facing: Float = 0f, val npc: NpcLook? = null)
+
+/** The Blender NPC for a rider's sprite number (null until the sprites are loaded). */
+private fun npcLook(sprite: Int): NpcLook? {
+    val l = sceneSprites?.npcs ?: return null
+    return if (l.isEmpty()) null else l[Math.floorMod(sprite, l.size)]
+}
+
+/** How tall a grown-up NPC is drawn (dp) on the platform, walking in the train, and sitting (feet below the seat point). */
+private const val NPC_PLATFORM_H = 29f
+private const val NPC_TRAIN_H = 32f
+private const val NPC_SEAT_H = 28f
+private const val NPC_SEAT_FEET = 11f
 private val sceneBoarders = ArrayList<BoardWalker>()
 private var sceneClock = 0f
 private const val BOARD_WALK_SEC = 2.4f
@@ -1384,7 +1399,10 @@ private fun DrawScope.drawStation(st: Station, originX: Float, u: Float) {
         face /= 5f
         val full = sp2.chibiFull
         drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(pos.x - 7f * u, pos.y + 7f * u), Size(14f * u, 5f * u))
-        if (!p.warm && full.isNotEmpty()) {
+        val look = if (!p.warm) npcLook(p.sprite) else null
+        if (look != null) {
+            drawNpc(look, pos.x, pos.y + 6f * u, NPC_PLATFORM_H * u, sceneClock + p.sprite * 0.37f, sceneClock * 9f + p.sprite, 1f, face, alpha)
+        } else if (!p.warm && full.isNotEmpty()) {
             val img = full[Math.floorMod(p.sprite, full.size)]
             val side = sp2.chibiSide.getOrNull(Math.floorMod(p.sprite, sp2.chibiSide.size))
             val h = 29f * (img.height - 2 * MeshPuppet.PAD) / 322f
@@ -1432,6 +1450,11 @@ private fun DrawScope.passenger(px: Float, py: Float, alpha: Float, u: Float, se
     if (alpha <= 0.01f) return
     drawOval(Color(0x33000000).copy(alpha = 0.18f * alpha), Offset(px - 7f * u, py + 7f * u), Size(14f * u, 5f * u))
     val sp = sceneSprites
+    val look = if (!sceneWarm) npcLook(seed) else null
+    if (look != null) {
+        drawNpc(look, px, py + 6f * u, NPC_PLATFORM_H * u, sceneClock + seed * 0.37f, walkPhase, moving, facing, alpha)
+        return
+    }
     val full = sp?.chibiFull
     if (!sceneWarm && !full.isNullOrEmpty()) {
         val img = full[Math.floorMod(seed, full.size)]
@@ -1675,8 +1698,13 @@ private fun DrawScope.drawTrain(tier: TrainTier, look: Look, npc: Npc, time: Flo
     run {
         val u = density
         for (b in sceneBoarders) {
-            val img = b.img ?: continue
             if (b.y > NOSE + cars * PITCH) continue   // never draw anyone past the last car
+            b.npc?.let { look ->
+                drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
+                drawNpc(look, b.x * u, (b.y + 10f) * u, NPC_TRAIN_H * u, sceneClock + b.bob, sceneClock * 10f + b.bob, 1f, b.facing, 1f)
+            }
+            if (b.npc != null) continue
+            val img = b.img ?: continue
             drawOval(Color(0x22000000), Offset((b.x - 9f) * u, (b.y + 8f) * u), Size(18f * u, 6f * u))
             if (img.height > img.width * 1.6f) {
                 // chibi full body: a skinned mesh that really walks
@@ -1789,7 +1817,7 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
             // down the aisle facing us, then a quick turn to walk sideways to the seat
             val turn = ((t - a) / 0.08f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
             val sideImg = if (!pax.warm) sp?.chibiSide?.let { l -> l.getOrNull(Math.floorMod(pax.sprite, l.size)) } else null
-            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X, sideImg, turn * (if (cx < AISLE_X) -1f else 1f)))
+            sceneBoarders.add(BoardWalker(img, wx, wy, pax.sprite * 0.9f, t >= a && cx < AISLE_X, sideImg, turn * (if (cx < AISLE_X) -1f else 1f), if (!pax.warm) npcLook(pax.sprite) else null))
         }
         pax = null
     }
@@ -1810,7 +1838,12 @@ private fun DrawScope.drawTrainSeat(cx: Float, cy: Float, pax0: ScenePax?, doorY
         val img = if (pool.isNotEmpty()) pool[Math.floorMod(pax.sprite, pool.size)] else sp?.npc
         val chibis = sp?.chibis
         val seed = pax.sprite * 1.7f + cx * 0.13f + cy * 0.07f
-        if (!pax.warm && !chibis.isNullOrEmpty()) {
+        val look = if (!pax.warm) npcLook(pax.sprite) else null
+        if (look != null) {
+            // Blender NPC: breathes, sways and blinks; the cushion drawn next hides everything below the waist
+            drawOval(Color(0x22000000), Offset((cx - 9f) * u, (cy + 7f) * u), Size(18f * u, 6f * u))
+            drawNpcSeated(look, cx * u, (cy + NPC_SEAT_FEET) * u, NPC_SEAT_H * u, sceneClock + seed * 0.37f, (cy + 5f) * u)
+        } else if (!pax.warm && !chibis.isNullOrEmpty()) {
             // flat chibi passenger: breathes, sways and blinks every few seconds
             val c = chibis[Math.floorMod(pax.sprite, chibis.size)]
             val period = 3.2f + Math.floorMod(pax.sprite * 7 + cx.toInt(), 5) * 0.45f

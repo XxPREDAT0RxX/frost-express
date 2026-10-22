@@ -23,11 +23,12 @@ Paste this file (or point the new chat to it in the repo) so it can continue whe
 - `MeshPuppet.kt` — skinned-mesh 2D animator for the chibi sprites (`MeshPuppet` front view idle/walk, `MeshSide` profile walk, `drawChibi()` turning between them).
 - `Sprites.kt` — `chibis` (seated, eyes open/blink), `chibiFull` (full body, 8 px padding), `chibiSide` (profile, null for #3), `drawPuppet`.
 - `GameScreen.kt` — HUD, sheets; when a sheet opens the scene is laid out wider and drawn scaled (`link.viewScale`), side rails and bottom bar hide; `DepartButton`; compact `SurvivorsCard`.
-- `blender/chibis.py` — six toon-shaded 3D chibis (c1 dadi, c2 girl yellow beanie, c3 glasses+striped sweater, c4 beard orange puffer, c5 beige fur hat, c6 white trapper hat) rendered to `idle_00..23`, `walk_00..07`, `side_00..07` (three-quarter view), `sit_00..23` at 176×248. Latest render: `blender-5`. **Not yet in the game.**
+- `blender/npcs.py` — 16 toon-shaded 3D NPCs from specs: the original six c1..c6 (dadi, beanie girl, glasses+stripes, beard puffer, fur hat, trapper) plus n07 little boy, n08 grandpa, n09 office worker, n10 student girl, n11/n12 Paddylands village woman/man, n13 conductor, n14 hoodie teen, n15 aunty, n16 little girl (skin tones, child scale, pagri, dupatta, hood, caps, earmuffs, headphones, props). Renders `idle_00..23`, `walk_00..07`, `side_00..07`, `sit_00..23` at 176×248. Latest render: `blender-8`. Old `chibis.py` is in `blender/old/`.
+- **In game:** `store_assets/make_npc_strips.py <unzipped npcs folder>` packs them into `res/drawable-nodpi/npc_<id>_{idle,walk,side}.webp` strips (half size, cropped) and writes `NpcAtlas.kt`. `NpcDraw.kt` (`drawNpc`, `drawNpcSeated`) plays them; `TrainScene.kt` uses them (via `npcLook(sprite)`) for seated riders, boarding/leaving walks inside the train and walkers on the platform, in cold biomes. Warm biomes still use the `summer` sprites. Old flat chibi art is now only a fallback.
 
 ## Art pipeline
 - Gemini sheets on pale mint `#E0F5E9`; cut with numpy/scipy/PIL (flood-fill background from the border, soft alpha, pull edge colour inward to kill mint fringe), save `.webp` in `app/src/main/res/drawable-nodpi/`.
-- Characters in game now: flat chibi sheet art (6 characters) with mesh animation, blinking on seats.
+- Characters in game now: 16 Blender NPCs as frame animations (see above); flat chibi sheet art + `MeshPuppet` only as fallback.
 
 ## Release status
 - Store graphics regenerated: `store_assets/play/` (7 screenshots, feature graphic, icon) via `store_assets/make_store_assets.py <screens folder>`.
