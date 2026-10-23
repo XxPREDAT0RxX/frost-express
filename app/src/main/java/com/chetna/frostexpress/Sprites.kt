@@ -101,6 +101,9 @@ class GameSprites(ctx: Context) {
     }
     /** Looping roadside animations (blender/projected.py: the painted art on 3D shapes): strip of square frames per scenery name, and its frame rate. */
     val sceneAnims: Map<String, Pair<ImageBitmap, Float>> = SCENE_ANIM_FPS.mapNotNull { (n, fps) -> load("spra_$n")?.let { n to (it to fps) } }.toMap()
+    /** The Blender window view (blender/window.py): cabin overlay, per-land far/mid/near strips, clouds. */
+    val windowArt: Map<String, ImageBitmap> = (listOf("cabin") + WindowAtlas.LANDS.flatMap { l -> listOf("${l}_far", "${l}_mid", "${l}_near") } + (1..4).map { "cloud$it" })
+        .mapNotNull { n -> load("win_$n")?.let { n to it } }.toMap()
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
     val summer: List<ImageBitmap> = (1..8).mapNotNull { load("npc_sum$it") }

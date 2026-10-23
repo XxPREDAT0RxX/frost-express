@@ -23,6 +23,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.lerp
 import kotlin.math.sin
+import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 
 /** A biome colour set for the "looking out the window" side view. */
 private class ViewPalette(
@@ -63,10 +68,20 @@ fun WindowView(vm: GameViewModel, modifier: Modifier = Modifier) {
 
     val zi = vm.zone.coerceIn(0, VIEW_PALETTES.lastIndex)
     val pal = VIEW_PALETTES[zi]
+    val art = rememberGameSprites().windowArt
+    val land = WindowAtlas.LANDS.getOrNull(zi)
 
     Canvas(modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
+        val far = land?.let { art["${it}_far"] }
+        val mid = land?.let { art["${it}_mid"] }
+        val near = land?.let { art["${it}_near"] }
+        val cabin = art["cabin"]
+        if (far != null && mid != null && near != null && cabin != null) {
+            drawBlenderWindow(pal, Color(WindowAtlas.GROUND[zi]), far, mid, near, cabin, art, scroll, t)
+            return@Canvas
+        }
 
         // --- the view through the glass ---
         drawRect(Brush.verticalGradient(listOf(Color(pal.skyTop), Color(pal.skyBottom)), startY = 0f, endY = h * 0.62f))
@@ -169,6 +184,47 @@ fun WindowView(vm: GameViewModel, modifier: Modifier = Modifier) {
         drawWindowFrame(w, h)
         drawCabinForeground(w, h)
     }
+}
+
+/** One seamless strip repeated across the view, scrolled by [shift] px, its foot at [bottom], [hFrac] of the screen tall. */
+private fun DrawScope.drawStrip(img: ImageBitmap, shift: Float, bottom: Float, hFrac: Float) {
+    val th = size.height * hFrac
+    val tw = img.width * th / img.height
+    var x = -(((shift % tw) + tw) % tw)
+    while (x < size.width) {
+        drawImage(img, dstOffset = IntOffset(x.roundToInt(), (bottom - th).roundToInt()), dstSize = IntSize(tw.roundToInt() + 1, th.roundToInt()), filterQuality = FilterQuality.Medium)
+        x += tw
+    }
+}
+
+/** The window view from the Blender art: sky, sun and painted clouds, then the far hills, the trees and houses,
+ *  the fence by the track (each moving at its own speed), and the 3D coach cabin on top. */
+private fun DrawScope.drawBlenderWindow(pal: ViewPalette, ground: Color, far: ImageBitmap, mid: ImageBitmap, near: ImageBitmap,
+                                        cabin: ImageBitmap, art: Map<String, ImageBitmap>, scroll: Float, t: Float) {
+    val w = size.width
+    val h = size.height
+    drawRect(Brush.verticalGradient(listOf(Color(pal.skyTop), Color(pal.skyBottom)), startY = h * 0.15f, endY = h * 0.5f))
+    val sun = Offset(w * (0.74f - 0.03f * sin(t * 0.1f)), h * 0.2f)
+    val sr = h * 0.04f
+    drawCircle(Brush.radialGradient(listOf(Color(0x40FFF3C4), Color.Transparent), sun, sr * 2.2f), sr * 2.2f, sun)
+    drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF8DC), Color(0xFFFFE89A)), sun, sr), sr, sun)
+    if (!pal.desert) for (k in 0 until 3) {
+        val img = art["cloud${k % 4 + 1}"] ?: continue
+        val cw = w * (0.34f - k * 0.05f)
+        val ch = cw * img.height / img.width
+        val cx = ((t * (10f + k * 4f) + k * w * 0.45f) % (w + cw * 2f)) - cw
+        drawImage(img, dstOffset = IntOffset(cx.roundToInt(), (h * (0.12f + 0.06f * k)).roundToInt()), dstSize = IntSize(cw.roundToInt(), ch.roundToInt()),
+            alpha = if (pal.snowy) 0.95f else 0.9f, filterQuality = FilterQuality.Medium)
+    }
+    if (!pal.snowy) for (k in 0 until 3) {
+        val bx = ((t * 14f + k * 190f) % (w + 160f)) - 80f
+        drawBird(bx, h * (0.22f + 0.04f * sin(t * 0.5f + k)), h * 0.009f)
+    }
+    drawRect(ground, topLeft = Offset(0f, h * 0.5f), size = Size(w, h * 0.5f))
+    drawStrip(far, scroll * 0.12f, h * 0.52f, 0.27f)
+    drawStrip(mid, scroll * 0.55f, h * 0.63f, 0.305f)
+    drawStrip(near, scroll * 1.0f, h * 0.72f, 0.154f)
+    drawImage(cabin, dstOffset = IntOffset.Zero, dstSize = IntSize(w.roundToInt(), h.roundToInt()), filterQuality = FilterQuality.Medium)
 }
 
 private fun DrawScope.drawCloud(cx: Float, cy: Float, s: Float, c: Color) {
