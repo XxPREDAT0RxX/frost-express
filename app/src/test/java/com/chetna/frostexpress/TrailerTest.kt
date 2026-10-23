@@ -37,6 +37,9 @@ class TrailerTest {
             putBoolean("tut", true); putInt("simTour", 5); putInt("tstage", 4)
             putLong("dailyDay", java.time.LocalDate.now().toEpochDay()); putLong("specialDay", java.time.LocalDate.now().toEpochDay())
             putBoolean("sound", false)
+            // no pop-ups in the middle of a shot: every feature already introduced, every award already won
+            putString("featSeen", Feature.values().joinToString(",") { it.name })
+            putString("ach", ACHIEVEMENTS.joinToString(",") { it.id })
             setup()
         }.commit()
     }

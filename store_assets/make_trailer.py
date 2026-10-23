@@ -31,10 +31,12 @@ def font(size):
         if os.path.exists(p): return ImageFont.truetype(p, size)
     return ImageFont.load_default()
 
-def title(img, text, y, size):
+def title(img, text, y, size, margin=60):
     d = ImageDraw.Draw(img)
     f = font(size)
     w = d.textlength(text, font=f)
+    while w > img.width - 2 * margin and size > 20:   # shrink to fit the width
+        size -= 2; f = font(size); w = d.textlength(text, font=f)
     d.text(((img.width - w) / 2, y), text, font=f, fill=(255, 255, 255), stroke_width=max(4, size // 9), stroke_fill=INK)
 
 def frames(clip):
