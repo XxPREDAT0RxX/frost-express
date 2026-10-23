@@ -171,13 +171,67 @@ def turbine(frames=12):
     print('done turbine', flush=True)
     clear()
 
+def campfire(frames=12):
+    """The flames lick upward and flicker; the logs and sticks stay put."""
+    o, (W, H), info = card('campfire', depth=0.2, res=110)
+    set_camera(W, H)
+    _, a = load_image('campfire')
+    r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+    flame = ((r > 0.75) & (g > 0.55) & (b < 0.62) & (r - b > 0.3) & (al > 0.5)).astype(np.float32)
+    for _ in range(6):   # soften the mask so the edge of the fire moves smoothly
+        flame = (flame + np.roll(flame, 1, 0) + np.roll(flame, -1, 0) + np.roll(flame, 1, 1) + np.roll(flame, -1, 1)) / 5
+    me = o.data
+    rest = [v.co.copy() for v in me.vertices]
+    ys, xs = np.where(flame > 0.3); fbase = (H - ys.max()) * PX; fcx = (xs.mean() - W / 2) * PX
+    wgt = []
+    for r_ in rest:
+        px = int(r_.x / PX + W / 2); py = int(H - r_.z / PX)
+        wgt.append(float(flame[min(max(py, 0), H - 1), min(max(px, 0), W - 1)]))
+    sh = me.color_attributes['shade'].data
+    for f in range(frames):
+        ph = 2 * math.pi * f / frames
+        s_up = 1 + 0.12 * math.sin(ph * 2) + 0.06 * math.sin(ph * 3 + 1)
+        for v, r_, w_ in zip(me.vertices, rest, wgt):
+            up = max(0.0, r_.z - fbase)
+            v.co = r_ + Vector((w_ * (0.04 * math.sin(ph * 2 + r_.z * 30) * up * 2 + (r_.x - fcx) * (1 / math.sqrt(s_up) - 1)),
+                                0, w_ * up * (s_up - 1)))
+        for c, w_ in zip(sh, wgt):
+            k = 1 + w_ * (0.14 * math.sin(ph * 3 + 0.5) + 0.06 * math.sin(ph * 5))
+            c.color = (k, k, k, 1)
+        me.update()
+        shot('campfire_%02d' % f)
+    print('done campfire', flush=True)
+    clear()
+
 JOBS = [
     ('tree_round', lambda: plant('tree_round', 0.035, flutter=0.4)),
     ('tree_tall', lambda: plant('tree_tall', 0.03, flutter=0.3, stiff=1.9)),
+    ('pine_a', lambda: plant('pine_a', 0.028, flutter=0.3, stiff=1.9)),
+    ('pine_b', lambda: plant('pine_b', 0.028, flutter=0.3, stiff=1.9)),
+    ('pine_c', lambda: plant('pine_c', 0.03, flutter=0.3, stiff=1.8)),
+    ('frost_pine_a', lambda: plant('frost_pine_a', 0.022, flutter=0.2, stiff=2.0)),
+    ('frost_pine_b', lambda: plant('frost_pine_b', 0.022, flutter=0.2, stiff=2.0)),
+    ('frost_pine_c', lambda: plant('frost_pine_c', 0.022, flutter=0.2, stiff=2.0)),
+    ('xmas', lambda: plant('xmas', 0.015, flutter=0.15, stiff=2.2)),
+    ('acacia', lambda: plant('acacia', 0.025, flutter=0.35, stiff=1.8)),
+    ('dead_a', lambda: plant('dead_a', 0.018, flutter=0.25, stiff=2.0)),
+    ('dead_b', lambda: plant('dead_b', 0.018, flutter=0.25, stiff=2.0)),
+    ('palm', lambda: plant('palm', 0.05, flutter=0.6, stiff=1.5)),
     ('v_palm', lambda: plant('v_palm', 0.05, flutter=0.6, stiff=1.5)),
     ('v_banana', lambda: plant('v_banana', 0.045, flutter=0.6)),
+    ('v_bamboo', lambda: plant('v_bamboo', 0.05, flutter=0.5, stiff=1.4)),
+    ('jungle', lambda: plant('jungle', 0.04, flutter=0.6, stiff=1.3)),
+    ('fern', lambda: plant('fern', 0.04, flutter=0.6, stiff=1.2)),
     ('bush', lambda: plant('bush', 0.025, flutter=0.5, stiff=1.2)),
+    ('v_vbush', lambda: plant('v_vbush', 0.025, flutter=0.5, stiff=1.2)),
+    ('snow_bush', lambda: plant('snow_bush', 0.015, flutter=0.3, stiff=1.3)),
+    ('shrub', lambda: plant('shrub', 0.02, flutter=0.4, stiff=1.2)),
+    ('frost_shrub', lambda: plant('frost_shrub', 0.02, flutter=0.4, stiff=1.2)),
+    ('grass_tuft', lambda: plant('grass_tuft', 0.07, flutter=0.7, stiff=1.1)),
+    ('v_vgrass', lambda: plant('v_vgrass', 0.06, flutter=0.7, stiff=1.1)),
+    ('flowers', lambda: plant('flowers', 0.06, flutter=0.6, stiff=1.1)),
     ('turbine', turbine),
+    ('campfire', campfire),
 ]
 for name, job in JOBS:
     if ONLY and name not in ONLY: continue
