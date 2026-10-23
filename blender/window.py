@@ -207,13 +207,29 @@ def cabin():
 
 # ------------------------------------------------------------------ scenery strips
 T_PX = 2048
+# in the order of the game's lands (ZONES in TrainScene / VIEW_PALETTES in WindowView)
 BIOMES = {
-    'meadow': dict(hills=('#9FD08A', '#6FB05C'), haze='#D6F1FF',
+    'meadow': dict(hills=('#9FD08A', '#6FB05C'), haze='#D6F1FF', far_tree='tree_tall',
                    mid=[('tree_round', 2.4), ('tree_tall', 2.6), ('tree_round', 2.1), ('bush', 1.1), ('v_house_b', 1.7), ('tree_tall', 2.2), ('bush', 0.9)],
                    near=[('grass_tuft', 0.55), ('bush', 0.6), ('grass_tuft', 0.45)], post='#8A6A4A'),
-    'snow': dict(hills=('#CAD8E4', '#AFC2D2'), haze='#EAF4FB',
+    'pine': dict(hills=('#6E9E63', '#4E7E48'), haze='#CDEAF6', far_tree='tree_tall',
+                 mid=[('tree_tall', 2.8), ('pine_a', 2.4), ('tree_tall', 2.3), ('fern', 0.9), ('boulder', 0.8), ('tree_tall', 2.6), ('logs', 0.8)],
+                 near=[('fern', 0.6), ('grass_tuft', 0.5), ('boulder', 0.4)], post='#7A5A44'),
+    'savanna': dict(hills=('#CDB06A', '#B89A52'), haze='#FBEFC8', far_tree='acacia',
+                    mid=[('acacia', 2.2), ('dry_bush', 0.8), ('boulder', 0.9), ('acacia', 1.9), ('grass_tuft', 0.7), ('tent', 1.2)],
+                    near=[('grass_tuft', 0.6), ('dry_bush', 0.55), ('grass_tuft', 0.5)], post='#9A7A54'),
+    'desert': dict(hills=('#D6A368', '#C08A52'), haze='#FBE6C0', far_tree='cactus',
+                   mid=[('cactus', 2.0), ('mesa', 1.9), ('cactus_ball', 0.8), ('boulder', 0.8), ('cactus', 1.6), ('dry_bush', 0.7)],
+                   near=[('dry_bush', 0.55), ('cactus_ball', 0.45), ('boulder', 0.4)], post='#8E6A48'),
+    'rainforest': dict(hills=('#5E9E78', '#3E7E58'), haze='#DAF2E6', far_tree='palm',
+                       mid=[('palm', 2.7), ('jungle', 1.6), ('v_banana', 2.1), ('fern', 1.0), ('tree_round', 2.2), ('palm', 2.4)],
+                       near=[('fern', 0.7), ('jungle', 0.7), ('fern', 0.55)], post='#6E5238'),
+    'snow': dict(hills=('#CAD8E4', '#AFC2D2'), haze='#EAF4FB', far_tree='frost_pine_c',
                  mid=[('frost_pine_a', 2.7), ('frost_pine_b', 2.2), ('snowman', 1.2), ('frost_pine_c', 1.8), ('dead_b', 2.2), ('snow_bush', 1.0), ('logs', 0.9)],
                  near=[('frost_shrub', 0.6), ('rock_a', 0.5), ('snow_bush', 0.55)], post='#7A5A44'),
+    'village': dict(hills=('#8EC27A', '#6BA85A'), haze='#E2F3E4', far_tree='v_palm',
+                    mid=[('v_palm', 2.8), ('v_house_a', 1.7), ('v_banana', 2.0), ('v_haystack', 1.3), ('v_bamboo', 2.3), ('v_house_b', 1.7), ('v_well', 1.1)],
+                    near=[('v_vgrass', 0.6), ('v_vbush', 0.6), ('v_pots', 0.45)], post='#8A6A4A'),
 }
 
 def periodic_height(x, T, seed, amp, waves=(1, 2, 3, 5)):
@@ -244,7 +260,7 @@ def hills_strip(name, b, seed):
         # a hazy treeline along the far ridge: little painted trees, faded
         if layer == 0:
             rnd = random.Random(seed)
-            tree = 'frost_pine_c' if name == 'snow' else 'tree_tall'
+            tree = b['far_tree']
             for k in range(40):
                 x = T * (k + rnd.uniform(-0.3, 0.3)) / 40
                 top = base + amp * (0.5 + 0.5 * periodic_height(x, T, seed + layer, 1.0) / 1.6)
@@ -291,7 +307,32 @@ def items_strip(name, b, which, seed, Hh, ground, count, jitter):
     shot('%s_%s' % (name, which), T_PX, int(Hh / PX), 16 if which == 'mid' else 32)
     clear()
 
-JOBS = [('cabin', cabin)]
+def clouds():
+    """Four fluffy cumulus clouds: white puffs lit from above, bluish underneath, with the art's brown outline."""
+    for n in range(4):
+        rnd = random.Random(70 + n)
+        m_top = mat('#FFFFFF', rough=1.0); m_low = mat('#DCE7F2', rough=1.0)
+        puffs = []
+        cnt = 5 + n
+        for i in range(cnt):
+            x = (i - (cnt - 1) / 2) * 0.55 + rnd.uniform(-0.12, 0.12)
+            r = 0.55 * (1 - abs(x) / (cnt * 0.4)) + rnd.uniform(0.05, 0.2)
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=max(0.25, r), location=(x, 0, max(0.25, r) * 0.55 + rnd.uniform(-0.05, 0.1)), segments=32, ring_count=16)
+            o = reg(bpy.context.object); o.data.materials.append(m_top)
+            for p_ in o.data.polygons: p_.use_smooth = True
+            puffs.append(o)
+        rbox((0, 0, 0.12), (cnt * 0.55 + 0.4, 0.9, 0.3), m_low, bevel=0.14)    # flat, shaded base
+        bpy.ops.object.light_add(type='SUN', rotation=(math.radians(25), math.radians(-20), 0))
+        s_ = reg(bpy.context.object); s_.data.energy = 3.0
+        bg.inputs[0].default_value = (0.62, 0.74, 0.9, 1); bg.inputs[1].default_value = 1.0
+        sc.cycles.max_bounces = 3; sc.cycles.use_denoising = True
+        camd.ortho_scale = cnt * 0.55 + 1.6
+        CAM.location = (0, -30, 0.6); CAM.rotation_euler = (math.radians(90), 0, 0)
+        shot('cloud%d' % (n + 1), 640, 280, 48)
+        clear()
+
+JOBS = [('cabin', cabin), ('clouds', clouds)]
+
 for bname, b in BIOMES.items():
     JOBS.append((bname, lambda bname=bname, b=b: (hills_strip(bname, b, 11),
                                                     items_strip(bname, b, 'mid', 21, 3.4, 0.35, 11, 0.3),
