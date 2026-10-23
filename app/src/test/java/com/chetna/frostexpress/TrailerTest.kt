@@ -40,6 +40,7 @@ class TrailerTest {
             // no pop-ups in the middle of a shot: every feature already introduced, every award already won
             putString("featSeen", Feature.values().joinToString(",") { it.name })
             putString("ach", ACHIEVEMENTS.joinToString(",") { it.id })
+            putString("m_cards", "0,1,2,3,4,5")   // every region's postcard already collected
             setup()
         }.commit()
     }
@@ -84,7 +85,8 @@ class TrailerTest {
     }
 
     @Test fun c4_desert() {
-        prefs { putString("totalDist", "9500"); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
+        // Sunlands cycles savanna, desert, meadow: the middle of its second land is the red desert
+        prefs { putInt("country", 2); putString("totalDist", "7800"); putString("levels", "12,6,5,3,2,1,0,0,1,1") }
         val v = vm(); clip("c4_desert", 3f) { GameScreen(v) }
     }
 
