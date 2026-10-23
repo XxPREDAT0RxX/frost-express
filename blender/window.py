@@ -180,21 +180,22 @@ def cabin():
     cyl((px, -0.35, zs + 0.42), 0.33, 0.06, mat('#A84E2E', rough=0.6))
     billboard('bush', px, zs + 0.38, 0.75, y=-0.4)
     # the seat ahead (headrest low in the view) and your armrests
-    hx, hz = S(0.5, 0.9)
-    rbox((hx, -1.2, hz - 1.2), (0.42 * W, 0.6, 2.6), fabric_d, bevel=0.5, segs=8)
-    rbox((hx, -1.4, hz - 1.0), (0.38 * W, 0.4, 2.3), fabric, bevel=0.45, segs=8)
-    for k in range(5):   # quilted seams
-        z_ = hz - 0.2 - k * 0.42
-        rbox((hx, -1.62, z_), (0.33 * W, 0.02, 0.025), fabric_d, bevel=0.01)
+    hx, hz = S(0.5, 0.86)
+    rbox((hx, -1.2, hz - 2.4), (0.46 * W, 0.7, 4.6), fabric_d, bevel=0.7, segs=10)            # seat back
+    rbox((hx, -1.45, hz - 2.2), (0.4 * W, 0.4, 4.1), fabric, bevel=0.6, segs=10)              # its padded face
+    rbox((hx, -1.5, hz + 0.05), (0.3 * W, 0.6, 0.9), fabric, bevel=0.4, segs=10)              # headrest cushion
+    rbox((hx, -1.82, hz + 0.05), (0.26 * W, 0.04, 0.08), mat('#F3EEE2', rough=0.9), bevel=0.02)  # white antimacassar band
+    for dx in (-0.12, 0.12):                                                                   # piping down the back
+        rbox((hx + dx * W, -1.68, hz - 2.2), (0.03, 0.04, 3.6), fabric_d, bevel=0.015)
     for sx in (0.02, 0.98):
         x, _ = S(sx, 0)
         rbox((x, -2.0, 1.0), (1.5, 1.2, 2.6), arm, bevel=0.4, segs=6)
         rbox((x, -2.05, 2.25), (1.55, 1.25, 0.18), mat('#4C5A68', rough=0.5), bevel=0.08)
     # light: daylight pouring in through the windows, a warm lamp from above, soft fill
     bpy.ops.object.light_add(type='AREA', location=(W / 2, 6, H * 0.55), rotation=(math.radians(90), 0, math.radians(180)))
-    l1 = reg(bpy.context.object); l1.data.energy = 6000; l1.data.size = W; l1.data.size_y = H * 0.6; l1.data.shape = 'RECTANGLE'; l1.data.color = (1.0, 0.97, 0.9)
+    l1 = reg(bpy.context.object); l1.data.energy = 3500; l1.data.size = W; l1.data.size_y = H * 0.6; l1.data.shape = 'RECTANGLE'; l1.data.color = (1.0, 0.97, 0.9)
     bpy.ops.object.light_add(type='AREA', location=(W * 0.3, -8, H * 0.95), rotation=(math.radians(60), 0, 0))
-    l2 = reg(bpy.context.object); l2.data.energy = 2600; l2.data.size = 6; l2.data.color = (1.0, 0.86, 0.68)
+    l2 = reg(bpy.context.object); l2.data.energy = 900; l2.data.size = 14; l2.data.color = (1.0, 0.88, 0.72)
     bpy.ops.object.light_add(type='AREA', location=(W / 2, -12, H * 0.4), rotation=(math.radians(90), 0, 0))
     l3 = reg(bpy.context.object); l3.data.energy = 1400; l3.data.size = 14; l3.data.color = (0.85, 0.9, 1.0)
     bg.inputs[0].default_value = (0.6, 0.62, 0.66, 1); bg.inputs[1].default_value = 0.25
