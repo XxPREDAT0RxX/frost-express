@@ -99,7 +99,7 @@ class GameSprites(ctx: Context) {
         val a = strips.map { info -> load(info.name)?.let { NpcAnim(it, info) } }
         return if (a.size == 3 && a.all { it != null }) NpcLook(a[0]!!, a[1]!!, a[2]!!) else null
     }
-    /** Looping roadside animations (blender/scenery_anim.py): strip of square frames per scenery name, and its frame rate. */
+    /** Looping roadside animations (blender/projected.py: the painted art on 3D shapes): strip of square frames per scenery name, and its frame rate. */
     val sceneAnims: Map<String, Pair<ImageBitmap, Float>> = SCENE_ANIM_FPS.mapNotNull { (n, fps) -> load("spra_$n")?.let { n to (it to fps) } }.toMap()
     val survivors: List<ImageBitmap> = (1..10).mapNotNull { load("npc_surv$it") }
     /** Warm-weather passengers (tees, caps, sun hats) for the hot biomes. */
@@ -112,9 +112,10 @@ class GameSprites(ctx: Context) {
 
 /** Scenery items that have a looping animation strip, with frames per second. */
 private val SCENE_ANIM_FPS = mapOf(
-    "tree_round" to 6f, "tree_tall" to 6f, "acacia" to 5f, "palm" to 6f, "v_palm" to 6f, "v_banana" to 6f, "v_bamboo" to 6f,
-    "jungle" to 6f, "grass_tuft" to 7f, "v_vgrass" to 7f, "flowers" to 6f, "frost_pine_a" to 5f, "frost_pine_b" to 5f,
-    "frost_pine_c" to 5f, "fern" to 6f, "turbine" to 10f, "campfire" to 10f, "lighthouse" to 4f,
+    "tree_round" to 5f, "tree_tall" to 5f, "acacia" to 5f, "palm" to 5f, "jungle" to 5f, "fern" to 5f, "bush" to 5f,
+    "flowers" to 6f, "grass_tuft" to 6f, "xmas" to 4f, "snow_bush" to 4f, "dead_a" to 4f, "dead_b" to 4f,
+    "pine_a" to 4f, "pine_b" to 4f, "pine_c" to 4f, "shrub" to 5f, "v_palm" to 5f, "v_banana" to 5f, "v_bamboo" to 5f,
+    "v_bush" to 5f, "v_grass" to 6f, "campfire" to 9f, "turbine" to 9f,
 )
 
 /** Loads the sprites once (can be warmed up on a background thread at start). */

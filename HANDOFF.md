@@ -30,8 +30,11 @@ Paste this file (or point the new chat to it in the repo) so it can continue whe
 
 - `blender/train.py` — top-down train: nose caps for all 25 tiers (`nose*_fill` tinted body + `nose*_line` outline/decor via a holdout pass), coach walls `car_fill`/`car_line` (side glass) and `car_roof`. Fixed frames match the draw rects, so `store_assets/make_train_sprites.py <folder>` just converts to webp. Latest: `blender-13`.
 - `blender/npcs_summer.py` — 8 warm-weather NPCs (s01..s08) built with the npcs.py kit (`SPEC_HOOK`); packed with `make_npc_strips.py <npcs> <npcs_summer>` into `NpcAtlas.SUMMER`; hot biomes use them (`npcLook(sprite, warm)`). Latest: `blender-16`.
-- `blender/scenery_anim.py` — looping frames (sway for trees/palms/bamboo/grass/flowers, turbine, campfire, lighthouse) reusing scenery.py (`ANIM_HOOK`); packed into `spra_<name>.webp` strips by `make_env_sprites.py`; `SCENE_ANIM_FPS` in Sprites.kt, `spriteFrame` in TrainScene. Latest: `blender-15`. Scenery statics latest: `blender-18`.
+- (replaced, see projected.py) `blender/scenery_anim.py` — looping frames (sway for trees/palms/bamboo/grass/flowers, turbine, campfire, lighthouse) reusing scenery.py (`ANIM_HOOK`); packed into `spra_<name>.webp` strips by `make_env_sprites.py`; `SCENE_ANIM_FPS` in Sprites.kt, `spriteFrame` in TrainScene. Latest: `blender-15`. Scenery statics latest: `blender-18`.
 - Upgrade devices / furniture art kept on purpose (already detailed).
+
+- **Environment = the original painted art** (stations and all `spr_*` restored; the Blender toon scenery was rejected as unrealistic/off-style). `blender/projected.py` puts painted sprites (`blender/painted/*.png`) onto puffed 3D shapes and animates them (wind bend with light, turbine blades, campfire flame); `store_assets/make_projected_strips.py <folder>` writes `spra_<game name>.webp` (24 strips) that `spriteFrame` plays with cross-fade. `scenery_sample.py` / `scenery_anim_sample.py` / `scenery.py` are kept only as experiments. Render workflow can be run by hand: dispatch with input `scripts`.
+- Himanshu's rule: new art/animations go to him as samples first, into the game only after he says yes.
 
 ## Art pipeline
 - Gemini sheets on pale mint `#E0F5E9`; cut with numpy/scipy/PIL (flood-fill background from the border, soft alpha, pull edge colour inward to kill mint fringe), save `.webp` in `app/src/main/res/drawable-nodpi/`.

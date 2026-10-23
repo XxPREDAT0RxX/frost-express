@@ -224,10 +224,14 @@ private fun DrawScope.texRect(
 private fun DrawScope.spriteFrame(strip: ImageBitmap, cx: Float, cy: Float, side: Float, frame: Float) {
     val fs = strip.height
     val n = max(1, strip.width / fs)
-    val f = Math.floorMod(frame.toInt(), n)
+    val fl = kotlin.math.floor(frame)
+    val f = Math.floorMod(fl.toInt(), n)
+    val g = (f + 1) % n
+    val mix = frame - fl                       // fade into the next frame, so 5 fps still moves smoothly
     val s = side.toInt().coerceAtLeast(1)
-    drawImage(strip, srcOffset = IntOffset(f * fs, 0), srcSize = IntSize(fs, fs),
-        dstOffset = IntOffset((cx - side / 2f).toInt(), (cy - side / 2f).toInt()), dstSize = IntSize(s, s))
+    val dst = IntOffset((cx - side / 2f).toInt(), (cy - side / 2f).toInt())
+    drawImage(strip, srcOffset = IntOffset(f * fs, 0), srcSize = IntSize(fs, fs), dstOffset = dst, dstSize = IntSize(s, s))
+    if (mix > 0.02f) drawImage(strip, srcOffset = IntOffset(g * fs, 0), srcSize = IntSize(fs, fs), dstOffset = dst, dstSize = IntSize(s, s), alpha = mix)
 }
 
 private fun DrawScope.sprite(img: ImageBitmap, cx: Float, cy: Float, side: Float) {
