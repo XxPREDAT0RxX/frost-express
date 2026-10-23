@@ -203,6 +203,146 @@ def campfire(frames=12):
     print('done campfire', flush=True)
     clear()
 
+def flat_mat(col, alpha):
+    m = bpy.data.materials.new('f'); m.use_nodes = True
+    nt = m.node_tree; nt.nodes.clear(); L = nt.links.new
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    em = nt.nodes.new('ShaderNodeEmission'); em.inputs['Color'].default_value = [((int(col[k:k + 2], 16) / 255) ** 2.2) for k in (1, 3, 5)] + [1]
+    tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mx = nt.nodes.new('ShaderNodeMixShader'); mx.inputs[0].default_value = alpha
+    L(tr.outputs[0], mx.inputs[1]); L(em.outputs[0], mx.inputs[2]); L(mx.outputs[0], out.inputs['Surface'])
+    return m
+
+def px_to_world(px, py, W, H, front=0.6):
+    return Vector(((px - W / 2) * PX, -front, (H - py) * PX))
+
+def disc(cx, cy, r, col, alpha, W, H, front):
+    bpy.ops.mesh.primitive_circle_add(vertices=24, radius=r * PX, fill_type='NGON', location=px_to_world(cx, cy, W, H, front), rotation=(math.radians(90), 0, 0))
+    o = bpy.context.object; o.data.materials.append(flat_mat(col, alpha)); return o
+
+def smoke(x, y, ph, W, H, n=3, rise=60, size=7):
+    """Soft puffs drifting up from (x, y) px, growing and fading; returns the objects made."""
+    objs = []
+    for k in range(n):
+        t = (ph / (2 * math.pi) + k / n) % 1.0
+        cx = x + 6 * math.sin(t * 5 + k) + t * 10; cy = y - t * rise; r = size * (0.6 + 1.2 * t)
+        a = 0.75 * (1 - t) * min(1.0, t * 6)
+        objs.append(disc(cx, cy, r * 1.15, '#B9B4AC', a * 0.6, W, H, 0.8 + 0.01 * k))
+        objs.append(disc(cx - r * 0.15, cy - r * 0.15, r * 0.8, '#EDEAE4', a, W, H, 0.81 + 0.01 * k))
+    return objs
+
+def beam(x, y, ph, W, H, length=95, spread=0.22):
+    """A lighthouse beam sweeping round: seen from the side it swings out to the left and right."""
+    c = math.cos(ph); L_ = length * abs(c); sgn = 1 if c >= 0 else -1
+    a = 0.32 * abs(c) ** 0.7
+    p0 = px_to_world(x, y, W, H, 0.9)
+    p1 = px_to_world(x + sgn * L_, y - L_ * spread, W, H, 0.9); p2 = px_to_world(x + sgn * L_, y + L_ * spread, W, H, 0.9)
+    me = bpy.data.meshes.new('beam'); me.from_pydata([p0, p1, p2], [], [(0, 1, 2)]); me.update()
+    o = bpy.data.objects.new('beam', me); sc.collection.objects.link(o); o.data.materials.append(flat_mat('#FFE9A8', a))
+    return [o]
+
+def ss(a, b, x):
+    t = min(1.0, max(0.0, (x - a) / (b - a))); return t * t * (3 - 2 * t)
+
+def region_anim(name, fn, frames=12, res=140, depth=0.22, extras=None):
+    """Moves parts of the painted shape: fn(px, py, ph, img) -> (dx, dy, shade) in sprite pixels for each vertex;
+    extras(ph, W, H) may add overlay objects (smoke, light) for the frame."""
+    o, (W, H), info = card(name, depth=depth, res=res)
+    set_camera(W, H)
+    _, img = load_image(name)
+    me = o.data
+    rest = [v.co.copy() for v in me.vertices]
+    pts = [(r.x / PX + W / 2, H - r.z / PX) for r in rest]
+    sh = me.color_attributes['shade'].data
+    for f in range(frames):
+        ph = 2 * math.pi * f / frames
+        for v, r, (px, py), c in zip(me.vertices, rest, pts, sh):
+            dx, dy, k = fn(px, py, ph, img)
+            v.co = r + Vector((dx * PX, 0, -dy * PX)); c.color = (k, k, k, 1)
+        me.update()
+        extra = extras(ph, W, H) if extras else []
+        shot('%s_%02d' % (name, f))
+        for e in extra: bpy.data.objects.remove(e, do_unlink=True)
+    print('done', name, flush=True)
+    clear()
+
+def pix(img, px, py):
+    H, W = img.shape[:2]
+    return img[min(max(int(py), 0), H - 1), min(max(int(px), 0), W - 1)]
+
+def glow(cx, cy, r, amt):
+    def f(px, py, ph, img):
+        d = math.hypot(px - cx, py - cy)
+        return 0, 0, 1 + amt(ph) * (1 - ss(r * 0.5, r, d))
+    return f
+
+def rocker(pivot, deg, bob, y0, y1, speed=1):
+    """Whatever is above y0 (fading out by y1) rocks about pivot and bobs (boats, buoys)."""
+    def f(px, py, ph, img):
+        w = 1 - ss(y0, y1, py)
+        a = math.radians(deg) * math.sin(ph * speed); b = bob * math.sin(ph * speed + 1.2)
+        x, y = px - pivot[0], py - pivot[1]
+        rx = x * math.cos(a) - y * math.sin(a); ry = x * math.sin(a) + y * math.cos(a)
+        return w * (rx - x), w * (ry - y + b), 1
+    return f
+
+def pendulum(pivot, deg, box):
+    x0, y0, x1, y1 = box
+    def f(px, py, ph, img):
+        w = ss(x0 - 4, x0 + 2, px) * (1 - ss(x1 - 2, x1 + 4, px)) * ss(y0 - 2, y0 + 4, py) * (1 - ss(y1 - 2, y1 + 4, py))
+        a = math.radians(deg) * math.sin(ph)
+        x, y = px - pivot[0], py - pivot[1]
+        rx = x * math.cos(a) - y * math.sin(a); ry = x * math.sin(a) + y * math.cos(a)
+        return w * (rx - x), w * (ry - y), 1
+    return f
+
+def flutter_box(box, along, amp, waves=0.25, root=0):
+    """Cloth in [box] waving; [along] 'x' = flag fixed on its left edge, 'y' = scarf fixed at its top."""
+    x0, y0, x1, y1 = box
+    def f(px, py, ph, img):
+        inside = ss(x0 - 3, x0 + 2, px) * (1 - ss(x1 - 2, x1 + 3, px)) * ss(y0 - 3, y0 + 2, py) * (1 - ss(y1 - 2, y1 + 3, py))
+        if along == 'x':
+            w = inside * ss(x0 + root, x1, px)
+            return 0, w * amp * math.sin(ph * 2 - px * waves), 1 + 0.08 * w * math.sin(ph * 2 - px * waves + 1.5)
+        w = inside * ss(y0 + root, y1, py)
+        return w * amp * math.sin(ph * 2 - py * waves), 0, 1 + 0.08 * w * math.sin(ph * 2 - py * waves + 1.5)
+    return f
+
+def combine(*fs):
+    def f(px, py, ph, img):
+        dx = dy = 0.0; k = 1.0
+        for g in fs:
+            a, b, c = g(px, py, ph, img); dx += a; dy += b; k *= c
+        return dx, dy, k
+    return f
+
+def paddy_fn(px, py, ph, img):
+    r, g, b, a = pix(img, px, py)
+    m = 1.0 if (g > r + 0.06 and g > b - 0.02 and a > 0.5 and g > 0.35) else 0.0
+    return m * 1.8 * math.sin(ph + px * 0.07 + py * 0.05), 0, 1 + 0.06 * m * math.sin(ph + px * 0.07 + 1)
+
+def net_fn(px, py, ph, img):
+    r, g, b, a = pix(img, px, py)
+    lum = 0.3 * r + 0.59 * g + 0.11 * b
+    w = ss(0, 1, (235 - py) / 170) * (1.0 if lum > 0.5 else 0.0)
+    return w * 2.6 * math.sin(ph + py * 0.025), 0, 1
+
+MORE = [
+    ('v_house_a', lambda: region_anim('v_house_a', glow(248, 187, 16, lambda ph: 0.28 * math.sin(ph * 3) + 0.12 * math.sin(ph * 7)),
+                                      extras=lambda ph, W, H: smoke(232, 50, ph, W, H))),
+    ('v_well', lambda: region_anim('v_well', pendulum((155, 70), 2.2, (143, 72, 168, 178)))),
+    ('tent', lambda: region_anim('tent', flutter_box((84, 20, 112, 52), 'x', 2.6, waves=0.3))),
+    ('lighthouse', lambda: region_anim('lighthouse', glow(119, 55, 11, lambda ph: 0.25 + 0.25 * abs(math.cos(ph))),
+                                       extras=lambda ph, W, H: beam(119, 55, ph, W, H))),
+    ('ship', lambda: region_anim('ship', rocker((128, 176), 2.5, 2.0, 168, 182))),
+    ('buoy', lambda: region_anim('buoy', rocker((96, 141), 5.0, 2.5, 130, 146))),
+    ('snowman', lambda: region_anim('snowman', flutter_box((124, 138, 146, 190), 'y', 3.0, waves=0.12, root=4))),
+    ('crane', lambda: region_anim('crane', pendulum((192, 27), 4.0, (176, 28, 210, 152)))),
+    ('v_paddy', lambda: region_anim('v_paddy', paddy_fn, res=160)),
+    ('v_bed', lambda: region_anim('v_bed', net_fn)),
+    ('v_haystack', lambda: plant('v_haystack', 0.012, flutter=0.3, stiff=2.0)),
+    ('lamp', lambda: region_anim('lamp', glow(175, 30, 18, lambda ph: 0.16 * math.sin(ph * 4) + 0.08 * math.sin(ph * 9)))),
+]
+
 JOBS = [
     ('tree_round', lambda: plant('tree_round', 0.035, flutter=0.4)),
     ('tree_tall', lambda: plant('tree_tall', 0.03, flutter=0.3, stiff=1.9)),
@@ -232,7 +372,7 @@ JOBS = [
     ('flowers', lambda: plant('flowers', 0.06, flutter=0.6, stiff=1.1)),
     ('turbine', turbine),
     ('campfire', campfire),
-]
+] + MORE
 for name, job in JOBS:
     if ONLY and name not in ONLY: continue
     job()
