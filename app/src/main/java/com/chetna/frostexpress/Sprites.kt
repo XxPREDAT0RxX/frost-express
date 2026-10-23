@@ -116,6 +116,8 @@ private val SCENE_ANIM_FPS = mapOf(
     "flowers" to 6f, "grass_tuft" to 6f, "xmas" to 4f, "snow_bush" to 4f, "dead_a" to 4f, "dead_b" to 4f,
     "pine_a" to 4f, "pine_b" to 4f, "pine_c" to 4f, "shrub" to 5f, "v_palm" to 5f, "v_banana" to 5f, "v_bamboo" to 5f,
     "v_bush" to 5f, "v_grass" to 6f, "campfire" to 9f, "turbine" to 9f,
+    "v_house_a" to 6f, "v_well" to 4f, "tent" to 7f, "lighthouse" to 4f, "ship" to 4f, "buoy" to 5f, "snowman" to 6f,
+    "crane" to 4f, "v_paddy" to 5f, "v_bed" to 4f, "v_haystack" to 5f, "lamp" to 6f,
 )
 
 /** Loads the sprites once (can be warmed up on a background thread at start). */
