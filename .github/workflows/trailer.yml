@@ -24,6 +24,7 @@ jobs:
         shell: bash
         run: gradle testDebugUnitTest --tests "com.chetna.frostexpress.TrailerTest" --no-daemon 2>&1 | tee trailer.log | tail -40
       - name: Cut the trailer
+        timeout-minutes: 40
         shell: bash
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
@@ -45,4 +46,6 @@ jobs:
         with:
           tag_name: trailer-${{ github.run_number }}-failed
           prerelease: true
-          files: trailer.log
+          files: |
+            trailer.log
+            app/build/reports/tests/testDebugUnitTest/index.html

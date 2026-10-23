@@ -50,10 +50,12 @@ def fit_vertical(im):
 
 BG = None
 def landscape(v):
-    """The vertical frame shown as a phone in the middle of a soft, blurred copy of itself."""
+    """The vertical frame shown as a phone in the middle of a soft backdrop (made once from the title card)."""
     global BG
-    canvas = v.resize((1920, int(1920 * v.height / v.width))).crop((0, 400, 1920, 1480)).filter(ImageFilter.GaussianBlur(30))
-    canvas = Image.blend(canvas, Image.new('RGB', canvas.size, (255, 246, 233)), 0.35)
+    if BG is None:
+        BG = intro.resize((1920, int(1920 * intro.height / intro.width))).crop((0, 300, 1920, 1380)).filter(ImageFilter.GaussianBlur(40))
+        BG = Image.blend(BG, Image.new('RGB', BG.size, (255, 246, 233)), 0.35)
+    canvas = BG.copy()
     ph = v.resize((int(1000 * v.width / v.height), 1000))
     frame = Image.new('RGB', (ph.width + 24, ph.height + 24), INK)
     frame.paste(ph, (12, 12))
@@ -109,6 +111,7 @@ outro = card(['Little', 'Express'], 'Coming soon on Google Play')
 for k in range(8): add(Image.blend(prev_last, outro, (k + 1) / 9))
 add(outro, int(FPS * 2.5))
 
+print('frames', len(seq), flush=True)
 for i, im in enumerate(seq):
     im.save(os.path.join(tmp, 'v%05d.png' % i))
     landscape(im).save(os.path.join(tmp, 'l%05d.png' % i))
@@ -117,8 +120,9 @@ music = os.path.join(RES, 'raw', 'music_1.ogg')
 for kind, size in (('v', 'vertical'), ('l', 'landscape')):
     cmd = ['ffmpeg', '-loglevel', 'error', '-y', '-framerate', str(FPS), '-i', os.path.join(tmp, kind + '%05d.png')]
     if os.path.exists(music):
-        cmd += ['-stream_loop', '-1', '-i', music, '-af', 'afade=t=in:d=0.8,afade=t=out:st=%.2f:d=1.5' % (dur - 1.6), '-shortest', '-c:a', 'aac', '-b:a', '160k']
-    cmd += ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-movflags', '+faststart', os.path.join(OUT, 'trailer-%s.mp4' % size)]
+        # a fixed length for the music (an endless loop with -shortest never stops when a filter is used)
+        cmd += ['-stream_loop', '3', '-t', '%.2f' % dur, '-i', music, '-af', 'afade=t=in:d=0.8,afade=t=out:st=%.2f:d=1.5' % (dur - 1.6), '-c:a', 'aac', '-b:a', '160k']
+    cmd += ['-t', '%.2f' % dur, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '20', '-movflags', '+faststart', os.path.join(OUT, 'trailer-%s.mp4' % size)]
     subprocess.run(cmd, check=True)
 shutil.rmtree(tmp)
 print('trailer %.1f s' % dur)
