@@ -48,7 +48,7 @@ def painted(h):
     h = h.lstrip('#'); r, g, b = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
     l = 0.3 * r + 0.59 * g + 0.11 * b
     r, g, b = [l + (c - l) * 0.78 for c in (r, g, b)]          # 22% less saturated
-    r, g, b = min(1, r * 0.97 + 0.02), g * 0.95, b * 0.9        # a touch warmer and darker
+    r, g, b = min(1, r + 0.02), g, b * 0.94                      # a touch warmer
     return [x ** 2.2 for x in (r, g, b)] + [1]
 
 # surface texture for the materials made inside a `with tex(kind):` block
@@ -124,7 +124,7 @@ def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
         crev = math_('SUBTRACT', 1.0, math_('MINIMUM', math_('MULTIPLY', v.outputs['Distance'], 30.0), 1.0))
     elif kind in ('bark', 'wood', 'thatch'):
         w = node('ShaderNodeTexWave', wave_type='BANDS', bands_direction={'bark': 'X', 'wood': 'Z', 'thatch': 'X'}[kind])
-        w.inputs['Scale'].default_value = {'bark': 9.0, 'wood': 6.0, 'thatch': 26.0}[kind]
+        w.inputs['Scale'].default_value = {'bark': 9.0, 'wood': 6.0, 'thatch': 9.0}[kind]
         w.inputs['Distortion'].default_value = {'bark': 7.0, 'wood': 4.0, 'thatch': 3.0}[kind]
         w.inputs['Detail'].default_value = 3.0; L(tc, w.inputs['Vector'])
         hgt = w.outputs['Fac']; crev = math_('POWER', math_('SUBTRACT', 1.0, w.outputs['Fac']), 3.0)
@@ -139,13 +139,13 @@ def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
     lam = math_('MULTIPLY_ADD', dot.outputs['Value'], 0.5, 0.5)
     ramp = node('ShaderNodeValToRGB'); ramp.color_ramp.interpolation = 'EASE'
     els = ramp.color_ramp.elements
-    els[0].position = 0.28; els[0].color = (0.36, 0.37, 0.44, 1)       # shadow side, cool
-    els[1].position = 0.5; els[1].color = (0.6, 0.6, 0.64, 1)
+    els[0].position = 0.28; els[0].color = (0.46, 0.47, 0.54, 1)       # shadow side, cool
+    els[1].position = 0.5; els[1].color = (0.66, 0.66, 0.7, 1)
     e = els.new(0.66); e.color = (0.84, 0.83, 0.82, 1)
     e = els.new(0.86); e.color = (1.0, 0.98, 0.92, 1)                   # lit side, warm
     L(lam, ramp.inputs['Fac'])
     c = mul_col(base, ramp.outputs['Color'])
-    c = mul_col(c, [1.22 * top / 1.1] * 3)
+    c = mul_col(c, [1.36 * top / 1.1] * 3)
     # ---- crevices and contact shadows
     cm = math_('SUBTRACT', 1.0, math_('MULTIPLY', crev, cdark))
     cmc = node('ShaderNodeCombineColor'); [L(cm, cmc.inputs[i]) for i in range(3)]
@@ -563,7 +563,7 @@ def bush(seed, r, col, n=6, flat=0.8):
 
 @item('bush')
 def _():
-    bush(51, 0.55, '#6DB45A', n=8, flat=0.95)
+    bush(51, 0.6, '#6DB45A', n=9, flat=1.15)
     rnd = random.Random(2)
     dots_on((0, 0, 0.5), 24, 2, lambda p: flower(p + Vector((0, -0.01, 0.0)), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA'])))
 @item('snow_bush')
@@ -650,7 +650,7 @@ def _():
     blob((0.75, -0.35, 0.18), 0.3, (1.1, 1, 0.7), ROCK, rough=0.2, seed=72, flat_bottom=True)
 @item('rock_a')
 def _():
-    blob((0, 0, 0.55), 0.75, (1.15, 1, 0.78), ROCK, rough=0.22, seed=73, sub=2, flat_bottom=True, smooth=False)
+    blob((0, 0, 0.62), 0.75, (1.15, 1, 0.92), ROCK, rough=0.22, seed=73, sub=2, smooth=False)
     blob((-0.8, -0.35, 0.14), 0.24, (1.2, 1, 0.7), ROCK_D, rough=0.25, seed=74, sub=2, smooth=False)
 @item('rock_b')
 def _():
