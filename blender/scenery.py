@@ -59,9 +59,9 @@ class tex:
     def __exit__(self, *a): TEX.pop()
 
 # kind: (bump strength, how much the crevices darken)
-TEX_KINDS = {'plain': (0.12, 0.08), 'leaf': (0.55, 0.28), 'bark': (0.45, 0.3), 'stone': (0.35, 0.38),
+TEX_KINDS = {'plain': (0.12, 0.08), 'leaf': (0.7, 0.4), 'bark': (0.45, 0.3), 'stone': (0.35, 0.38),
              'wood': (0.25, 0.28), 'thatch': (0.5, 0.32), 'snow': (0.08, 0.05), 'mud': (0.25, 0.22)}
-LIGHT = Vector((-0.5, -0.55, 0.67)).normalized()   # from the top left, like the station art
+LIGHT = Vector((-0.72, -0.38, 0.58)).normalized()   # from the top left, like the station art
 
 MATS = {}
 def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
@@ -116,7 +116,7 @@ def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
         base = rgb(painted(col))
     # ---- surface pattern: a height (for bump) and a crevice mask (0 open .. 1 crevice)
     if kind == 'leaf':
-        v = node('ShaderNodeTexVoronoi'); v.inputs['Scale'].default_value = 9.0; L(tc, v.inputs['Vector'])
+        v = node('ShaderNodeTexVoronoi'); v.inputs['Scale'].default_value = 5.5; L(tc, v.inputs['Vector'])
         hgt = math_('SUBTRACT', 1.0, v.outputs['Distance']); crev = math_('POWER', v.outputs['Distance'], 2.0)
     elif kind == 'stone':
         v = node('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE'); v.inputs['Scale'].default_value = 4.5; L(tc, v.inputs['Vector'])
@@ -139,19 +139,19 @@ def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
     lam = math_('MULTIPLY_ADD', dot.outputs['Value'], 0.5, 0.5)
     ramp = node('ShaderNodeValToRGB'); ramp.color_ramp.interpolation = 'EASE'
     els = ramp.color_ramp.elements
-    els[0].position = 0.2; els[0].color = (0.5, 0.5, 0.54, 1)          # shadow side, a little cool
-    els[1].position = 0.62; els[1].color = (0.9, 0.9, 0.9, 1)
-    e = els.new(0.82); e.color = (1.0, 0.99, 0.96, 1)                   # lit side, a little warm
-    e = els.new(0.42); e.color = (0.72, 0.72, 0.75, 1)
+    els[0].position = 0.28; els[0].color = (0.36, 0.37, 0.44, 1)       # shadow side, cool
+    els[1].position = 0.5; els[1].color = (0.6, 0.6, 0.64, 1)
+    e = els.new(0.66); e.color = (0.84, 0.83, 0.82, 1)
+    e = els.new(0.86); e.color = (1.0, 0.98, 0.92, 1)                   # lit side, warm
     L(lam, ramp.inputs['Fac'])
     c = mul_col(base, ramp.outputs['Color'])
-    c = mul_col(c, [1.12 * top / 1.1] * 3)
+    c = mul_col(c, [1.22 * top / 1.1] * 3)
     # ---- crevices and contact shadows
     cm = math_('SUBTRACT', 1.0, math_('MULTIPLY', crev, cdark))
     cmc = node('ShaderNodeCombineColor'); [L(cm, cmc.inputs[i]) for i in range(3)]
     c = mul_col(c, cmc.outputs[0])
-    ao = node('ShaderNodeAmbientOcclusion', samples=8); ao.inputs['Distance'].default_value = 0.35
-    aof = math_('MULTIPLY_ADD', ao.outputs['AO'], 0.42, 0.58)
+    ao = node('ShaderNodeAmbientOcclusion', samples=8); ao.inputs['Distance'].default_value = 0.5
+    aof = math_('MULTIPLY_ADD', ao.outputs['AO'], 0.5, 0.5)
     aoc = node('ShaderNodeCombineColor'); [L(aof, aoc.inputs[i]) for i in range(3)]
     c = mul_col(c, aoc.outputs[0])
     # ---- hand-painted mottling
@@ -383,8 +383,8 @@ def conifer(h, r, tiers, snowy, seed, col=PINE, trunk_h=0.35):
         o = cone((0, 0, z), rr, rr * 0.08, th, col, verts=24, rot=(rnd.uniform(-3, 3), rnd.uniform(-3, 3), rnd.uniform(0, 60)))
         for vi, v in enumerate(o.data.vertices):   # a jagged, drooping lower edge: needles in tufts
             if v.co.z < -th / 2 + 1e-4:
-                if vi % 2: v.co.x *= 0.74; v.co.y *= 0.74; v.co.z += th * 0.1
-                else: v.co.z -= th * 0.05
+                if vi % 2: v.co.x *= 0.6; v.co.y *= 0.6; v.co.z += th * 0.16
+                else: v.co.x *= 1.08; v.co.y *= 1.08; v.co.z -= th * 0.08
         if snowy:
             cone((0, 0, z + th * 0.42), rr * 0.66, rr * 0.05, th * 0.62, SNOW, verts=28, top=1.0, shade=0.9)
             for k in range(4):
@@ -400,7 +400,7 @@ def _(): conifer(2.0, 0.8, 3, True, 12); ground_patch(0.7, SNOW, h=0.02)
 @item('frost_pine_c')
 def _(): conifer(1.4, 0.65, 3, True, 13, trunk_h=0.25); ground_patch(0.6, SNOW, h=0.02)
 @item('tree_tall')
-def _(): conifer(2.6, 0.9, 4, False, 14, col='#4F9B5E')
+def _(): conifer(2.7, 0.9, 5, False, 14, col='#4F8F62')
 @item('xmas')
 def _():
     cone((0, 0, 0), 0.32, 0.38, 0.38, '#C8643C', verts=24)
@@ -436,7 +436,7 @@ def broadleaf(seed, trunk_h, canopy, col=LEAF, n=8, spread=0.55, flat=1.0, trunk
                 blob((math.cos(a) * canopy * rad, math.sin(a) * canopy * rad, z), r, (1, 1, 0.85), col, rough=0.16, seed=seed + 31 * ring_i + i)
 
 @item('tree_round')
-def _(): broadleaf(21, 0.9, 0.85)
+def _(): broadleaf(21, 1.1, 0.8, n=6, spread=0.62)
 @item('acacia')
 def _():
     limb((0, 0, 0), (0.1, 0, 0.9), 0.1, 0.07, BARK)
@@ -641,8 +641,8 @@ def _():
     blob((0.75, -0.35, 0.18), 0.3, (1.1, 1, 0.7), ROCK, rough=0.2, seed=72, flat_bottom=True)
 @item('rock_a')
 def _():
-    snow_top(blob((0, 0, 0.42), 0.7, (1.2, 1, 0.6), ROCK, rough=0.2, seed=73, flat_bottom=True), cut=0.78)
-    blob((-0.75, -0.3, 0.12), 0.22, (1.2, 1, 0.7), ROCK_D, rough=0.2, seed=74)
+    blob((0, 0, 0.55), 0.75, (1.15, 1, 0.78), ROCK, rough=0.22, seed=73, sub=2, flat_bottom=True, smooth=False)
+    blob((-0.8, -0.35, 0.14), 0.24, (1.2, 1, 0.7), ROCK_D, rough=0.25, seed=74, sub=2, smooth=False)
 @item('rock_b')
 def _():
     blob((0, 0, 0.42), 0.7, (1.2, 1, 0.62), '#8E948C', rough=0.2, seed=75, flat_bottom=True)
@@ -659,7 +659,7 @@ def _():
         blob((rnd.uniform(-0.06, 0.06), rnd.uniform(-0.04, 0.04), z + h / 2), 1.0, (r * 1.15, r * 0.85, h * 0.7), cols[i], rough=0.1, seed=80 + i, sub=2, smooth=False)
         z += h * 0.88
     blob((0.95, -0.5, 0.22), 0.3, (1, 1, 0.8), '#C8643C', rough=0.2, seed=77)
-@item('cliff')
+@item('cliff', yaw=-20)
 def _():
     rnd = random.Random(78)
     for i, (x, y, h, r) in enumerate(((-0.5, 0.1, 1.5, 0.45), (0.1, 0.2, 1.9, 0.5), (0.6, 0.0, 1.3, 0.45), (-0.1, -0.3, 0.9, 0.42), (0.55, -0.35, 0.6, 0.35))):
@@ -677,7 +677,7 @@ def _():
             ob.rotation_euler = (math.radians(b), math.radians(a), 0)
             ob.location = Vector((x, y, 0)) + (Matrix.Rotation(math.radians(b), 3, 'X') @ Matrix.Rotation(math.radians(a), 3, 'Y') @ (ob.location))
     ground_patch(0.75, SNOW)
-@item('logs')
+@item('logs', yaw=-25)
 def _():
     rnd = random.Random(81)
     rows = [(-0.6, 0.6, 0.0, 4), (-0.45, 0.45, 0.27, 3), (-0.3, 0.3, 0.52, 2)]
@@ -1134,7 +1134,7 @@ def _():
 # every item is seen from the same raised three-quarter view as the painted scenery art, square on
 VIEW_ELEV = 40.0   # the painted scenery's three-quarter view
 def view(cam):
-    return (90.0 if cam.get('elev') == 90 else VIEW_ELEV), 0.0
+    return (90.0 if cam.get('elev') == 90 else cam.get('elev', VIEW_ELEV)), cam.get('yaw', 0.0)
 # blender/scenery_anim.py reuses everything above and runs its own loop instead
 for name, (fn, cam) in ([] if 'ANIM_HOOK' in globals() else ITEMS.items()):
     if ONLY and name not in ONLY: continue
