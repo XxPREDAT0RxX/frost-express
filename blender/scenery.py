@@ -119,9 +119,9 @@ def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
         v = node('ShaderNodeTexVoronoi'); v.inputs['Scale'].default_value = 5.5; L(tc, v.inputs['Vector'])
         hgt = math_('SUBTRACT', 1.0, v.outputs['Distance']); crev = math_('POWER', v.outputs['Distance'], 2.0)
     elif kind == 'stone':
-        v = node('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE'); v.inputs['Scale'].default_value = 4.5; L(tc, v.inputs['Vector'])
+        v = node('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE'); v.inputs['Scale'].default_value = 2.2; L(tc, v.inputs['Vector'])
         hgt = math_('MINIMUM', math_('MULTIPLY', v.outputs['Distance'], 6.0), 1.0)
-        crev = math_('SUBTRACT', 1.0, math_('MINIMUM', math_('MULTIPLY', v.outputs['Distance'], 18.0), 1.0))
+        crev = math_('SUBTRACT', 1.0, math_('MINIMUM', math_('MULTIPLY', v.outputs['Distance'], 30.0), 1.0))
     elif kind in ('bark', 'wood', 'thatch'):
         w = node('ShaderNodeTexWave', wave_type='BANDS', bands_direction={'bark': 'X', 'wood': 'Z', 'thatch': 'X'}[kind])
         w.inputs['Scale'].default_value = {'bark': 9.0, 'wood': 6.0, 'thatch': 26.0}[kind]
@@ -380,11 +380,20 @@ def conifer(h, r, tiers, snowy, seed, col=PINE, trunk_h=0.35):
         f = 1 - i / tiers
         rr = r * (0.45 + 0.55 * f)
         th = (h - trunk_h) / tiers * 1.55
-        o = cone((0, 0, z), rr, rr * 0.08, th, col, verts=24, rot=(rnd.uniform(-3, 3), rnd.uniform(-3, 3), rnd.uniform(0, 60)))
-        for vi, v in enumerate(o.data.vertices):   # a jagged, drooping lower edge: needles in tufts
-            if v.co.z < -th / 2 + 1e-4:
-                if vi % 2: v.co.x *= 0.6; v.co.y *= 0.6; v.co.z += th * 0.16
-                else: v.co.x *= 1.08; v.co.y *= 1.08; v.co.z -= th * 0.08
+        with tex('leaf'):
+            cone((0, 0, z + th * 0.1), rr * 0.7, rr * 0.06, th * 0.9, col, verts=16, rot=(rnd.uniform(-3, 3), rnd.uniform(-3, 3), 0))
+            nb = 9 + 2 * (tiers - i)
+            for k in range(nb):   # branch tufts: needle clumps that droop outward, giving the jagged edge
+                a = 2 * math.pi * k / nb + rnd.uniform(-0.15, 0.15) + i * 0.5
+                L_ = rr * rnd.uniform(0.85, 1.05)
+                base = Vector((0, 0, z + th * 0.42))
+                tip = Vector((math.cos(a) * L_, math.sin(a) * L_, z - th * 0.02))
+                d = tip - base
+                bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=rr * 0.22, radius2=0.0, depth=d.length, location=(base + tip) / 2)
+                ob = bpy.context.object
+                ob.rotation_mode = 'QUATERNION'; ob.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(d.normalized())
+                ob.scale = (1, 0.45, 1)
+                finish(ob, toon(col), None, smooth=True)
         if snowy:
             cone((0, 0, z + th * 0.42), rr * 0.66, rr * 0.05, th * 0.62, SNOW, verts=28, top=1.0, shade=0.9)
             for k in range(4):
@@ -554,9 +563,9 @@ def bush(seed, r, col, n=6, flat=0.8):
 
 @item('bush')
 def _():
-    bush(51, 0.55, '#6DB45A', n=7)
+    bush(51, 0.55, '#6DB45A', n=8, flat=0.95)
     rnd = random.Random(2)
-    dots_on((0, 0, 0.5), 15, 2, lambda p: flower(p + Vector((0, -0.01, 0.0)), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA'])))
+    dots_on((0, 0, 0.5), 24, 2, lambda p: flower(p + Vector((0, -0.01, 0.0)), 0.06, rnd.choice(['#F28FB0', '#F7D25C', '#F5F2EA'])))
 @item('snow_bush')
 def _():
     n0 = len(CUR)
@@ -662,8 +671,10 @@ def _():
 @item('cliff', yaw=-20)
 def _():
     rnd = random.Random(78)
-    for i, (x, y, h, r) in enumerate(((-0.5, 0.1, 1.5, 0.45), (0.1, 0.2, 1.9, 0.5), (0.6, 0.0, 1.3, 0.45), (-0.1, -0.3, 0.9, 0.42), (0.55, -0.35, 0.6, 0.35))):
-        snow_top(blob((x, y, h / 2), 1.0, (r, r * 0.85, h / 2), '#8C939C' if i % 2 else '#A3AAB2', rough=0.12, seed=90 + i, sub=2, smooth=False), cut=0.72)
+    for i, (x, y, h, r) in enumerate(((-0.5, 0.15, 1.5, 0.42), (0.1, 0.25, 1.95, 0.48), (0.62, 0.05, 1.35, 0.42), (-0.15, -0.3, 0.95, 0.4), (0.55, -0.38, 0.62, 0.34), (-0.75, -0.25, 0.55, 0.3))):
+        o = cone((x, y, 0), r, r * rnd.uniform(0.55, 0.75), h, '#8C939C' if i % 2 else '#A3AAB2', verts=6, rot=(rnd.uniform(-4, 4), rnd.uniform(-4, 4), rnd.uniform(0, 60)), smooth=False)
+        for v in o.data.vertices: v.co.x += rnd.uniform(-0.04, 0.04); v.co.y += rnd.uniform(-0.04, 0.04)
+        snow_top(o, cut=0.9, grow=1.04)
     ground_patch(1.1, SNOW)
 @item('ice')
 def _():
@@ -724,7 +735,7 @@ def _():
         box((0, 0, 0.45), (1.5, 1.0, 0.9), '#A8764E', bevel=0.05)     # mud walls
         box((0, 0, 0.06), (1.62, 1.12, 0.12), '#8A5E3E', bevel=0.03)  # plinth
     with tex('thatch'):
-        thatch_roof(0, 0, 0.88, 1.5, 1.0, 0.75, '#3F4F80', overhang=0.22)
+        thatch_roof(0, 0, 0.88, 1.5, 1.0, 0.75, '#5266A0', overhang=0.22)
     sphere((0.55, -0.56, 0.62), 0.06, (1, 0.8, 1.3), '#FFB066', seg=14, flat=True, line=0.01)   # lantern by the door
     limb((0.55, -0.53, 0.72), (0.55, -0.51, 0.8), 0.008, 0.008, '#3E2A22', line=0)
     box((0.25, -0.505, 0.36), (0.32, 0.03, 0.6), '#6B4A32', bevel=0.01)   # door
@@ -1132,7 +1143,7 @@ def _():
 
 # ------------------------------------------------------------------ run
 # every item is seen from the same raised three-quarter view as the painted scenery art, square on
-VIEW_ELEV = 40.0   # the painted scenery's three-quarter view
+VIEW_ELEV = 28.0   # the painted scenery's three-quarter view
 def view(cam):
     return (90.0 if cam.get('elev') == 90 else cam.get('elev', VIEW_ELEV)), cam.get('yaw', 0.0)
 # blender/scenery_anim.py reuses everything above and runs its own loop instead
