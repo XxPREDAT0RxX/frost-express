@@ -1292,8 +1292,9 @@ private val ST_ASPECT = floatArrayOf(0.665f, 0.49f, 0.50f, 0.623f, 0.46f)
 /** A country road that runs alongside the line on the outer side, linking the stations.
  *  It is drawn continuously (not per station) so every stop sits on the same road. */
 private fun DrawScope.drawStationRoad(scroll: Float, originX: Float, h: Float, u: Float) {
-    val roadW = 20f * u
-    val cx = originX - (ST_W + 70f + 30f) * u
+    val k = sceneUserZoom   // zoomed with the train, like the scenery
+    val roadW = 20f * u * k
+    val cx = originX - (ST_W + 70f + 30f) * u * k
     if (cx < roadW) return
     val left = cx - roadW / 2f
     // soft grass shoulders, then asphalt
@@ -1524,22 +1525,29 @@ private fun DrawScope.drawStationLights(st: Station, originX: Float, u: Float, o
 }
 
 private fun DrawScope.drawDecor(scroll: Float, originX: Float, trainPx: Float, h: Float, u: Float) {
-    if (originX < 24f * u) return
-    // lay the scenery out for the train's normal place, then slide it with the station pan,
-    // so trees keep their spot (and their kind) while the view moves over to a station
-    val pan = sceneStationPan * size.width * 0.21f
-    val o0 = originX - pan
+    // The scenery is laid out once for the normal view (no pinch zoom, no station pan), in the strips beside a centred
+    // train. Then it is zoomed with the train: about the train's centre line and the middle of the screen, sizes too.
+    // So zooming in pushes trees off the edges instead of squeezing them into the space that is left.
+    val k = sceneUserZoom
+    val w = size.width
+    val baseTrain = trainPx / k
+    val baseLeft = (w - baseTrain) / 2f
+    if (baseLeft < 24f * u) return
+    val trainC = originX + trainPx / 2f
+    val midY = h / 2f
     for ((di, d) in DECOR.withIndex()) {
         val r = d.r * u
-        val span = max(0f, o0 - 2f * r)
-        val x = pan + if (d.side == 0) r + d.fx * span else o0 + trainPx + r + d.fx * span
+        val span = max(0f, baseLeft - 2f * r)
+        val xb = if (d.side == 0) r + d.fx * span else baseLeft + baseTrain + r + d.fx * span
+        val x = trainC + (xb - w / 2f) * k
+        val rs = r * k
+        if (x < -rs * 3f || x > w + rs * 3f) continue
         val base = (d.y + scroll) % DECOR_PERIOD
-        var k = -1
-        while (true) {
-            val y = (base + k * DECOR_PERIOD) * u
-            if (y > h + r) break
-            if (y > -r) drawDecorItem(d.kind, x, y, r, zoneAt(scroll - y / u), di)
-            k++
+        for (rep in -6..12) {
+            val yb = (base + rep * DECOR_PERIOD) * u
+            val y = midY + (yb - midY) * k
+            if (y < -rs * 3f || y > h + rs * 3f) continue
+            drawDecorItem(d.kind, x, y, rs, zoneAt(scroll - yb / u), di)
         }
     }
 }
