@@ -61,6 +61,7 @@ for name, fs in frames.items():
 for f in sorted(os.listdir(SRC)):
     if not f.endswith('.png') or re.match(r'.+_\d\d\.png$', f): continue
     name = f[:-4]
+    if name.startswith('station_'): continue   # the painted station art is the style reference: never overwritten
     if ONLY and name not in ONLY: continue
     key = name if name.startswith('station_') else 'spr_' + name
     slot = SLOTS.get(key)
