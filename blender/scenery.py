@@ -23,8 +23,9 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 sc = bpy.context.scene
 sc.render.engine = 'CYCLES'
 sc.cycles.device = 'CPU'
-sc.cycles.samples = 12
-sc.cycles.use_denoising = False
+sc.cycles.samples = 48
+sc.cycles.use_denoising = True
+sc.cycles.denoiser = 'OPENIMAGEDENOISE'
 sc.cycles.max_bounces = 0
 sc.render.film_transparent = True
 sc.render.filter_size = 1.2
@@ -42,52 +43,125 @@ def lin(h, k=1.0):
     h = h.lstrip('#'); c = [min(1.0, int(h[i:i + 2], 16) / 255 * k) for i in (0, 2, 4)]
     return [x ** 2.2 for x in c] + [1]
 
+def painted(h):
+    """The station art's palette: colours a little muted and warm (linear RGBA)."""
+    h = h.lstrip('#'); r, g, b = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    l = 0.3 * r + 0.59 * g + 0.11 * b
+    r, g, b = [l + (c - l) * 0.78 for c in (r, g, b)]          # 22% less saturated
+    r, g, b = min(1, r * 0.97 + 0.02), g * 0.95, b * 0.9        # a touch warmer and darker
+    return [x ** 2.2 for x in (r, g, b)] + [1]
+
+# surface texture for the materials made inside a `with tex(kind):` block
+TEX = ['auto']
+class tex:
+    def __init__(self, kind): self.kind = kind
+    def __enter__(self): TEX.append(self.kind)
+    def __exit__(self, *a): TEX.pop()
+
+# kind: (bump strength, how much the crevices darken)
+TEX_KINDS = {'plain': (0.12, 0.08), 'leaf': (0.55, 0.28), 'bark': (0.45, 0.3), 'stone': (0.35, 0.38),
+             'wood': (0.25, 0.28), 'thatch': (0.5, 0.32), 'snow': (0.08, 0.05), 'mud': (0.25, 0.22)}
+LIGHT = Vector((-0.5, -0.55, 0.67)).normalized()   # from the top left, like the station art
+
 MATS = {}
 def toon(col, shade=0.84, top=1.1, stripes=None, flat=False, alpha=1.0):
-    """Flat colour; faces looking up get [top]x brighter, the silhouette band [shade]x darker.
+    """Painted look: the colour lit from the top left in soft steps, darker in crevices and where parts meet
+    (ambient occlusion), a little hand-painted mottling, and a surface texture (see [tex]).
     stripes=(col2, bands per unit, axis) paints bands in object space; flat=True is an unshaded glow."""
-    key = (col, shade, top, stripes, flat, alpha)
+    kind = TEX[-1]
+    if kind == 'auto':   # pick a surface from the colour: greens are leaves, greys stone, browns wood, white snow
+        import colorsys
+        hh = col.lstrip('#'); r_, g_, b_ = [int(hh[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+        hue, lig, sat = colorsys.rgb_to_hls(r_, g_, b_); hue *= 360
+        if lig > 0.86 and sat < 0.5: kind = 'snow'
+        elif sat < 0.16: kind = 'stone'
+        elif 75 <= hue <= 170 and sat > 0.2: kind = 'leaf'
+        elif 15 <= hue <= 45 and lig < 0.62: kind = 'wood' if lig > 0.38 else 'bark'
+        else: kind = 'plain'
+    key = (col, shade, top, stripes, flat, alpha, kind)
     if key in MATS: return MATS[key]
     m = bpy.data.materials.new('m%d' % len(MATS)); m.use_nodes = True
     nt = m.node_tree; nt.nodes.clear(); L = nt.links.new
     out = nt.nodes.new('ShaderNodeOutputMaterial')
+    def node(t, **kw):
+        n = nt.nodes.new(t)
+        for k_, v in kw.items(): setattr(n, k_, v)
+        return n
     def rgb(c):
-        n = nt.nodes.new('ShaderNodeRGB'); n.outputs[0].default_value = c; return n.outputs[0]
+        n = node('ShaderNodeRGB'); n.outputs[0].default_value = c; return n.outputs[0]
+    def math_(op, a, b=None, c=None):
+        n = node('ShaderNodeMath', operation=op)
+        for i, v in enumerate((a, b, c)):
+            if v is None: continue
+            if isinstance(v, (int, float)): n.inputs[i].default_value = v
+            else: L(v, n.inputs[i])
+        return n.outputs[0]
+    def mul_col(a, b, fac=1.0):
+        n = node('ShaderNodeMix', data_type='RGBA', blend_type='MULTIPLY'); n.inputs[0].default_value = fac
+        L(a, n.inputs[6])
+        if isinstance(b, (list, tuple)): n.inputs[7].default_value = list(b) + [1] if len(b) == 3 else b
+        else: L(b, n.inputs[7])
+        return n.outputs[2]
+    if flat:
+        em = node('ShaderNodeEmission'); L(rgb(lin(col)), em.inputs['Color'])
+        L(em.outputs[0], out.inputs['Surface']); MATS[key] = m; return m
+    tc = node('ShaderNodeTexCoord').outputs['Object']
     if stripes:
-        tc = nt.nodes.new('ShaderNodeTexCoord'); sep = nt.nodes.new('ShaderNodeSeparateXYZ')
-        mul = nt.nodes.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = stripes[1] * math.pi * 2
-        sn = nt.nodes.new('ShaderNodeMath'); sn.operation = 'SINE'
-        gt = nt.nodes.new('ShaderNodeMath'); gt.operation = 'GREATER_THAN'; gt.inputs[1].default_value = 0.0
-        mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'
-        L(rgb(lin(col)), mix.inputs[6]); L(rgb(lin(stripes[0])), mix.inputs[7])
-        L(tc.outputs['Object'], sep.inputs[0]); L(sep.outputs[stripes[2] if len(stripes) > 2 else 'Z'], mul.inputs[0])
-        L(mul.outputs[0], sn.inputs[0]); L(sn.outputs[0], gt.inputs[0]); L(gt.outputs[0], mix.inputs[0])
+        sep = node('ShaderNodeSeparateXYZ'); L(tc, sep.inputs[0])
+        st = math_('GREATER_THAN', math_('SINE', math_('MULTIPLY', sep.outputs[stripes[2] if len(stripes) > 2 else 'Z'], stripes[1] * math.pi * 2)), 0.0)
+        mix = node('ShaderNodeMix', data_type='RGBA'); L(st, mix.inputs[0])
+        L(rgb(painted(col)), mix.inputs[6]); L(rgb(painted(stripes[0])), mix.inputs[7])
         base = mix.outputs[2]
     else:
-        base = rgb(lin(col))
-    if flat:
-        em = nt.nodes.new('ShaderNodeEmission'); L(base, em.inputs['Color']); em.inputs['Strength'].default_value = 1.0
-        L(em.outputs[0], out.inputs['Surface']); MATS[key] = m; return m
-    # lighter where the face looks up
-    geo = nt.nodes.new('ShaderNodeNewGeometry'); sep2 = nt.nodes.new('ShaderNodeSeparateXYZ')
-    up = nt.nodes.new('ShaderNodeMath'); up.operation = 'GREATER_THAN'; up.inputs[1].default_value = 0.62
-    L(geo.outputs['Normal'], sep2.inputs[0]); L(sep2.outputs['Z'], up.inputs[0])
-    lit = nt.nodes.new('ShaderNodeMix'); lit.data_type = 'RGBA'; lit.blend_type = 'MULTIPLY'; lit.inputs[0].default_value = 1.0
-    L(base, lit.inputs[6]); lit.inputs[7].default_value = [top ** 2.2] * 3 + [1]
-    m1 = nt.nodes.new('ShaderNodeMix'); m1.data_type = 'RGBA'
-    L(up.outputs[0], m1.inputs[0]); L(base, m1.inputs[6]); L(lit.outputs[2], m1.inputs[7])
-    # darker toward the silhouette
-    lw = nt.nodes.new('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.35
-    ramp = nt.nodes.new('ShaderNodeValToRGB'); ramp.color_ramp.interpolation = 'CONSTANT'
-    ramp.color_ramp.elements[0].color = (0, 0, 0, 1); ramp.color_ramp.elements[1].position = 0.58
-    L(lw.outputs['Facing'], ramp.inputs['Fac'])
-    dk = nt.nodes.new('ShaderNodeMix'); dk.data_type = 'RGBA'; dk.blend_type = 'MULTIPLY'; dk.inputs[0].default_value = 1.0
-    L(m1.outputs[2], dk.inputs[6]); dk.inputs[7].default_value = [shade ** 2.2] * 3 + [1]
-    m2 = nt.nodes.new('ShaderNodeMix'); m2.data_type = 'RGBA'
-    L(ramp.outputs['Color'], m2.inputs[0]); L(m1.outputs[2], m2.inputs[6]); L(dk.outputs[2], m2.inputs[7])
-    em = nt.nodes.new('ShaderNodeEmission'); L(m2.outputs[2], em.inputs['Color'])
+        base = rgb(painted(col))
+    # ---- surface pattern: a height (for bump) and a crevice mask (0 open .. 1 crevice)
+    if kind == 'leaf':
+        v = node('ShaderNodeTexVoronoi'); v.inputs['Scale'].default_value = 9.0; L(tc, v.inputs['Vector'])
+        hgt = math_('SUBTRACT', 1.0, v.outputs['Distance']); crev = math_('POWER', v.outputs['Distance'], 2.0)
+    elif kind == 'stone':
+        v = node('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE'); v.inputs['Scale'].default_value = 4.5; L(tc, v.inputs['Vector'])
+        hgt = math_('MINIMUM', math_('MULTIPLY', v.outputs['Distance'], 6.0), 1.0)
+        crev = math_('SUBTRACT', 1.0, math_('MINIMUM', math_('MULTIPLY', v.outputs['Distance'], 18.0), 1.0))
+    elif kind in ('bark', 'wood', 'thatch'):
+        w = node('ShaderNodeTexWave', wave_type='BANDS', bands_direction={'bark': 'X', 'wood': 'Z', 'thatch': 'X'}[kind])
+        w.inputs['Scale'].default_value = {'bark': 9.0, 'wood': 6.0, 'thatch': 26.0}[kind]
+        w.inputs['Distortion'].default_value = {'bark': 7.0, 'wood': 4.0, 'thatch': 3.0}[kind]
+        w.inputs['Detail'].default_value = 3.0; L(tc, w.inputs['Vector'])
+        hgt = w.outputs['Fac']; crev = math_('POWER', math_('SUBTRACT', 1.0, w.outputs['Fac']), 3.0)
+    else:
+        n = node('ShaderNodeTexNoise'); n.inputs['Scale'].default_value = 5.0 if kind != 'mud' else 9.0; n.inputs['Detail'].default_value = 4.0
+        L(tc, n.inputs['Vector']); hgt = n.outputs['Fac']; crev = math_('POWER', math_('SUBTRACT', 1.0, n.outputs['Fac']), 4.0)
+    bstr, cdark = TEX_KINDS.get(kind, TEX_KINDS['plain'])
+    bump = node('ShaderNodeBump'); bump.inputs['Strength'].default_value = bstr; bump.inputs['Distance'].default_value = 0.04
+    L(hgt, bump.inputs['Height'])
+    # ---- light from the top left, in soft painted steps
+    dot = node('ShaderNodeVectorMath', operation='DOT_PRODUCT'); L(bump.outputs['Normal'], dot.inputs[0]); dot.inputs[1].default_value = LIGHT
+    lam = math_('MULTIPLY_ADD', dot.outputs['Value'], 0.5, 0.5)
+    ramp = node('ShaderNodeValToRGB'); ramp.color_ramp.interpolation = 'EASE'
+    els = ramp.color_ramp.elements
+    els[0].position = 0.2; els[0].color = (0.5, 0.5, 0.54, 1)          # shadow side, a little cool
+    els[1].position = 0.62; els[1].color = (0.9, 0.9, 0.9, 1)
+    e = els.new(0.82); e.color = (1.0, 0.99, 0.96, 1)                   # lit side, a little warm
+    e = els.new(0.42); e.color = (0.72, 0.72, 0.75, 1)
+    L(lam, ramp.inputs['Fac'])
+    c = mul_col(base, ramp.outputs['Color'])
+    c = mul_col(c, [1.12 * top / 1.1] * 3)
+    # ---- crevices and contact shadows
+    cm = math_('SUBTRACT', 1.0, math_('MULTIPLY', crev, cdark))
+    cmc = node('ShaderNodeCombineColor'); [L(cm, cmc.inputs[i]) for i in range(3)]
+    c = mul_col(c, cmc.outputs[0])
+    ao = node('ShaderNodeAmbientOcclusion', samples=8); ao.inputs['Distance'].default_value = 0.35
+    aof = math_('MULTIPLY_ADD', ao.outputs['AO'], 0.42, 0.58)
+    aoc = node('ShaderNodeCombineColor'); [L(aof, aoc.inputs[i]) for i in range(3)]
+    c = mul_col(c, aoc.outputs[0])
+    # ---- hand-painted mottling
+    mn = node('ShaderNodeTexNoise'); mn.inputs['Scale'].default_value = 14.0; mn.inputs['Detail'].default_value = 2.0; L(tc, mn.inputs['Vector'])
+    mf = math_('MULTIPLY_ADD', mn.outputs['Fac'], 0.16, 0.92)
+    mc = node('ShaderNodeCombineColor'); [L(mf, mc.inputs[i]) for i in range(3)]
+    c = mul_col(c, mc.outputs[0])
+    em = node('ShaderNodeEmission'); L(c, em.inputs['Color'])
     if alpha < 1.0:
-        tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mx = nt.nodes.new('ShaderNodeMixShader')
+        tr = node('ShaderNodeBsdfTransparent'); mx = node('ShaderNodeMixShader')
         mx.inputs[0].default_value = alpha; L(tr.outputs[0], mx.inputs[1]); L(em.outputs[0], mx.inputs[2])
         L(mx.outputs[0], out.inputs['Surface'])
     else:
@@ -99,7 +173,7 @@ def outline_mat():
     m = bpy.data.materials.new('ol'); m.use_nodes = True
     nt = m.node_tree; nt.nodes.clear(); L = nt.links.new
     out = nt.nodes.new('ShaderNodeOutputMaterial'); geo = nt.nodes.new('ShaderNodeNewGeometry')
-    em = nt.nodes.new('ShaderNodeEmission'); em.inputs['Color'].default_value = lin('#5A3A2C')
+    em = nt.nodes.new('ShaderNodeEmission'); em.inputs['Color'].default_value = lin('#3E2A22')
     tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mx = nt.nodes.new('ShaderNodeMixShader')
     L(geo.outputs['Backfacing'], mx.inputs['Fac']); L(em.outputs[0], mx.inputs[1]); L(tr.outputs[0], mx.inputs[2])
     L(mx.outputs[0], out.inputs['Surface'])
@@ -306,7 +380,11 @@ def conifer(h, r, tiers, snowy, seed, col=PINE, trunk_h=0.35):
         f = 1 - i / tiers
         rr = r * (0.45 + 0.55 * f)
         th = (h - trunk_h) / tiers * 1.55
-        cone((0, 0, z), rr, rr * 0.08, th, col, verts=28, rot=(rnd.uniform(-3, 3), rnd.uniform(-3, 3), rnd.uniform(0, 60)))
+        o = cone((0, 0, z), rr, rr * 0.08, th, col, verts=24, rot=(rnd.uniform(-3, 3), rnd.uniform(-3, 3), rnd.uniform(0, 60)))
+        for vi, v in enumerate(o.data.vertices):   # a jagged, drooping lower edge: needles in tufts
+            if v.co.z < -th / 2 + 1e-4:
+                if vi % 2: v.co.x *= 0.74; v.co.y *= 0.74; v.co.z += th * 0.1
+                else: v.co.z -= th * 0.05
         if snowy:
             cone((0, 0, z + th * 0.42), rr * 0.66, rr * 0.05, th * 0.62, SNOW, verts=28, top=1.0, shade=0.9)
             for k in range(4):
@@ -341,15 +419,21 @@ def _():
 
 def broadleaf(seed, trunk_h, canopy, col=LEAF, n=8, spread=0.55, flat=1.0, trunk_r=0.12):
     rnd = random.Random(seed)
-    limb((0, 0, 0), (0, 0, trunk_h), trunk_r, trunk_r * 0.7, BARK)
-    for s in (-1, 1):
-        limb((0, 0, trunk_h * 0.65), (s * 0.28, 0.05, trunk_h + 0.15), trunk_r * 0.5, trunk_r * 0.3, BARK)
-    blob((0, 0, trunk_h + canopy * 0.55), canopy, (1, 1, 0.82 * flat), col, rough=0.1, seed=seed)
-    for i in range(n):
-        a = 2 * math.pi * i / n + rnd.uniform(-0.3, 0.3)
-        r = canopy * rnd.uniform(0.45, 0.6)
-        z = trunk_h + canopy * (0.45 + rnd.uniform(-0.25, 0.4)) * flat
-        blob((math.cos(a) * canopy * spread, math.sin(a) * canopy * spread, z), r, (1, 1, 0.85), col, rough=0.12, seed=seed + i)
+    with tex('bark'):
+        limb((0, 0, 0), (0, 0, trunk_h), trunk_r * 1.15, trunk_r * 0.7, BARK)
+        for k in range(4):   # root flare
+            a = k * math.pi / 2 + 0.4
+            limb((0, 0, trunk_h * 0.25), (math.cos(a) * trunk_r * 2.2, math.sin(a) * trunk_r * 2.2, 0.0), trunk_r * 0.55, trunk_r * 0.25, BARK)
+        for s in (-1, 1):
+            limb((0, 0, trunk_h * 0.65), (s * 0.28, 0.05, trunk_h + 0.15), trunk_r * 0.5, trunk_r * 0.3, BARK)
+    with tex('leaf'):
+        blob((0, 0, trunk_h + canopy * 0.55), canopy, (1, 1, 0.82 * flat), col, rough=0.1, seed=seed)
+        for ring_i, (cnt, rad, zf, rs) in enumerate(((n + 4, spread * 1.05, 0.35, 0.5), (n, spread * 0.8, 0.75, 0.48), (max(3, n // 2), spread * 0.35, 1.05, 0.45))):
+            for i in range(cnt):
+                a = 2 * math.pi * i / cnt + rnd.uniform(-0.3, 0.3) + ring_i
+                r = canopy * rs * rnd.uniform(0.85, 1.15)
+                z = trunk_h + canopy * (zf + rnd.uniform(-0.12, 0.12)) * flat
+                blob((math.cos(a) * canopy * rad, math.sin(a) * canopy * rad, z), r, (1, 1, 0.85), col, rough=0.16, seed=seed + 31 * ring_i + i)
 
 @item('tree_round')
 def _(): broadleaf(21, 0.9, 0.85)
@@ -601,7 +685,7 @@ def _():
         for k in range(n):
             x = x0 + (x1 - x0) * k / max(1, n - 1) if n > 1 else 0
             limb((x, -0.3, z + 0.15), (x, 0.3, z + 0.15), 0.14, 0.14, BARK)
-            sphere((x, -0.305, z + 0.15), 0.135, (1, 0.1, 1), '#E8C48E', seg=20, line=0)
+            with tex('plain'): sphere((x, -0.305, z + 0.15), 0.135, (1, 0.1, 1), '#E8C48E', seg=20, line=0)
             ring((x, -0.315, z + 0.15), 0.07, 0.008, '#B88A5A', rot=(90, 0, 0), line=0)
     # an axe in a stump
     limb((0.95, -0.2, 0), (0.95, -0.2, 0.3), 0.18, 0.18, BARK); sphere((0.95, -0.2, 0.3), 0.175, (1, 1, 0.08), '#E8C48E', seg=20, line=0)
@@ -636,9 +720,13 @@ def window(loc, w, h, glow=True, rot=(0, 0, 0)):
 
 @item('v_house_a', yaw=-30)
 def _():
-    box((0, 0, 0.45), (1.5, 1.0, 0.9), '#C98E5A', bevel=0.05)     # mud walls
-    box((0, 0, 0.06), (1.62, 1.12, 0.12), '#A9744A', bevel=0.03)  # plinth
-    thatch_roof(0, 0, 0.88, 1.5, 1.0, 0.75, '#4F5F8A', overhang=0.22)
+    with tex('mud'):
+        box((0, 0, 0.45), (1.5, 1.0, 0.9), '#A8764E', bevel=0.05)     # mud walls
+        box((0, 0, 0.06), (1.62, 1.12, 0.12), '#8A5E3E', bevel=0.03)  # plinth
+    with tex('thatch'):
+        thatch_roof(0, 0, 0.88, 1.5, 1.0, 0.75, '#3F4F80', overhang=0.22)
+    sphere((0.55, -0.56, 0.62), 0.06, (1, 0.8, 1.3), '#FFB066', seg=14, flat=True, line=0.01)   # lantern by the door
+    limb((0.55, -0.53, 0.72), (0.55, -0.51, 0.8), 0.008, 0.008, '#3E2A22', line=0)
     box((0.25, -0.505, 0.36), (0.32, 0.03, 0.6), '#6B4A32', bevel=0.01)   # door
     window((-0.35, -0.505, 0.5), 0.26, 0.24, glow=True)
     box((-0.35, -0.53, 0.37), (0.34, 0.06, 0.04), WOOD_D, bevel=0.01)
@@ -1043,14 +1131,14 @@ def _():
     sphere((0, 0, 1.12), 0.08, (1, 1, 0.5), '#5A6470', seg=16)
 
 # ------------------------------------------------------------------ run
-# every item is seen from the same angle as the station buildings: from above (62 degrees), square on
-VIEW_ELEV = 62.0
+# every item is seen from the same raised three-quarter view as the painted scenery art, square on
+VIEW_ELEV = 40.0   # the painted scenery's three-quarter view
 def view(cam):
     return (90.0 if cam.get('elev') == 90 else VIEW_ELEV), 0.0
 # blender/scenery_anim.py reuses everything above and runs its own loop instead
 for name, (fn, cam) in ([] if 'ANIM_HOOK' in globals() else ITEMS.items()):
     if ONLY and name not in ONLY: continue
-    LINE[0] = 0.022
+    LINE[0] = 0.026
     fn()
     size = cam.get('size')
     el, yw = view(cam)
