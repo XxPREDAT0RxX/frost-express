@@ -1,0 +1,48 @@
+# Records gameplay clips (TrailerTest) and cuts the store trailer (store_assets/make_trailer.py).
+# Run by hand: Actions tab > "Trailer" > Run workflow. Publishes a release trailer-<n> with the videos.
+name: Trailer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  trailer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+      - name: Record gameplay clips
+        shell: bash
+        run: gradle testDebugUnitTest --tests "com.chetna.frostexpress.TrailerTest" --no-daemon 2>&1 | tee trailer.log | tail -40
+      - name: Cut the trailer
+        shell: bash
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core > /dev/null
+          pip install -q pillow
+          ls app/build/trailer | wc -l
+          python3 store_assets/make_trailer.py app/build/trailer out
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: trailer-${{ github.run_number }}
+          name: Store trailer ${{ github.run_number }}
+          prerelease: true
+          files: |
+            out/trailer-vertical.mp4
+            out/trailer-landscape.mp4
+      - name: Publish log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: trailer-${{ github.run_number }}-failed
+          prerelease: true
+          files: trailer.log
