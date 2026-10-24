@@ -17,7 +17,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.chetna.frostexpress" // Use your own unique ID for the Play Store
+        // The Play Store ID: permanent once the app is published. The Kotlin package (namespace) stays as it was.
+        applicationId = "com.himanshu.littleexpress"
         minSdk = 26
         targetSdk = 36
         // CI build number, so every uploaded build has a higher version code than the last one

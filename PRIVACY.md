@@ -1,8 +1,8 @@
 # Privacy Policy — Little Express
 
-Last updated: 14 October 2026
+Last updated: 24 October 2026
 
-Little Express is a single-player idle game. This policy explains what data the game and the services inside it use.
+Little Express (Android app ID com.himanshu.littleexpress) is a single-player idle game. This policy explains what data the game and the services inside it use.
 
 ## What the game itself stores
 
