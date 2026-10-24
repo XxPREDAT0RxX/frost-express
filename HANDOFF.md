@@ -8,7 +8,7 @@ Paste this file (or point the new chat to it in the repo) so it can continue whe
 - Nothing builds locally: everything builds on **GitHub Actions** (~9 min). Visuals are checked through CI screenshots (Roborazzi, `screens.zip` in each release).
 
 ## Project
-- Native Android idle **train simulator**, Kotlin 2.0.21, Jetpack Compose Canvas. Package `com.chetna.frostexpress`, app name **Little Express** (old name "Frost Express" is gone from all docs).
+- Native Android idle **train simulator**, Kotlin 2.0.21, Jetpack Compose Canvas. Kotlin package `com.chetna.frostexpress`, **Play Store ID `com.himanshu.littleexpress`** (permanent after first upload), app name **Little Express** (old name "Frost Express" is gone from all docs).
 - Repo: `github.com/XxPREDAT0RxX/frost-express` (private), branch `main`.
 - Each push to `main` → workflow **Build APK** → release `build-N` with `app-debug.apk`, `app-releaseTest.apk` (R8, debug-signed, installs over earlier builds), `app-release.aab`, `mapping.txt`, `screens.zip`.
 - Download an asset: `gh api repos/XxPREDAT0RxX/frost-express/releases/tags/build-N --jq '.assets[]|"\(.id) \(.name)"'`, then `curl -sL -H "Accept: application/octet-stream" -H "Authorization: token $(gh auth token)" -o FILE https://api.github.com/repos/XxPREDAT0RxX/frost-express/releases/assets/ID`.
